@@ -1,0 +1,25 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="x-ua-compatible" content="ie=edge">
+
+    <title>SwarMown - {% block title %}{% endblock %}</title>
+
+    <!-- Favicon -->
+    <link rel="shortcut icon" type="image/png" href="{% static 'img/favicon.jpg' %}"/>
+
+    {% block head %}{% endblock %}
+</head>
+
+<body>
+<div>
+    {% block content %}{% endblock %}
+</div>
+
+{% block foot %}{% endblock %}
+</body>
+</html>
