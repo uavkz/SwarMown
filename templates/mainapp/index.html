@@ -1,9 +1,82 @@
 {% extends "base.html" %}
 
+{% load static %}
+
+{% block head %}
+    <script src="{% static 'js/pixi.min.js' %}"></script>
+{% endblock %}
+
 {% block title %}
     Главная
 {% endblock %}
 
 {% block content %}
-    Тест
+
+{% endblock %}
+
+{% block foot %}
+<script>
+    const app = new PIXI.Application({width: 1200, height: 800});
+    document.body.appendChild(app.view);
+    const {stage} = app;
+
+    // prepare circle texture, that will be our brush
+    const brush = new PIXI.Graphics();
+    brush.beginFill(0xffffff);
+    brush.drawRect(0, 0, 25, 150);
+    brush.endFill();
+
+    app.loader.add('t1', '{% static 'img/textures/crop_bad.jpg' %}');
+    app.loader.add('t2', '{% static 'img/textures/crop_good.jpg' %}');
+    app.loader.add('cat', '{% static 'img/textures/cat.png' %}');
+    app.loader.load(setup);
+
+    function setup(loader, resources) {
+        const background = new PIXI.Sprite(resources.t1.texture);
+        stage.addChild(background);
+        background.width = app.screen.width;
+        background.height = app.screen.height;
+
+        const imageToReveal = new PIXI.Sprite(resources.t2.texture);
+        stage.addChild(imageToReveal);
+        imageToReveal.width = app.screen.width;
+        imageToReveal.height = app.screen.height;
+
+        const cat = new PIXI.Sprite(resources.cat.texture);
+        stage.addChild(cat);
+        cat.x = 50;
+        cat.y = 50;
+
+        const renderTexture = PIXI.RenderTexture.create(app.screen.width, app.screen.height);
+
+        const renderTextureSprite = new PIXI.Sprite(renderTexture);
+        stage.addChild(renderTextureSprite);
+        imageToReveal.mask = renderTextureSprite;
+
+        app.stage.interactive = true;
+        app.stage.on('pointerdown', pointerDown);
+        app.stage.on('pointerup', pointerUp);
+        app.stage.on('pointermove', pointerMove);
+
+        let dragging = false;
+
+        function pointerMove(event) {
+            if (dragging) {
+                brush.position.copyFrom(event.data.global);
+                cat.x = event.data.global.x - 32;
+                cat.y = event.data.global.y - 32;
+                app.renderer.render(brush, renderTexture, false, null, false);
+            }
+        }
+
+        function pointerDown(event) {
+            dragging = true;
+            pointerMove(event);
+        }
+
+        function pointerUp(event) {
+            dragging = false;
+        }
+    }
+</script>
 {% endblock %}
