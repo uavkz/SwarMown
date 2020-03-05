@@ -60,6 +60,20 @@
         cat.x = 50;
         cat.y = 50;
 
+        // Draw grid
+        let grid = {{ grid|safe }};
+        console.log(grid);
+        for(let point of grid){
+            let gridCircle = new PIXI.Graphics();
+            gridCircle.beginFill(0x00cc14);
+            stage.addChild(gridCircle);
+            gridCircle.x = point[0];
+            gridCircle.y = point[1];
+            gridCircle.drawCircle(0, 0, 10);
+            gridCircle.endFill();
+            console.log(point);
+        }
+
         stage.interactive = true;
         stage.on('pointerdown', pointerDown);
         stage.on('pointerup', pointerUp);
