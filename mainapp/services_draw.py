@@ -26,3 +26,24 @@ def get_grid(field, step):
             if polygon.contains(point):
                 grid.append([x, y])
     return grid
+
+
+def get_drones_initial_positions(field, grid):
+    return [
+        [100, 100],
+        [1000, 700],
+    ]
+
+
+def get_waypoints(field, grid, drones_inits):
+    print(grid)
+    return [
+        [
+            [150, 120],
+            [800, 50],
+            [200, 200],
+            [900, 800],
+            [300, 350],
+        ],
+        grid
+    ]

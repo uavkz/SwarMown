@@ -55,14 +55,17 @@
         {#fieldReady.mask = renderTextureSprite;#}
         {#fieldReadyTiling.mask = fieldReady;#}
 
-        const cat = new PIXI.Sprite(resources.cat.texture);
-        stage.addChild(cat);
-        cat.x = 50;
-        cat.y = 50;
+        var drones = [];
+        for(let dronePos of {{ initial_drones|safe }}) {
+            const drone = new PIXI.Sprite(resources.cat.texture);
+            stage.addChild(drone);
+            drone.x = dronePos[0];
+            drone.y = dronePos[1];
+            drones.push(drone);
+        }
 
         // Draw grid
         let grid = {{ grid|safe }};
-        console.log(grid);
         for(let point of grid){
             let gridCircle = new PIXI.Graphics();
             gridCircle.beginFill(0x00cc14);
@@ -71,32 +74,30 @@
             gridCircle.y = point[1];
             gridCircle.drawCircle(0, 0, 10);
             gridCircle.endFill();
-            console.log(point);
         }
 
-        stage.interactive = true;
-        stage.on('pointerdown', pointerDown);
-        stage.on('pointerup', pointerUp);
-        stage.on('pointermove', pointerMove);
+        var waypoints = {{ waypoints|safe }}
 
-        let dragging = false;
+        app.ticker.add(delta => gameLoop(delta));
 
-        function pointerMove(event) {
-            if (dragging) {
-                brush.position.copyFrom(event.data.global);
-                cat.x = event.data.global.x - 32;
-                cat.y = event.data.global.y - 32;
-                {#app.renderer.render(brush, renderTexture, false, null, false);#}
+        function gameLoop(delta) {
+            let i = 0;
+            for(let drone of drones){
+                if(waypoints[i].length === 0) {
+                    i++;
+                    continue;
+                }
+                let my_waypoint = waypoints[i][0];
+
+                drone.x += (my_waypoint[0] - 25 - drone.x) / 30;
+                drone.y += (my_waypoint[1] - 25 - drone.y) / 30;
+
+                if(Math.abs(drone.x + 25 - my_waypoint[0]) < 15 && Math.abs(drone.y + 25 - my_waypoint[1]) < 15) {
+                    waypoints[i].shift();
+                }
+
+                i++;
             }
-        }
-
-        function pointerDown(event) {
-            dragging = true;
-            pointerMove(event);
-        }
-
-        function pointerUp(event) {
-            dragging = false;
         }
     }
 </script>
