@@ -89,8 +89,8 @@
                 }
                 let my_waypoint = waypoints[i][0];
 
-                drone.x += (my_waypoint[0] - 25 - drone.x) / 30;
-                drone.y += (my_waypoint[1] - 25 - drone.y) / 30;
+                drone.x += (my_waypoint[0] - 25 - drone.x) / 15;
+                drone.y += (my_waypoint[1] - 25 - drone.y) / 15;
 
                 if(Math.abs(drone.x + 25 - my_waypoint[0]) < 15 && Math.abs(drone.y + 25 - my_waypoint[1]) < 15) {
                     waypoints[i].shift();
