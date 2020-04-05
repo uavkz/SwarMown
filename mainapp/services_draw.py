@@ -9,6 +9,7 @@ def get_field():
         [1000, 600],
         [900, 700],
         [300, 750],
+        
     ]
     return points
 
@@ -31,29 +32,18 @@ def get_grid(field, step):
 
 def get_drones_initial_positions(field, grid):
     return [
-        [100, 100],
-        [1000, 700],
+        [0, 0],
+        [0, 0],
     ]
 
-def get_grid_size(a):
-    counters=[]
-    
-    counter=0
-    for i in range(len(a)):
-        if (i==(len(a)-1)):
-            counter+=1
-            counters.append(counter)
-        else:
-            if a[i][0]==a[i-1][0]:
-                counter+=1        
-            else:
-                counter+=1
-                counters.append(counter)
-                counter=0
-    #print(counters[1:])
-    X_DIM=len(counters)
-    Y_DIM=np.amax(counters[1:])
-    return X_DIM, Y_DIM
+def unique(list1): 
+    unique_list = []
+    for x in list1: 
+        if x not in unique_list: 
+            unique_list.append(x)
+    return unique_list
+
+
     
     
     
@@ -65,6 +55,9 @@ def convert_coordinates(a):
         y.append(b[1])
     return x,y
     
+def get_grid_size(a):
+    x,y = convert_coordinates(a)
+    return len(unique(x)), len(unique(y))
     
 def get_zigzag_path(grid):
     X_DIM, Y_DIM =get_grid_size(grid)
@@ -107,10 +100,15 @@ def get_zigzag_path(grid):
 
 
 def get_waypoints(field, grid, drones_inits):
-    print('nz2')
+    print(grid)
     z=get_zigzag_path(grid)
     print(z)
     return [
         z[len(z)//2:],
         z[:len(z)//2]
     ]
+
+def check_waypoints(a,b):
+    for i in range(len(a)):
+        for b in range(len(b)):
+            print()
