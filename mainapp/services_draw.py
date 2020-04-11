@@ -1,6 +1,7 @@
 from shapely.geometry import Point
 from shapely.geometry.polygon import Polygon
 
+
 def get_field():
     points = [
         [150, 120],
