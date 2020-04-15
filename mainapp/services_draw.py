@@ -31,11 +31,8 @@ def get_grid(field, step):
     return grid
 
 
-def get_drones_initial_positions(field, grid):
-    return [
-        [0, 0],
-        [0, 0],
-    ]
+def get_initial_position(field, grid):
+    return [50, 50]
 
 
 def unique(list1):
@@ -81,13 +78,11 @@ def get_zigzag_path(grid):
 
     for i in range(Y_DIM):
         for j in range(X_DIM):
-
             for g in range(len(grid)):
                 if i % 2 == 0:
                     nj = j
                 else:
                     nj = X_DIM - j - 1
-
                 if (grid[g][0] == int(zr[0][i][nj])) and (grid[g][1] == int(zr[1][i][nj])):
                     coord = [int(zr[0][i][nj]), int(zr[1][i][nj])]
                     # coord=[a[g][0],a[g][1]]

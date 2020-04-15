@@ -29,7 +29,8 @@
     app.loader.add('crop_bad', '{% static 'img/textures/crop_bad.jpg' %}');
     app.loader.add('crop_good', '{% static 'img/textures/crop_good.jpg' %}');
     app.loader.add('badland', '{% static 'img/textures/badland.jpg' %}');
-    app.loader.add('cat', '{% static 'img/textures/cat.png' %}');
+    app.loader.add('drone', '{% static 'img/textures/drone.png' %}');
+    app.loader.add('pickup', '{% static 'img/textures/pickup.png' %}');
     app.loader.load(setup);
 
     function setup(loader, resources) {
@@ -56,13 +57,23 @@
         {#fieldReadyTiling.mask = fieldReady;#}
 
         var drones = [];
-        for(let dronePos of {{ initial_drones|safe }}) {
-            const drone = new PIXI.Sprite(resources.cat.texture);
+        var initial = {{ initial|safe }};
+        for(i = 0; i < {{ number_of_drones }}; i++) {
+            const drone = new PIXI.Sprite(resources.drone.texture);
             stage.addChild(drone);
-            drone.x = dronePos[0];
-            drone.y = dronePos[1];
+            drone.x = initial[0];
+            drone.y = initial[1];
+            drone.width = 64;
+            drone.height = 64;
             drones.push(drone);
         }
+
+        const pickup = new PIXI.Sprite(resources.pickup.texture);
+        stage.addChild(pickup);
+        pickup.x = initial[0];
+        pickup.y = initial[1];
+        pickup.height = 70;
+        pickup.width = 166;
 
         // Draw grid
         let grid = {{ grid|safe }};
@@ -80,7 +91,7 @@
 
         app.ticker.add(delta => gameLoop(delta));
 
-        var droneSpeed = 4;
+        var droneSpeed = 5;
         function gameLoop(delta) {
             let i = 0;
             for(let drone of drones){
