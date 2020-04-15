@@ -94,22 +94,12 @@ def get_zigzag_path(grid):
                     new_coords.append(coord)
                     coord = []
                 counter += 1
-
-    print(get_grid_size(grid))
     return new_coords
 
 
 def get_waypoints(field, grid, drones_inits):
-    print(grid)
     z = get_zigzag_path(grid)
-    print(z)
     return [
         z[len(z) // 2:],
         z[:len(z) // 2]
     ]
-
-
-def check_waypoints(a, b):
-    for i in range(len(a)):
-        for b in range(len(b)):
-            print()

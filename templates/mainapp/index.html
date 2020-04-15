@@ -80,6 +80,7 @@
 
         app.ticker.add(delta => gameLoop(delta));
 
+        var droneSpeed = 4;
         function gameLoop(delta) {
             let i = 0;
             for(let drone of drones){
@@ -88,14 +89,19 @@
                     continue;
                 }
                 let my_waypoint = waypoints[i][0];
+                let delta_x = my_waypoint[0] - drone.height / 2 - drone.x;
+                let delta_y = my_waypoint[1] - drone.height / 2 - drone.y;
+                let delta = Math.sqrt(delta_x * delta_x + delta_y * delta_y);
+                delta_x /= delta;
+                delta_y /= delta;
 
-                drone.x += (my_waypoint[0] - 25 - drone.x) / 15;
-                drone.y += (my_waypoint[1] - 25 - drone.y) / 15;
+                drone.x += delta_x * droneSpeed;
+                drone.y += delta_y * droneSpeed;
 
-                if(Math.abs(drone.x + 25 - my_waypoint[0]) < 15 && Math.abs(drone.y + 25 - my_waypoint[1]) < 15) {
+                if (Math.abs(drone.x + drone.height / 2 - my_waypoint[0]) < droneSpeed / 2 &&
+                    Math.abs(drone.y + drone.height / 2 - my_waypoint[1]) < droneSpeed / 2) {
                     waypoints[i].shift();
                 }
-
                 i++;
             }
         }
