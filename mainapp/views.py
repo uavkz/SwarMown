@@ -29,10 +29,12 @@ class GaView(TemplateView):
         context = super().get_context_data(**kwargs)
         field = get_field()
         grid = get_grid(field, 50)
-        waypoints, center_coordinates = generate_waypoints(grid)
+        waypoints = generate_waypoints(grid)
+        initial_position = generate_car_position()
+        number_of_drones = len(waypoints)
         context['field'] = [coord for point in field for coord in point]
         context['grid'] = grid
-        context['initial'] = center_coordinates
+        context['initial'] = initial_position
         context['waypoints'] = waypoints
-        context['number_of_drones'] = len(waypoints)
+        context['number_of_drones'] = number_of_drones
         return context

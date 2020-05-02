@@ -6,6 +6,14 @@ def get_field_ga():
     return [44, 27, 44, 43, 58, 44, 58, 27]
 
 
+def generate_car_position():
+    """
+    # TODO replace in new implementation
+    :return:
+    """
+    return [559, 411]
+
+
 def generate_waypoints(initial_coordinates=None):
     import numpy as np
 
@@ -65,8 +73,8 @@ def generate_waypoints(initial_coordinates=None):
         for coords in drones_way:
             drones_list.append([coords.x, coords.y])
         final_list.append(drones_list)
-    center = [int(x) for x in center]
-    return final_list, center
+
+    return final_list
 
 
 def generate_nodes(**kwargs):
