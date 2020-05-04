@@ -104,26 +104,57 @@ def euclidean(x1, x2, y1, y2):
     return np.sqrt((x1 - x2)**2 + (y1 - y2)**2)
 
 
+# def field_to_fly(track_coord, max_d, init_coord, perc_to_save, zamboni_path):
+#     max_const = max_d
+#     dist = 0
+#     track_drone_d = euclidean(zamboni_path[init_coord, 0], track_coord[0], zamboni_path[init_coord, 1], track_coord[1])
+#     #     print("before track coords:", max_d)
+#     max_d = max_d - 2 * track_drone_d
+#     #     print("after track coords:", max_d)
+#     left_on, ind = None, None
+#     i = init_coord
+#     while (max_d > (perc_to_save * max_const) and i < len(
+#             zamboni_path) - 1):  # left max_dist is larger than ..% battery left
+#         d = euclidean(zamboni_path[i, 0], zamboni_path[i + 1, 0], zamboni_path[i, 1],
+#                       zamboni_path[i + 1, 1])  # between two points
+#         dist += d  # skolko proshel
+#         if max_d >= d:
+#             max_d -= d
+#             left_on = [zamboni_path[i + 1, 0], zamboni_path[i + 1, 1]]
+#             ind = i + 1
+#         #             print("left_on", left_on)
+#         #             print("ind", ind)
+#         else:
+#             left_on = [zamboni_path[i + 1, 0], zamboni_path[i + 1, 1]]
+#             ind = i + 1
+#             break
+#         i += 1
+#
+#     #     print("left on", left_on)
+#     return [dist, left_on, ind]
+
+
 def field_to_fly(track_coord, max_d, init_coord, perc_to_save, zamboni_path):
     max_const = max_d
     dist = 0
     track_drone_d = euclidean(zamboni_path[init_coord, 0], track_coord[0], zamboni_path[init_coord, 1], track_coord[1])
-    #     print("before track coords:", max_d)
-    max_d = max_d - 2 * track_drone_d
-    #     print("after track coords:", max_d)
+    max_d = max_d - track_drone_d
     left_on, ind = None, None
     i = init_coord
-    while (max_d > (perc_to_save * max_const) and i < len(
-            zamboni_path) - 1):  # left max_dist is larger than ..% battery left
-        d = euclidean(zamboni_path[i, 0], zamboni_path[i + 1, 0], zamboni_path[i, 1],
-                      zamboni_path[i + 1, 1])  # between two points
+    while max_d > (perc_to_save * max_const) and i < len(zamboni_path) - 1:  # left max_dist is larger than ..% battery left
+        d = euclidean(zamboni_path[i, 0], zamboni_path[i + 1, 0], zamboni_path[i, 1], zamboni_path[i + 1, 1])  # between two points
         dist += d  # skolko proshel
         if max_d >= d:
             max_d -= d
             left_on = [zamboni_path[i + 1, 0], zamboni_path[i + 1, 1]]
             ind = i + 1
-        #             print("left_on", left_on)
-        #             print("ind", ind)
+
+            check_back_path = euclidean(zamboni_path[i + 1, 0], track_coord[0], zamboni_path[i + 1, 1], track_coord[1])
+            if check_back_path > max_d:
+                left_on = [zamboni_path[i + 1, 0], zamboni_path[i + 1, 1]]
+                ind = i + 1
+                break
+
         else:
             left_on = [zamboni_path[i + 1, 0], zamboni_path[i + 1, 1]]
             ind = i + 1
@@ -156,9 +187,9 @@ def drones_num(track_coord, max_d, init_p, percent, grid):
         dist, coord, init_p = field_to_fly(track_coord, max_d, init_prev, percent, zamboni_path)
         total_d -= dist
         drones_max += 1
-
         coords.append(coord)
         drone_paths.append(zamboni_path[init_prev:init_p + 1])
+
     drone_paths = [[list(coords) for coords in path] + [TRACK_COORD] for path in drone_paths]
     waypoints = drone_paths[:SWARM_POPULATION]
     for i, path in enumerate(drone_paths[SWARM_POPULATION:]):
