@@ -11,7 +11,17 @@
 {% endblock %}
 
 {% block content %}
+    <form action="" method="GET">
+        <select name="algorithm">
+            <option value="simple">Simple</option>
+            <option value="ga">GA</option>
+            <option value="zamboni">Zamboni</option>
+        </select>
 
+        <input type="number" name="grid_step">
+
+        <input type="submit" value="Запустить">
+    </form>
 {% endblock %}
 
 {% block foot %}
