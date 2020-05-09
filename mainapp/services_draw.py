@@ -2,6 +2,8 @@ from shapely.geometry import Point
 from shapely.geometry.polygon import Polygon
 import numpy as np
 
+from mainapp.kinematic_constants import INIT_P, MAX_D, PERCENT
+
 
 def get_field():
     points = [
@@ -10,7 +12,6 @@ def get_field():
         [1000, 600],
         [900, 700],
         [300, 750],
-
     ]
     return points
 
@@ -92,7 +93,7 @@ def get_zigzag_path(grid):
     return new_coords
 
 
-def get_waypoints(field, grid, drones_inits):
+def get_waypoints(grid, drones_inits):
     z = get_zigzag_path(grid)
     return [
         z[len(z) // 2:],
@@ -173,25 +174,21 @@ def total_dist(zamboni_path, total_dist=0):
     return total_dist
 
 
-def drones_num(track_coord, max_d, init_p, percent, grid):
+def generate_zamboni(grid, drones_inits):
     import numpy as np
     from mainapp.kinematic_constants import TRACK_COORD, SWARM_POPULATION
     zamboni_path = np.array(get_zigzag_path(grid))
     drones_max = 0
     total_d = total_dist(zamboni_path)
     drone_paths = list()
-    coords = list()
-
     while total_d > 0:
-        init_prev = init_p
-        dist, coord, init_p = field_to_fly(track_coord, max_d, init_prev, percent, zamboni_path)
+        init_prev = INIT_P
+        dist, coord, init_p = field_to_fly(TRACK_COORD, MAX_D, init_prev, PERCENT, zamboni_path)
         total_d -= dist
         drones_max += 1
-        coords.append(coord)
         drone_paths.append(zamboni_path[init_prev:init_p + 1])
-
     drone_paths = [[list(coords) for coords in path] + [TRACK_COORD] for path in drone_paths]
     waypoints = drone_paths[:SWARM_POPULATION]
     for i, path in enumerate(drone_paths[SWARM_POPULATION:]):
         waypoints[i % SWARM_POPULATION].extend(path)
-    return [drones_max, waypoints, coords]
+    return waypoints

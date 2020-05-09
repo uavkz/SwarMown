@@ -1,8 +1,7 @@
 from django.views.generic import TemplateView
 
+from mainapp.algorithms import WAYPOINTS_ALGORITHMS
 from mainapp.services_draw import *
-from mainapp.ga_services import *
-from mainapp.kinematic_constants import *
 
 
 class MownView(TemplateView):
@@ -11,51 +10,15 @@ class MownView(TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         field = get_field()
-        grid_step = 50
+        grid_step = int(self.request.GET.get("grid_step", 50))
         grid = get_grid(field, grid_step)
         initial_position = get_initial_position(field, grid)
-        number_of_drones = 2
-        waypoints = get_waypoints(field, grid, initial_position)
+        waypoints = WAYPOINTS_ALGORITHMS[self.request.GET.get("algorithm", "simple")]['callable'](grid, initial_position)
         context['field_flat'] = [coord for point in field for coord in point]
         context['field'] = field
         context['grid'] = grid
         context['grid_step'] = grid_step
         context['initial'] = initial_position
         context['waypoints'] = [[initial_position] + w + [initial_position] for w in waypoints]
-        context['number_of_drones'] = number_of_drones
-        return context
-
-
-class GaView(TemplateView):
-    template_name = "mainapp/index.html"
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        field = get_field()
-        grid = get_grid(field, 50)
-        waypoints = generate_waypoints(grid)
-        initial_position = generate_car_position()
-        number_of_drones = len(waypoints)
-        context['field'] = [coord for point in field for coord in point]
-        context['grid'] = grid
-        context['initial'] = initial_position
-        context['waypoints'] = waypoints
-        context['number_of_drones'] = number_of_drones
-        return context
-
-
-class ZamboniView(TemplateView):
-    template_name = "mainapp/index.html"
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        field = get_field()
-        grid = get_grid(field, 50)
-        initial_position = TRACK_COORD
-        number_of_drones, waypoints, coords = drones_num(TRACK_COORD, MAX_D, INIT_P, PERCENT, grid)
-        context['field'] = [coord for point in field for coord in point]
-        context['grid'] = grid
-        context['initial'] = initial_position
-        context['waypoints'] = waypoints
-        context['number_of_drones'] = SWARM_POPULATION
+        context['number_of_drones'] = len(waypoints)
         return context

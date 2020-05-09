@@ -103,7 +103,7 @@
             stage.addChild(gridCircle);
             gridCircle.x = point[0];
             gridCircle.y = point[1];
-            gridCircle.drawCircle(0, 0, 10);
+            gridCircle.drawCircle(0, 0, gridStep / 5);
             gridCircle.endFill();
         }
 
@@ -135,7 +135,7 @@
                 drone.x += delta_x * droneSpeed;
                 drone.y += delta_y * droneSpeed;
 
-                if(tick % (gridStep/droneSpeed/10) === 0 && checkIfInPolygon([drone.x + drone.width / 2, drone.y + drone.height / 2], fieldPolygon)){
+                if(tick % Math.round((gridStep / droneSpeed / Math.max(10 / drones.length, 3))) === 0 && checkIfInPolygon([drone.x + drone.width / 2, drone.y + drone.height / 2], fieldPolygon)){
                     let trail = new PIXI.Graphics();
                     trail.beginFill(0x00cc14);
                     stage.addChild(trail);

@@ -1,3 +1,4 @@
+# TODO Move to models and DB
 MAX_D = 2500
 INIT_P = 0
 TRACK_COORD = [900, 700]

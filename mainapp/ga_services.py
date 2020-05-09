@@ -14,11 +14,11 @@ def generate_car_position():
     return [559, 411]
 
 
-def generate_waypoints(initial_coordinates=None):
+def generate_waypoints_ga(grid, drones_inits):
     import numpy as np
 
-    if initial_coordinates is None:
-        initial_coordinates = generate_nodes()
+    if grid is None:
+        grid = generate_nodes()
     print('!!! start calculations')
     generations = 57
     mutation_rate = 0.03
@@ -28,7 +28,7 @@ def generate_waypoints(initial_coordinates=None):
     k_initial = 3  # default clusters num
     drone_base_fly_distance = 4500
 
-    clusters, center_coordinates = generate_clusters(initial_coordinates, k_initial)  # dict of clusters
+    clusters, center_coordinates = generate_clusters(grid, k_initial)  # dict of clusters
     center = centeroid(center_coordinates)
     routes = list()
     total_distance = list()
@@ -44,7 +44,7 @@ def generate_waypoints(initial_coordinates=None):
     if total_distance:
         k_new += 1  # implement increase and decrease cluster num cases
 
-    clusters_new, _ = generate_clusters(initial_coordinates, int(k_new))
+    clusters_new, _ = generate_clusters(grid, int(k_new))
     total_distance = list()
 
     for cluster_id, cluster_points in clusters_new.items():
