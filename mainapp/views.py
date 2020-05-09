@@ -11,12 +11,15 @@ class MownView(TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         field = get_field()
-        grid = get_grid(field, 50)
+        grid_step = 50
+        grid = get_grid(field, grid_step)
         initial_position = get_initial_position(field, grid)
         number_of_drones = 2
         waypoints = get_waypoints(field, grid, initial_position)
-        context['field'] = [coord for point in field for coord in point]
+        context['field_flat'] = [coord for point in field for coord in point]
+        context['field'] = field
         context['grid'] = grid
+        context['grid_step'] = grid_step
         context['initial'] = initial_position
         context['waypoints'] = [[initial_position] + w + [initial_position] for w in waypoints]
         context['number_of_drones'] = number_of_drones

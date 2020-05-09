@@ -16,6 +16,26 @@
 
 {% block foot %}
 <script>
+    function checkIfInPolygon(point, vs) {
+        // ray-casting algorithm based on
+        // http://www.ecse.rpi.edu/Homepages/wrf/Research/Short_Notes/pnpoly.html
+        var x = point[0], y = point[1];
+
+        var inside = false;
+        for (var i = 0, j = vs.length - 1; i < vs.length; j = i++) {
+            var xi = vs[i][0], yi = vs[i][1];
+            var xj = vs[j][0], yj = vs[j][1];
+
+            var intersect = ((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+            if (intersect)
+                inside = !inside;
+        }
+        return inside;
+    }
+
+    var fieldPolygon = {{ field|safe }};
+    var gridStep = {{ grid_step|safe }};
+
     const app = new PIXI.Application({width: 1200, height: 800});
     document.body.appendChild(app.view);
     const {stage} = app;
@@ -45,7 +65,7 @@
         fieldTiling.width = app.screen.width;
         fieldTiling.height = app.screen.height;
         stage.addChild(fieldTiling);
-        field.drawPolygon({{ field|safe }});
+        field.drawPolygon({{ field_flat|safe }});
         field.endFill();
         stage.addChild(field);
         fieldTiling.mask = field;
@@ -91,8 +111,14 @@
 
         app.ticker.add(delta => gameLoop(delta));
 
-        var droneSpeed = 5;
+        var droneSpeed = 10;
+        var tick = 0;
         function gameLoop(delta) {
+            tick += 1;
+            if(tick % 600 === 0) {
+                droneSpeed += 1;
+                console.log(droneSpeed);
+            }
             let i = 0;
             for(let drone of drones){
                 if(waypoints[i].length === 0) {
@@ -109,7 +135,18 @@
                 drone.x += delta_x * droneSpeed;
                 drone.y += delta_y * droneSpeed;
 
-                if (Math.abs(drone.x + drone.height / 2 - my_waypoint[0]) < droneSpeed / 2 &&
+                if(tick % (gridStep/droneSpeed/10) === 0 && checkIfInPolygon([drone.x + drone.width / 2, drone.y + drone.height / 2], fieldPolygon)){
+                    let trail = new PIXI.Graphics();
+                    trail.beginFill(0x00cc14);
+                    stage.addChild(trail);
+                    trail.x = drone.x + drone.width / 2;
+                    trail.y = drone.y + drone.height / 2;
+                    trail.drawCircle(0, 0, gridStep/1.9);
+                    trail.alpha = 0.2;
+                    trail.endFill();
+                }
+
+                if (Math.abs(drone.x + drone.width / 2 - my_waypoint[0]) < droneSpeed / 2 &&
                     Math.abs(drone.y + drone.height / 2 - my_waypoint[1]) < droneSpeed / 2) {
                     waypoints[i].shift();
                 }
