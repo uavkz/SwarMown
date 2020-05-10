@@ -90,12 +90,12 @@ def get_zigzag_path(grid):
     return new_coords
 
 
-def get_waypoints(grid, drones_inits):
+def get_waypoints(grid, drones_init):
     z = get_zigzag_path(grid)
     return [
         z[len(z) // 2:],
         z[:len(z) // 2]
-    ], []
+    ], [[drones_init[0], drones_init[1] + (0 if i < len(z) // 2 else 350)] for i, pos in enumerate(z)]
 
 
 def euclidean(x1, x2, y1, y2):

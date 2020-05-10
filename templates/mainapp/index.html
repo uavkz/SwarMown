@@ -118,19 +118,21 @@
         }
 
         var waypoints = {{ waypoints|safe }};
-        console.log(waypoints);
+        var pickupWaypoints = {{ pickup_waypoints|safe }};
+        console.log(pickupWaypoints);
 
         app.ticker.add(delta => gameLoop(delta));
 
         var droneSpeed = 10;
+        var pickupSpeed = 3;
         var tick = 0;
         function gameLoop(delta) {
             tick += 1;
             if(tick % 600 === 0) {
                 droneSpeed += 1;
-                console.log(droneSpeed);
             }
             let i = 0;
+            // Moving Drones
             for(let drone of drones){
                 if(waypoints[i].length === 0) {
                     i++;
@@ -162,9 +164,27 @@
                 if (Math.abs(drone.x + drone.width / 2 - my_waypoint[0]) < droneSpeed / 2 &&
                     Math.abs(drone.y + drone.height / 2 - my_waypoint[1]) < droneSpeed / 2) {
                     waypoints[i].shift();
+                    if(pickupWaypoints.length > 1) {
+                        pickupWaypoints.shift();
+                    }
                 }
                 i++;
             }
+
+            // Moving pickup
+            let my_waypoint = pickupWaypoints[0];
+            if (!(Math.abs(pickup.x + pickup.width / 2 - my_waypoint[0]) < pickupSpeed &&
+                Math.abs(pickup.y + pickup.height / 2 - my_waypoint[1]) < pickupSpeed)) {
+                let delta_x = my_waypoint[0] - pickup.width / 2 - pickup.x;
+                let delta_y = my_waypoint[1] - pickup.height / 2 - pickup.y;
+                let delta_pickup = Math.sqrt(delta_x * delta_x + delta_y * delta_y);
+                delta_x /= delta_pickup;
+                delta_y /= delta_pickup;
+
+                pickup.x += delta_x * pickupSpeed;
+                pickup.y += delta_y * pickupSpeed;
+            }
+            i++;
         }
     }
 </script>
