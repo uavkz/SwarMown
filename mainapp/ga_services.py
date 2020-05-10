@@ -74,7 +74,7 @@ def generate_waypoints_ga(grid, drones_inits):
             drones_list.append([coords.x, coords.y])
         final_list.append(drones_list)
 
-    return final_list
+    return final_list, []
 
 
 def generate_nodes(**kwargs):

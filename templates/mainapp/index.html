@@ -117,7 +117,8 @@
             gridCircle.endFill();
         }
 
-        var waypoints = {{ waypoints|safe }}
+        var waypoints = {{ waypoints|safe }};
+        console.log(waypoints);
 
         app.ticker.add(delta => gameLoop(delta));
 
@@ -145,7 +146,9 @@
                 drone.x += delta_x * droneSpeed;
                 drone.y += delta_y * droneSpeed;
 
-                if(tick % Math.round((gridStep / droneSpeed / Math.max(10 / drones.length, 3))) === 0 && checkIfInPolygon([drone.x + drone.width / 2, drone.y + drone.height / 2], fieldPolygon)){
+                if(tick % Math.round((gridStep / droneSpeed / Math.max(10 / drones.length, 3))) === 0 &&
+                    checkIfInPolygon([drone.x + drone.width / 2, drone.y + drone.height / 2], fieldPolygon) &&
+                    my_waypoint[2] === "active") {
                     let trail = new PIXI.Graphics();
                     trail.beginFill(0x00cc14);
                     stage.addChild(trail);

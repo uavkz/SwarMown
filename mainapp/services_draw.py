@@ -74,7 +74,6 @@ def get_zigzag_path(grid):
     zr = np.meshgrid(nx, ny)
 
     new_coords = []
-    coord = ()
     counter = 0
 
     for i in range(Y_DIM):
@@ -85,10 +84,8 @@ def get_zigzag_path(grid):
                 else:
                     nj = X_DIM - j - 1
                 if (grid[g][0] == int(zr[0][i][nj])) and (grid[g][1] == int(zr[1][i][nj])):
-                    coord = [int(zr[0][i][nj]), int(zr[1][i][nj])]
-                    # coord=[a[g][0],a[g][1]]
+                    coord = [int(zr[0][i][nj]), int(zr[1][i][nj]), "active"]
                     new_coords.append(coord)
-                    coord = []
                 counter += 1
     return new_coords
 
@@ -98,7 +95,7 @@ def get_waypoints(grid, drones_inits):
     return [
         z[len(z) // 2:],
         z[:len(z) // 2]
-    ]
+    ], []
 
 
 def euclidean(x1, x2, y1, y2):
@@ -191,4 +188,4 @@ def generate_zamboni(grid, drones_inits):
     waypoints = drone_paths[:SWARM_POPULATION]
     for i, path in enumerate(drone_paths[SWARM_POPULATION:]):
         waypoints[i % SWARM_POPULATION].extend(path)
-    return waypoints
+    return waypoints, []
