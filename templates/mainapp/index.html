@@ -164,7 +164,7 @@
                 if (Math.abs(drone.x + drone.width / 2 - my_waypoint[0]) < droneSpeed / 2 &&
                     Math.abs(drone.y + drone.height / 2 - my_waypoint[1]) < droneSpeed / 2) {
                     waypoints[i].shift();
-                    if(pickupWaypoints.length > 1) {
+                    if(pickupWaypoints.length > 1 && i === 0) {
                         pickupWaypoints.shift();
                     }
                 }
