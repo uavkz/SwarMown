@@ -95,7 +95,7 @@ def get_waypoints(grid, drones_init):
     return [
         z[len(z) // 2:],
         z[:len(z) // 2]
-    ], [[drones_init[0], drones_init[1] + (0 if i < len(z) // 2 else 350)] for i, pos in enumerate(z)]
+    ], [[drones_init[0], drones_init[1] + (0 if i < (len(z) // 4) else 350)] for i, pos in enumerate(z)]
 
 
 def euclidean(x1, x2, y1, y2):
