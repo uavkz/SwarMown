@@ -351,8 +351,7 @@ def generate_zamboni(grid, drones_inits):
     sixth_new.append(truck_path[-1])
 
     results = [first_new, second_new, third_new, fourth_new, fifth_new, sixth_new]
-    truck_path = [[0, 100], [0, 300],
-                  [0, 500], [0, 700]]
+    truck_path = [[0, 0 + (0 if i < len(results) // 2 else 350)] for i, pos in enumerate(results)]
     return results, truck_path
 
 
