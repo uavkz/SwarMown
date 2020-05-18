@@ -122,7 +122,7 @@
 
         app.ticker.add(delta => gameLoop(delta));
 
-        var droneSpeed = 10;
+        var droneSpeed = 8;
         var pickupSpeed = 6;
         var tick = 0;
         function gameLoop(delta) {
@@ -148,8 +148,7 @@
                 drone.y += delta_y * droneSpeed;
 
                 if(tick % Math.round((gridStep / droneSpeed / Math.max(10 / drones.length, 3))) === 0 &&
-                    checkIfInPolygon([drone.x + drone.width / 2, drone.y + drone.height / 2], fieldPolygon) &&
-                    my_waypoint[2] === "active") {
+                    checkIfInPolygon([drone.x + drone.width / 2, drone.y + drone.height / 2], fieldPolygon)) {
                     let trail = new PIXI.Graphics();
                     trail.beginFill(0x00cc14);
                     stage.addChild(trail);
