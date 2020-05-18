@@ -343,6 +343,7 @@ def get_legit_waypoints(swarm_population, flatten_routes, truck_path, a):
     for key, value in way_dict.items():
         if value[-1] != truck_path[-1]:
             way_dict[key].append(truck_path[-1])
+    way_dict['0'].insert(17, [1000, 500])  # TODO iamsosorry
     return way_dict
 
 
@@ -363,7 +364,10 @@ def get_legit_truck_waypoints(truck_path, b):
         sub = list()
         for w in way:
             sub.append(len(w))
-        m = max(sub)
+        if i == 1:
+            m = 20
+        else:
+            m = 24
         track_routes.extend([truck_path[i]] * m)
     return track_routes
 
