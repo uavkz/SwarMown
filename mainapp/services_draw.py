@@ -33,7 +33,7 @@ def get_grid(field, step):
 
 
 def get_initial_position(field, grid):
-    return [50, 50]
+    return [1000, 100]
 
 
 def unique(list1):
@@ -230,12 +230,10 @@ def all_pools_flight(truck_stops, max_drone_flight, right_edges, path_coords):
         if i == len(truck_stops) - 2:
             flag = 1
             temp_n, temp_path, temp_coord = \
-                drones_num(truck_stops[i], truck_stops[i + 1], max_drone_flight,
-                           init_p, right_edges, path_coords, flag, path_coords)
+                drones_num(truck_stops[i], truck_stops[i + 1], max_drone_flight, init_p, right_edges, path_coords, flag, path_coords)
         else:
             temp_n, temp_path, temp_coord = \
-                drones_num(truck_stops[i], truck_stops[i + 1], max_drone_flight,
-                           init_p, right_edges, path_coords, flag, path_coords)
+                drones_num(truck_stops[i], truck_stops[i + 1], max_drone_flight, init_p, right_edges, path_coords, flag, path_coords)
 
         edge_ind = find_edge(truck_stops[i + 1], right_edges)  # find the coordinate where to stop one pool
         for m in range(len(path_coords)):
@@ -279,7 +277,7 @@ def drones_num(track_1, track_2, max_drone_flight, init_p, right_edges, path_coo
             if right_edges[edge_ind] == list(path_coords[i]):
                 pool_end = i
     else:
-        pool_end = len(path_coords) - 1  # last index to path to finish the path
+        pool_end = len(path_coords) - 1  # last index to path to finish the pathdd
 
     pool_start = init_p  # initial position of a drone in a new field
     total_d = total_dist(pool_start, pool_end, zamboni_path)  # indices of the whole path coordinates
@@ -299,60 +297,91 @@ def drones_num(track_1, track_2, max_drone_flight, init_p, right_edges, path_coo
     return [drones_max, drone_paths, coords]
 
 
+def get_legit_a(a):
+    new_idx = list()
+    prev = None
+    for i, val in enumerate(a):
+        if not i:
+            prev = val
+            print(val - 1)
+            new_idx.append(val - 1)
+        else:
+            print(val + prev - 1)
+            new_idx.append(prev + val - 1)
+            prev += val
+    return new_idx
+
+
+def get_legit_waypoints(swarm_population, flatten_routes, truck_path, a):
+    """
+    for even drone num, fix in next iteration
+
+
+    first three drones:
+    1. fly
+    2. go to new track coord
+    3. move with car
+
+    another three drones:
+    1. move with car
+    2. fly
+    3. go to new track coord
+    """
+    way_dict = {str(k): [truck_path[0], ] for k in range(swarm_population)}
+    if a[0] < len(way_dict):
+        way_dict[list(way_dict.keys())[a[0] - len(way_dict)]].append(truck_path[1])
+    h = 0
+    new_a = get_legit_a(a)
+    for i, w in enumerate(flatten_routes):
+        if i <= new_a[h]:
+            way_dict[str(int(i % swarm_population))].extend(flatten_routes[i])
+            way_dict[str(int(i % swarm_population))].append(truck_path[1 + h])
+        else:
+            h += 1
+            way_dict[str(int(i % swarm_population))].extend(flatten_routes[i])
+            way_dict[str(int(i % swarm_population))].append(truck_path[1 + h])
+    for key, value in way_dict.items():
+        if value[-1] != truck_path[-1]:
+            way_dict[key].append(truck_path[-1])
+    return way_dict
+
+
+def get_flatten_waypoints(waypoints):
+    flatten_routes = list()
+    for w in waypoints:
+        if len(w) - 1:
+            for subway in w:
+                flatten_routes.append([list(el) for el in  subway])
+        else:
+            flatten_routes.append([list(el) for el in w[0]])
+    return flatten_routes
+
+
+def get_legit_truck_waypoints(truck_path, b):
+    track_routes = list()
+    for i, way in enumerate(b, start=1):
+        sub = list()
+        for w in way:
+            sub.append(len(w))
+        m = max(sub)
+        track_routes.extend([truck_path[i]] * m)
+    return track_routes
+
+
 def generate_zamboni(grid, drones_inits):
-    from mainapp.kinematic_constants import TRACK_COORD, SWARM_POPULATION
+    from mainapp.kinematic_constants import SWARM_POPULATION
 
     zamboni_path = np.array(get_zigzag_path(grid))
-    truck_path = [[1000, 100], [1000, 200], [1000, 300], [1000, 400], [1000, 500], [1000, 600], [1000, 700]]
-    # truck_path = [[200,50], [450,50], [700,50], [950,50]]
+    truck_path = [[1000, 100], [1000, 300], [1000, 500], [1000, 700]]
     right_edges = [[800, 100], [800, 150], [850, 200], [850, 250], [850, 300], [900, 350],
                    [900, 400], [900, 450], [950, 500], [950, 550], [950, 600], [900, 650], [850, 700]]
 
-    a, b, c = all_pools_flight(truck_path, 1650, right_edges, zamboni_path)
-    truck_path = [[0, 100], [0, 300], [0, 500], [0, 700]]
-    s = [truck_path[0]]
-    # add first state from track_state_0
-
-    first_new = s.copy()
-    second_new = s.copy()
-    third_new = s.copy()
-
-    first_new.extend([list(elem) for elem in b[0][0]])
-    second_new.extend([list(elem) for elem in b[0][1]])
-    third_new.extend([list(elem) for elem in b[0][2]])
-
-    fourth, fifth, sixth = [list(elem) for elem in b[1][0]], \
-                           [list(elem) for elem in b[1][1]], \
-                           [list(elem) for elem in b[1][2]]
-
-    for i, f in enumerate([first_new, second_new, third_new], start=2):
-        f.append(truck_path[1])
-        f.append(truck_path[2])
-        f.extend([list(y) for y in b[i][0]])
-        f.append(truck_path[-1])
-
-    w = truck_path[:2]
-
-    # add two states track_state_0 and track_state_1
-
-    fourth_new = w.copy()
-    fifth_new = w.copy()
-    sixth_new = w.copy()
-
-    fourth_new.extend(fourth)
-    fifth_new.extend(fifth)
-    sixth_new.extend(sixth)
-
-    for i, f in enumerate([fourth_new, fifth_new, sixth_new]):
-        f.append(truck_path[-2])
-        f.append(truck_path[-1])
-
-    sixth_new.extend([list(y) for y in b[-1][0]])
-    sixth_new.append(truck_path[-1])
-
-    results = [first_new, second_new, third_new, fourth_new, fifth_new, sixth_new]
-    truck_path = [[0, 0 + (0 if i < len(results) // 2 else 350)] for i, pos in enumerate(results)]
-    return results, truck_path
+    a, b, c = all_pools_flight(truck_path, 1750, right_edges, zamboni_path)
+    print('!!! a', a)
+    flatten_routes = get_flatten_waypoints(b)
+    way_dict = get_legit_waypoints(SWARM_POPULATION, flatten_routes, truck_path, a)
+    truck_ways = get_legit_truck_waypoints(truck_path, b)
+    return list(way_dict.values()), truck_ways
 
 
 def find_edge(track_coord, right_edges):
