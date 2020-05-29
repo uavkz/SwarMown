@@ -376,14 +376,13 @@ def generate_zamboni(grid, drones_inits):
     from mainapp.kinematic_constants import SWARM_POPULATION
 
     zamboni_path = np.array(get_zigzag_path(grid))
+    # truck_path = truck_coords(0, 10, 700, 0.2, 30, 0, 1000)[1]
     truck_path = [[1000, 100], [1000, 300], [1000, 500], [1000, 700]]
-    right_edges = [[800, 100], [800, 150], [850, 200], [850, 250], [850, 300], [900, 350],
-                   [900, 400], [900, 450], [950, 500], [950, 550], [950, 600], [900, 650], [850, 700]]
-
+    right_edges = get_right_edges(zamboni_path)
     a, b, c = all_pools_flight(truck_path, 1750, right_edges, zamboni_path)
-    print('!!! a', a)
     flatten_routes = get_flatten_waypoints(b)
     way_dict = get_legit_waypoints(SWARM_POPULATION, flatten_routes, truck_path, a)
+    print("!!! way dict", way_dict)
     truck_ways = get_legit_truck_waypoints(truck_path, b)
     return list(way_dict.values()), truck_ways
 
@@ -393,3 +392,41 @@ def find_edge(track_coord, right_edges):
     for i in range(len(right_edges)):
         distance.append(euclidean(track_coord[0], right_edges[i][0], track_coord[1], right_edges[i][1]))
     return distance.index(min(distance))
+
+
+def get_right_edges(new_coords):
+    steps = set()
+    for coord in new_coords:
+        steps.add(coord[1])
+    steps = sorted(list(steps))
+    edges = list()
+    for step in steps:
+        edge_max = 0
+        for coord in new_coords:
+            if coord[1] == step:
+                if coord[0]>edge_max:
+                    edge_max = coord[0]
+        edges.append([edge_max, step])
+    return edges
+
+
+def truck_coords(y_init, y_end_km, y_end_coords, drone_time, truck_V, gap_coef, x_coord):
+    y_new = 0  # coordinate of y-axis only
+    y_first = y_init
+    result = [[x_coord, y_init], ]
+    result_coord = []
+
+    while y_init < y_end_km:
+        y_new = y_init + truck_V * drone_time
+        result.append([x_coord, y_new])
+        y_new, y_init = y_init, y_new
+
+    if result[-1][-1] > y_end_km:
+        result[-1] = [x_coord, y_end_km]
+
+    for elem in result[1:]:
+        result_coord.append([x_coord, elem[1] * y_end_coords / y_end_km])
+
+    result_coord.insert(0, [x_coord, y_first])
+
+    return result, result_coord
