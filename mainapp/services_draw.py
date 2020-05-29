@@ -411,7 +411,6 @@ def get_right_edges(new_coords):
 
 
 def truck_coords(y_init, y_end_km, y_end_coords, drone_time, truck_V, gap_coef, x_coord):
-    y_new = 0  # coordinate of y-axis only
     y_first = y_init
     result = [[x_coord, y_init], ]
     result_coord = []
