@@ -10,11 +10,11 @@ class MownView(TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         field = get_field()
-        grid_step = int(self.request.GET.get("grid_step", 50))
+        grid_step = float(self.request.GET.get("grid_step", 0.001))
         grid = get_grid(field, grid_step)
         initial_position = get_initial_position(field, grid)
         # [x, y, z, is_active]
-        waypoints, pickup_waypoints = WAYPOINTS_ALGORITHMS[self.request.GET.get("algorithm", "zamboni")]['callable'](grid, initial_position)
+        waypoints, pickup_waypoints = WAYPOINTS_ALGORITHMS[self.request.GET.get("algorithm", "simple")]['callable'](grid, initial_position)
         context['field_flat'] = [coord for point in field for coord in point]
         context['field'] = field
         context['grid'] = grid

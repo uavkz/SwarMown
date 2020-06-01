@@ -7,11 +7,12 @@ from mainapp.kinematic_constants import INIT_P, MAX_D, PERCENT
 
 def get_field():
     points = [
-        [150, 120],
-        [800, 50],
-        [1000, 600],
-        [900, 700],
-        [300, 750],
+        # X/Long, Y/Lat
+        [76.85, 43.22],
+        [76.86, 43.22],
+        [76.86, 43.23],
+        [76.862, 43.235],
+        [76.85, 43.23],
     ]
     return points
 
@@ -24,8 +25,8 @@ def get_grid(field, step):
     max_y = max((p[1] for p in field))
     polygon = Polygon(field)
 
-    for x in range(min_x, max_x, step):
-        for y in range(min_y, max_y, step):
+    for x in np.linspace(min_x, max_x, round((max_x - min_x) / step)):
+        for y in np.linspace(min_y, max_y, round((max_y - min_y) / step)):
             point = Point(x, y)
             if polygon.contains(point):
                 grid.append([x, y])
@@ -33,7 +34,8 @@ def get_grid(field, step):
 
 
 def get_initial_position(field, grid):
-    return [1000, 100]
+    # X/Long, Y/Lat
+    return [76.85, 43.22]
 
 
 def unique(list1):
@@ -75,7 +77,6 @@ def get_zigzag_path(grid):
 
     new_coords = []
     counter = 0
-
     for i in range(Y_DIM):
         for j in range(X_DIM):
             for g in range(len(grid)):
@@ -83,8 +84,8 @@ def get_zigzag_path(grid):
                     nj = j
                 else:
                     nj = X_DIM - j - 1
-                if (grid[g][0] == int(zr[0][i][nj])) and (grid[g][1] == int(zr[1][i][nj])):
-                    coord = [int(zr[0][i][nj]), int(zr[1][i][nj])]
+                if (grid[g][0] == zr[0][i][nj]) and (grid[g][1] == zr[1][i][nj]):
+                    coord = [zr[0][i][nj], zr[1][i][nj]]
                     new_coords.append(coord)
                 counter += 1
     return new_coords
@@ -106,9 +107,7 @@ def euclidean(x1, x2, y1, y2):
 #     max_const = max_d
 #     dist = 0
 #     track_drone_d = euclidean(zamboni_path[init_coord, 0], track_coord[0], zamboni_path[init_coord, 1], track_coord[1])
-#     #     print("before track coords:", max_d)
 #     max_d = max_d - 2 * track_drone_d
-#     #     print("after track coords:", max_d)
 #     left_on, ind = None, None
 #     i = init_coord
 #     while (max_d > (perc_to_save * max_const) and i < len(
@@ -120,15 +119,12 @@ def euclidean(x1, x2, y1, y2):
 #             max_d -= d
 #             left_on = [zamboni_path[i + 1, 0], zamboni_path[i + 1, 1]]
 #             ind = i + 1
-#         #             print("left_on", left_on)
-#         #             print("ind", ind)
 #         else:
 #             left_on = [zamboni_path[i + 1, 0], zamboni_path[i + 1, 1]]
 #             ind = i + 1
 #             break
 #         i += 1
 #
-#     #     print("left on", left_on)
 #     return [dist, left_on, ind]
 
 
@@ -159,7 +155,6 @@ def euclidean(x1, x2, y1, y2):
 #             break
 #         i += 1
 #
-#     #     print("left on", left_on)
 #     return [dist, left_on, ind]
 
 
@@ -176,9 +171,7 @@ def field_to_fly(track_1, track_2, max_d, init_coord, pool_end, zamboni_path):
     """
     dist = 0
     track_drone_d = euclidean(zamboni_path[init_coord, 0], track_1[0], zamboni_path[init_coord, 1], track_1[1])
-    #     print("track-drone distance", track_drone_d)
     max_d = max_d - track_drone_d
-    #     print("start", [new_coords[init_coord,0], new_coords[init_coord,1]])
     i = init_coord
     left_on, ind = None, None
     while max_d > 0 and i < pool_end:  # left max_dist is larger than ..% battery left
@@ -190,7 +183,6 @@ def field_to_fly(track_1, track_2, max_d, init_coord, pool_end, zamboni_path):
             left_on = [zamboni_path[i + 1, 0], zamboni_path[i + 1, 1]]
             ind = i + 1
             check_back_path = euclidean(zamboni_path[i + 1, 0], track_2[0], zamboni_path[i + 1, 1], track_2[1])
-            #             print("check path to truck_2", check_back_path)
             if check_back_path > max_d:
                 left_on = [zamboni_path[i + 1, 0], zamboni_path[i + 1, 1]]
                 ind = i + 1
@@ -201,9 +193,6 @@ def field_to_fly(track_1, track_2, max_d, init_coord, pool_end, zamboni_path):
             ind = i + 1
             break
         i += 1
-
-    #     print("left on", left_on)
-    #     print("                   ")
     return [dist, left_on, ind]
 
 
@@ -303,10 +292,8 @@ def get_legit_a(a):
     for i, val in enumerate(a):
         if not i:
             prev = val
-            print(val - 1)
             new_idx.append(val - 1)
         else:
-            print(val + prev - 1)
             new_idx.append(prev + val - 1)
             prev += val
     return new_idx
@@ -381,7 +368,6 @@ def generate_zamboni(grid, drones_inits):
                    [900, 400], [900, 450], [950, 500], [950, 550], [950, 600], [900, 650], [850, 700]]
 
     a, b, c = all_pools_flight(truck_path, 1750, right_edges, zamboni_path)
-    print('!!! a', a)
     flatten_routes = get_flatten_waypoints(b)
     way_dict = get_legit_waypoints(SWARM_POPULATION, flatten_routes, truck_path, a)
     truck_ways = get_legit_truck_waypoints(truck_path, b)

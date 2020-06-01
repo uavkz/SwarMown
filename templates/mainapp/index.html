@@ -3,7 +3,10 @@
 {% load static %}
 
 {% block head %}
+    <link rel="stylesheet" href="{% static 'css/leaflet.css' %}"/>
+    <script src="{% static 'js/leaflet.js' %}"></script>
     <script src="{% static 'js/pixi.min.js' %}"></script>
+    <script src="{% static 'js/L.PixiOverlay.min.js' %}"></script>
 {% endblock %}
 
 {% block title %}
@@ -18,127 +21,195 @@
             <option value="zamboni">Zamboni</option>
         </select>
 
-        <input type="number" name="grid_step">
+        <input type="number" name="grid_step" value="0.0025">
         <input type="submit" value="Запустить">
     </form>
+
+    <div id="map" style="height: 700px;"></div>
 {% endblock %}
 
 {% block foot %}
-<script>
-    function checkIfInPolygon(point, vs) {
-        // ray-casting algorithm based on
-        // http://www.ecse.rpi.edu/Homepages/wrf/Research/Short_Notes/pnpoly.html
-        var x = point[0], y = point[1];
+    <script>
+        function checkIfInPolygon(point, vs) {
+            // ray-casting algorithm based on
+            // http://www.ecse.rpi.edu/Homepages/wrf/Research/Short_Notes/pnpoly.html
+            var x = point[0], y = point[1];
 
-        var inside = false;
-        for (var i = 0, j = vs.length - 1; i < vs.length; j = i++) {
-            var xi = vs[i][0], yi = vs[i][1];
-            var xj = vs[j][0], yj = vs[j][1];
+            var inside = false;
+            for (var i = 0, j = vs.length - 1; i < vs.length; j = i++) {
+                var xi = vs[i][0], yi = vs[i][1];
+                var xj = vs[j][0], yj = vs[j][1];
 
-            var intersect = ((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
-            if (intersect)
-                inside = !inside;
+                var intersect = ((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+                if (intersect)
+                    inside = !inside;
+            }
+            return inside;
         }
-        return inside;
-    }
 
-    var fieldPolygon = {{ field|safe }};
-    var gridStep = {{ grid_step|safe }};
+        var fieldPolygon = {{ field|safe }};
+        for(i = 0; i < fieldPolygon.length; i++){
+            tmp = fieldPolygon[i][0];
+            fieldPolygon[i][0] = fieldPolygon[i][1];
+            fieldPolygon[i][1] = tmp;
+        }
+        var gridStep = {{ grid_step|safe }};
 
-    const app = new PIXI.Application({width: 1200, height: 800});
-    document.body.appendChild(app.view);
-    const {stage} = app;
+        // prepare circle texture, that will be our brush
+        const brush = new PIXI.Graphics();
+        brush.beginFill(0xffffff);
+        brush.drawCircle(0, 0, 500);
+        brush.endFill();
 
-    // prepare circle texture, that will be our brush
-    const brush = new PIXI.Graphics();
-    brush.beginFill(0xffffff);
-    brush.drawCircle(0, 0, 500);
-    brush.endFill();
-
-    app.loader.add('crop_bad', '{% static 'img/textures/crop_bad.jpg' %}');
-    app.loader.add('crop_good', '{% static 'img/textures/crop_good.jpg' %}');
-    app.loader.add('badland', '{% static 'img/textures/badland.jpg' %}');
-    app.loader.add('drone', '{% static 'img/textures/drone.png' %}');
-    app.loader.add('pickup', '{% static 'img/textures/pickup.png' %}');
-    app.loader.load(setup);
-
-    function setup(loader, resources) {
-        const background = new PIXI.Sprite(resources.badland.texture);
-        stage.addChild(background);
-        background.width = app.screen.width;
-        background.height = app.screen.height;
-
-        let field = new PIXI.Graphics();
-        field.beginFill(0);
-        var fieldTiling = new PIXI.Sprite(resources.crop_bad.texture);
-        fieldTiling.width = app.screen.width;
-        fieldTiling.height = app.screen.height;
-        stage.addChild(fieldTiling);
-        field.drawPolygon({{ field_flat|safe }});
-        field.endFill();
-        stage.addChild(field);
-        fieldTiling.mask = field;
-
-        {#const renderTexture = PIXI.RenderTexture.create(1200, 800);#}
-        {#const renderTextureSprite = new PIXI.TilingSprite(renderTexture);#}
-        {#stage.addChild(renderTextureSprite);#}
-        {#fieldReady.mask = renderTextureSprite;#}
-        {#fieldReadyTiling.mask = fieldReady;#}
-
-        var drones = [];
         var initial = {{ initial|safe }};
-        for(i = 0; i < {{ number_of_drones }}; i++) {
-            const drone = new PIXI.Sprite(resources.drone.texture);
-            stage.addChild(drone);
-            drone.x = initial[0];
-            drone.y = initial[1];
-            drone.width = 64;
-            drone.height = 64;
-            drones.push(drone);
-        }
+        initial = [initial[1], initial[0]];
+        var map = L.map('map').setView(initial, 13);
+        L.tileLayer('https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token={accessToken}', {
+            attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, <a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
+            maxZoom: 18,
+            id: 'mapbox/streets-v11',
+            tileSize: 512,
+            zoomOffset: -1,
+            accessToken: 'pk.eyJ1Ijoia2luZHlhayIsImEiOiJja2F0cml2eTcwNDZhMnJvOXI4N2Y4MjRjIn0.f7FSJnib2jKKvtJe4ql-Bg'
+        }).addTo(map);
 
-        const pickup = new PIXI.Sprite(resources.pickup.texture);
-        stage.addChild(pickup);
-        pickup.x = initial[0];
-        pickup.y = initial[1];
-        pickup.height = 70;
-        pickup.width = 166;
-
-        // Draw grid
-        let grid = {{ grid|safe }};
-        for(let point of grid){
-            let gridCircle = new PIXI.Graphics();
-            gridCircle.beginFill(0x00cc14);
-            stage.addChild(gridCircle);
-            gridCircle.x = point[0];
-            gridCircle.y = point[1];
-            gridCircle.drawCircle(0, 0, gridStep / 5);
-            gridCircle.endFill();
-        }
-
+        var loader = new PIXI.Loader();
+        loader.add('crop_bad', '{% static 'img/textures/crop_bad.jpg' %}');
+        loader.add('crop_good', '{% static 'img/textures/crop_good.jpg' %}');
+        loader.add('badland', '{% static 'img/textures/badland.jpg' %}');
+        loader.add('drone', '{% static 'img/textures/drone.png' %}');
+        loader.add('pickup', '{% static 'img/textures/pickup.png' %}');
+        loader.load(setupWrapper);
         var waypoints = {{ waypoints|safe }};
         var pickupWaypoints = {{ pickup_waypoints|safe }};
-        console.log(pickupWaypoints);
-
-        app.ticker.add(delta => gameLoop(delta));
-
-        var droneSpeed = 8;
+        var grid = {{ grid|safe }};
+        var drones = [];
+        var droneSpeed = 0.2;
         var pickupSpeed = 6;
         var tick = 0;
+        var pickup;
+        var project;
+        let stage = new PIXI.Container();
+
+        function setupWrapper(loader, resources) {
+            var markerTexture = resources.drone.texture;
+            var marker = new PIXI.Sprite(markerTexture);
+            var firstDraw = true;
+            var prevZoom;
+
+            stage.addChild(marker);
+
+            var pixiOverlay = L.pixiOverlay(function (utils) {
+                var zoom = utils.getMap().getZoom();
+                var container = utils.getContainer();
+                var renderer = utils.getRenderer();
+                project = utils.latLngToLayerPoint;
+                var scale = utils.getScale();
+
+                setup(loader, resources, container, project, scale);
+
+                firstDraw = false;
+                prevZoom = zoom;
+                renderer.render(container);
+            }, stage);
+            pixiOverlay.addTo(map);
+
+            let ticker = PIXI.Ticker.shared;
+            ticker.autoStart = false;
+            ticker.stop()
+            let renderer = PIXI.autoDetectRenderer();
+            ticker.add(function (time) {
+                gameLoop(time);
+                pixiOverlay.redraw();
+            });
+            ticker.minFPS = 5;
+            ticker.maxFPS = 20;
+            ticker.start();
+        }
+
+        function setup(loader, resources, stage, project, scale) {
+            let latLng = initial.slice();
+            let coords = project(latLng);
+            {#const background = new PIXI.Sprite(resources.badland.texture);#}
+            {#stage.addChild(background);#}
+            {#background.width = 1;#}
+            {#background.height = 1;#}
+            {#background.x = coords.x;#}
+            {#background.y = coords.y;#}
+
+            let field = new PIXI.Graphics();
+            field.beginFill(0);
+            var fieldTiling = new PIXI.TilingSprite(resources.crop_bad.texture);
+            fieldTiling.width = 10;
+            fieldTiling.height = 10;
+            fieldTiling.x = coords.x;
+            fieldTiling.y = coords.y;
+            stage.addChild(fieldTiling);
+            let field_flat = {{ field_flat|safe }};
+            for (let i = 0; i < field_flat.length; i++) {
+                if (i % 2 === 1) {
+                    continue;
+                }
+                let coords = project([field_flat[i], field_flat[i + 1]]);
+                field_flat[i] = coords.x;
+                field_flat[i + 1] = coords.y;
+            }
+            field.drawPolygon(field_flat);
+            field.endFill();
+            stage.addChild(field);
+            fieldTiling.mask = field;
+
+            for (i = 0; i < {{ number_of_drones }}; i++) {
+                const drone = new PIXI.Sprite(resources.drone.texture);
+                stage.addChild(drone);
+                let coords = project([initial[0], initial[1]]);
+                drone.x = coords.x;
+                drone.y = coords.y;
+                drone.width = 1/2;
+                drone.height = 1/2;
+                drones.push(drone);
+            }
+
+            pickup = new PIXI.Sprite(resources.pickup.texture);
+            stage.addChild(pickup);
+            coords = project([initial[0], initial[1]]);
+            pickup.x = coords.x;
+            pickup.y = coords.y;
+            pickup.height = 1/2;
+            pickup.width = 1;
+
+            // Draw grid
+            for (let point of grid) {
+                let gridCircle = new PIXI.Graphics();
+                gridCircle.beginFill(0xda3e28);
+                stage.addChild(gridCircle);
+                let coords = project([point[1], point[0]]);
+                gridCircle.x = coords.x;
+                gridCircle.y = coords.y;
+                gridCircle.drawCircle(0, 0, gridStep*100);
+                gridCircle.endFill();
+            }
+
+            return stage;
+        }
+
         function gameLoop(delta) {
             tick += 1;
-            if(tick % 600 === 0) {
-                droneSpeed += 1;
+            if (tick % 600 === 0) {
+                droneSpeed += 0.1;
             }
             let i = 0;
             // Moving Drones
-            for(let drone of drones){
-                if(waypoints[i].length === 0) {
+            for (let drone of drones) {
+                if (i >= waypoints.length || waypoints[i].length === 0) {
                     i++;
                     continue;
                 }
-                let my_waypoint = waypoints[i][0];
-                let delta_x = my_waypoint[0] - drone.height / 2 - drone.x;
+                let my_waypoint = waypoints[i][0].slice();
+                let coords = project([my_waypoint[1], my_waypoint[0]]);
+                my_waypoint[0] = coords.x;
+                my_waypoint[1] = coords.y;
+                let delta_x = my_waypoint[0] - drone.width / 2 - drone.x;
                 let delta_y = my_waypoint[1] - drone.height / 2 - drone.y;
                 let delta = Math.sqrt(delta_x * delta_x + delta_y * delta_y);
                 delta_x /= delta;
@@ -147,22 +218,22 @@
                 drone.x += delta_x * droneSpeed;
                 drone.y += delta_y * droneSpeed;
 
-                if(tick % Math.round((gridStep / droneSpeed / Math.max(10 / drones.length, 3))) === 0 &&
-                    checkIfInPolygon([drone.x + drone.width / 2, drone.y + drone.height / 2], fieldPolygon)) {
+                {#if(tick % Math.round((gridStep / droneSpeed / Math.max(10 / drones.length, 3))) === 0 &&#}
+                {#    checkIfInPolygon([drone.x + drone.width / 2, drone.y + drone.height / 2], fieldPolygon)) {#}
                     let trail = new PIXI.Graphics();
                     trail.beginFill(0x00cc14);
                     stage.addChild(trail);
                     trail.x = drone.x + drone.width / 2;
                     trail.y = drone.y + drone.height / 2;
-                    trail.drawCircle(0, 0, gridStep/1.9);
+                    trail.drawCircle(0, 0, gridStep * 333);
                     trail.alpha = 0.2;
                     trail.endFill();
-                }
+                {#}#}
 
                 if (Math.abs(drone.x + drone.width / 2 - my_waypoint[0]) < droneSpeed / 2 &&
                     Math.abs(drone.y + drone.height / 2 - my_waypoint[1]) < droneSpeed / 2) {
                     waypoints[i].shift();
-                    if(pickupWaypoints.length > 1 && i === 0) {
+                    if (pickupWaypoints.length > 1 && i === 0) {
                         pickupWaypoints.shift();
                     }
                 }
@@ -184,6 +255,5 @@
             }
             i++;
         }
-    }
-</script>
+    </script>
 {% endblock %}
