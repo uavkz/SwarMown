@@ -1,3 +1,11 @@
 from django.contrib import admin
+from .models import *
 
-# Register your models here.
+
+class FieldAdmin(admin.ModelAdmin):
+    list_display = ('name', )
+    list_filter = ()
+    search_fields = ('name', )
+
+
+admin.site.register(Field, FieldAdmin)
