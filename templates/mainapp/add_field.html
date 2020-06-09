@@ -12,11 +12,24 @@
 {% endblock %}
 
 {% block content %}
-    <div id="map" style="height: 100vh;"></div>
+    <div class="row">
+        <div class="col"></div>
+        <div class="col form-group">
+            <label for="fieldName">Название поля</label>
+            <input id="fieldName" class="form-control">
+        </div>
+        <div class="col">
+            <button id="saveField" class="btn btn-primary" style="margin-top: 32px;">Сохранить поле</button>
+        </div>
+        <div class="col"></div>
+    </div>
+    <div id="map" style="height: 80vh;"></div>
 {% endblock %}
 
 {% block foot %}
     <script>
+        var currentField = [];
+
         var map = L.map('map').setView([43.22, 76.85], 13);
         L.tileLayer('https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token={accessToken}', {
             attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, <a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
@@ -26,5 +39,38 @@
             zoomOffset: -1,
             accessToken: 'pk.eyJ1Ijoia2luZHlhayIsImEiOiJja2F0cml2eTcwNDZhMnJvOXI4N2Y4MjRjIn0.f7FSJnib2jKKvtJe4ql-Bg'
         }).addTo(map);
+
+        map.on('click', function (e) {
+            var popLocation = e.latlng;
+            var marker = L.marker(popLocation).addTo(map);
+            currentField.push([popLocation.lat, popLocation.lng]);
+        });
+
+        $('#saveField').click(function () {
+            $.ajax(
+                {
+                    url: '/api/field/',
+                    method: 'POST',
+                    data: {
+                        "name": $('#fieldName').val(),
+                        "points_serialized": JSON.stringify(currentField),
+                    },
+                    beforeSend: function (request) {
+                        request.setRequestHeader("X-CSRFToken", '{{ csrf_token }}');
+                    },
+                    success: function (result) {
+                        if (result.status !== 200) {
+                            alert("Что-то пошло не так :( Истекла сессия? Попробуйте обновить страницу: " + result.error);
+                            return;
+                        }
+                        alert("Поле успешно создано");
+                        location.reload();
+                    },
+                    error: function (result) {
+                        alert("Возможно отсутствует соединение с интернетом. Если проблема повторяется, обратитесь к администратору системы");
+                    }
+                }
+            );
+        });
     </script>
 {% endblock %}

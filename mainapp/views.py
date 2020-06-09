@@ -1,6 +1,9 @@
+import json
+
 from django.views.generic import TemplateView
 
 from mainapp.algorithms import WAYPOINTS_ALGORITHMS
+from mainapp.models import *
 from mainapp.services_draw import *
 
 
@@ -9,7 +12,16 @@ class MownView(TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        field = get_field()
+        context['fields'] = Field.objects.all()
+
+        if not self.request.GET.get('field'):
+            field = get_field()
+        else:
+            field = Field.objects.get(id=self.request.GET.get('field')).points_serialized
+            field = json.loads(field)
+            field = [[y, x] for (x, y) in field]
+
+
         grid_step = float(self.request.GET.get("grid_step", 0.001))
         grid = get_grid(field, grid_step)
         initial_position = get_initial_position(field, grid)
