@@ -20,7 +20,7 @@ class MownView(TemplateView):
         context['grid'] = grid
         context['grid_step'] = grid_step
         context['initial'] = initial_position
-        context['waypoints'] = waypoints
+        context['waypoints'] = [i[1:] for i in waypoints]
         context['pickup_waypoints'] = pickup_waypoints
-        context['number_of_drones'] = len(waypoints)
+        context['number_of_drones'] = len([i[1:] for i in waypoints])
         return context

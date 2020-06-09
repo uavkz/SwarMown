@@ -330,7 +330,6 @@ def get_legit_waypoints(swarm_population, flatten_routes, truck_path, a):
     for key, value in way_dict.items():
         if value[-1] != truck_path[-1]:
             way_dict[key].append(truck_path[-1])
-    way_dict['0'].insert(17, [1000, 500])  # TODO iamsosorry
     return way_dict
 
 
@@ -363,10 +362,10 @@ def generate_zamboni(grid, drones_inits):
     from mainapp.kinematic_constants import SWARM_POPULATION
 
     zamboni_path = np.array(get_zigzag_path(grid))
-    # truck_path = truck_coords(0, 10, 700, 0.2, 30, 0, 1000)[1]
-    truck_path = [[1000, 100], [1000, 300], [1000, 500], [1000, 700]]
+    truck_path = truck_coords(y_init=0, y_end_km=2, y_end_coords=43.22, drone_time=0.2,
+                              truck_V=30, gap_coef=0, x_coord=76.85)[1]
     right_edges = get_right_edges(zamboni_path)
-    a, b, c = all_pools_flight(truck_path, 1750, right_edges, zamboni_path)
+    a, b, c = all_pools_flight(truck_path, 175, right_edges, zamboni_path)  # TODO fix 1750 value
     flatten_routes = get_flatten_waypoints(b)
     way_dict = get_legit_waypoints(SWARM_POPULATION, flatten_routes, truck_path, a)
     truck_ways = get_legit_truck_waypoints(truck_path, b)
@@ -390,7 +389,7 @@ def get_right_edges(new_coords):
         edge_max = 0
         for coord in new_coords:
             if coord[1] == step:
-                if coord[0]>edge_max:
+                if coord[0] > edge_max:
                     edge_max = coord[0]
         edges.append([edge_max, step])
     return edges
