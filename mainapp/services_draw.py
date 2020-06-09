@@ -369,7 +369,8 @@ def generate_zamboni(grid, drones_inits):
     flatten_routes = get_flatten_waypoints(b)
     way_dict = get_legit_waypoints(SWARM_POPULATION, flatten_routes, truck_path, a)
     truck_ways = get_legit_truck_waypoints(truck_path, b)
-    return list(way_dict.values()), truck_ways
+    waypoints = [i[1:] for i in list(way_dict.values())]
+    return waypoints, truck_ways
 
 
 def find_edge(track_coord, right_edges):
