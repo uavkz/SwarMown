@@ -35,7 +35,8 @@ def get_grid(field, step):
 
 def get_initial_position(field, grid):
     # X/Long, Y/Lat
-    return [76.85, 43.22]
+    return [min([f[0] for f in field]),
+            min([f[1] for f in field])]
 
 
 def unique(list1):
