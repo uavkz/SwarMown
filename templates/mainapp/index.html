@@ -123,18 +123,20 @@
             stage.addChild(marker);
 
             var pixiOverlay = L.pixiOverlay(function (utils, event) {
-                var zoom = utils.getMap().getZoom();
-                var container = utils.getContainer();
-                var renderer = utils.getRenderer();
-                project = utils.latLngToLayerPoint;
-                reverseProject = utils.layerPointToLatLng;
-                var scale = utils.getScale();
+                if(event.type !== 'redraw') {
+                    var zoom = utils.getMap().getZoom();
+                    var container = utils.getContainer();
+                    var renderer = utils.getRenderer();
+                    project = utils.latLngToLayerPoint;
+                    reverseProject = utils.layerPointToLatLng;
+                    var scale = utils.getScale();
 
-                setup(loader, resources, container, project, scale);
+                    setup(loader, resources, container, project, scale);
 
-                firstDraw = false;
-                prevZoom = zoom;
-                renderer.render(container);
+                    firstDraw = false;
+                    prevZoom = zoom;
+                    renderer.render(container);
+                }
 
                 if (event.type === 'redraw') {
                     gameLoop(event.delta);
@@ -246,7 +248,6 @@
                 {#if(tick % Math.round((gridStep / droneSpeed / Math.max(10 / drones.length, 3))) === 0 &&#}
                 {#    checkIfInPolygon([drone.x + drone.width / 2, drone.y + drone.height / 2], fieldPolygon)) {#}
                     let circleCoords = reverseProject(L.point(drone.x + drone.width / 2, drone.y + drone.height / 2));
-                    console.log(circleCoords);
                     var circle = L.circle([circleCoords.lat, circleCoords.lng], {
                         color: '#00cc14',
                         fillOpacity: 0.25,
