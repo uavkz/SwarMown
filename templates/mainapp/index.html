@@ -111,6 +111,7 @@
         var tick = 0;
         var pickup;
         var project;
+        var reverseProject;
         let stage = new PIXI.Container();
 
         function setupWrapper(loader, resources) {
@@ -121,31 +122,38 @@
 
             stage.addChild(marker);
 
-            var pixiOverlay = L.pixiOverlay(function (utils) {
-                var zoom = utils.getMap().getZoom();
-                var container = utils.getContainer();
-                var renderer = utils.getRenderer();
-                project = utils.latLngToLayerPoint;
-                var scale = utils.getScale();
+            var pixiOverlay = L.pixiOverlay(function (utils, event) {
+                if(event.type !== 'redraw') {
+                    var zoom = utils.getMap().getZoom();
+                    var container = utils.getContainer();
+                    var renderer = utils.getRenderer();
+                    project = utils.latLngToLayerPoint;
+                    reverseProject = utils.layerPointToLatLng;
+                    var scale = utils.getScale();
 
-                setup(loader, resources, container, project, scale);
+                    setup(loader, resources, container, project, scale);
 
-                firstDraw = false;
-                prevZoom = zoom;
-                renderer.render(container);
+                    firstDraw = false;
+                    prevZoom = zoom;
+                    renderer.render(container);
+                }
+
+                if (event.type === 'redraw') {
+                    gameLoop(event.delta);
+                }
             }, stage);
             pixiOverlay.addTo(map);
 
-            let ticker = PIXI.Ticker.shared;
+            let ticker = new PIXI.Ticker();
             ticker.autoStart = false;
             ticker.stop()
             let renderer = PIXI.autoDetectRenderer();
             ticker.add(function (time) {
-                gameLoop(time);
-                pixiOverlay.redraw();
+                {#gameLoop(time);#}
+                pixiOverlay.redraw({type: "redraw", delta: time});
             });
-            ticker.minFPS = 5;
-            ticker.maxFPS = 20;
+            {#ticker.minFPS = 5;#}
+            {#ticker.maxFPS = 60;#}
             ticker.start();
         }
 
@@ -202,14 +210,11 @@
 
             // Draw grid
             for (let point of grid) {
-                let gridCircle = new PIXI.Graphics();
-                gridCircle.beginFill(0xda3e28);
-                stage.addChild(gridCircle);
-                let coords = project([point[1], point[0]]);
-                gridCircle.x = coords.x;
-                gridCircle.y = coords.y;
-                gridCircle.drawCircle(0, 0, gridStep*100);
-                gridCircle.endFill();
+                var circle = L.circle([point[1], point[0]], {
+                    color: '#da3e28',
+                    fillOpacity: 0.5,
+                    radius: 9
+                }).addTo(map);
             }
 
             return stage;
@@ -242,14 +247,13 @@
 
                 {#if(tick % Math.round((gridStep / droneSpeed / Math.max(10 / drones.length, 3))) === 0 &&#}
                 {#    checkIfInPolygon([drone.x + drone.width / 2, drone.y + drone.height / 2], fieldPolygon)) {#}
-                    let trail = new PIXI.Graphics();
-                    trail.beginFill(0x00cc14);
-                    stage.addChild(trail);
-                    trail.x = drone.x + drone.width / 2;
-                    trail.y = drone.y + drone.height / 2;
-                    trail.drawCircle(0, 0, gridStep * 333);
-                    trail.alpha = 0.2;
-                    trail.endFill();
+                    let circleCoords = reverseProject(L.point(drone.x + drone.width / 2, drone.y + drone.height / 2));
+                    var circle = L.circle([circleCoords.lat, circleCoords.lng], {
+                        color: '#00cc14',
+                        fillOpacity: 0.25,
+                        radius: 36
+                    }).addTo(map);
+                    {#console.log(circle);#}
                 {#}#}
 
                 if (Math.abs(drone.x + drone.width / 2 - my_waypoint[0]) < droneSpeed / 2 &&
