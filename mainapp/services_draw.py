@@ -210,13 +210,12 @@ def generate_zamboni(grid, drones_inits):
 
     zamboni_path = np.array(get_zigzag_path(grid))
     right_edges = get_right_edges(zamboni_path)
-    print('!!! right edges', right_edges)
     #  TODO fix y_end and x_const values read from drones_inits and field params
-    truck_path_pool = generate_stops(y_init=43.255, y_end_km=3,
+    truck_path_pool = generate_stops(x_init=drones_inits[0], y_init=drones_inits[1], y_end_km=3,
                                      y_end=43.275, drone_time=DRONE_TIME,
-                                     truck_V=TRUCK_SPEED, x_const=76.85)
+                                     truck_V=TRUCK_SPEED, x_const=76.85,
+                                     grid=grid, x_end_km=5, y_const=43.215, x_end=76.885)
     total_pathways, truck_path = best_stop_num(truck_path_pool, MAX_D, right_edges, zamboni_path)
-    truck_path = sorted(truck_path)
     pathways_num, pathways, pathways_start_end, pool_endings = all_pools_flight(truck_path, MAX_D, right_edges,
                                                                                 zamboni_path)
 
@@ -323,16 +322,52 @@ def when_to_move_forward(truck_path, given_drone_num, estim_pathes):
     return drones
 
 
-def generate_stops(y_init, y_end, y_end_km, x_const, truck_V, drone_time):
-    total_stops = list()
+def is_horizontal(grid):
+    """
+    returns boolean field type
+    """
+    from sklearn.metrics.pairwise import haversine_distances
+    answer = False
+    x_max, y_max = max(grid, key=lambda x: x[0]), max(grid, key=lambda x: x[1])
+    x_min, y_min = min(grid, key=lambda x: x[0]), min(grid, key=lambda x: x[1])
+
+    horizontals = list(filter(lambda x: x[1] == y_min[1], grid))
+    verts = list(filter(lambda x: x[0] == x_max[0], grid))
+
+    hori_min, hori_max = sorted(horizontals)[0], sorted(horizontals)[-1]
+    vert_min, vert_max = sorted(verts)[0], sorted(verts)[-1]
+
+    if haversine_distances([hori_min, hori_max])[0][1] > haversine_distances([vert_min, vert_max])[0][1]:
+        answer = True
+
+    return answer
+
+
+def generate_stops(x_init, x_end, x_end_km, y_const, y_init, y_end, y_end_km, x_const, truck_V, drone_time, grid):
+    total_stops = []
+    direction = 'horizontal' if is_horizontal(grid) else 'veritcal'
     for i in range(2, 5 + 2):  # how much stops to consider, choose any number of (this case 3) generated stops
-        stops = [[x_const, y_init]]
-        y_new = (y_init + truck_V * drone_time) * y_end / y_end_km
-        stop = np.round(((y_end + y_init) / i), 0)
-        if stop < y_new:
+        if direction == 'vertical':
+            const, init, end, end_km = x_const, y_init, y_end, y_end_km
+            stops = [[const, init]]
+        else:
+            const, init, end, end_km = y_const, x_init, x_end, x_end_km
+            stops = [[init, const]]
+
+        new = (init + truck_V * drone_time) * end / end_km  # just a condition for stop
+        diff = (end - init) / i
+        stop = diff + init
+
+        if stop < new:
             for j in range(i - 1):
-                stops.append([x_const, stop * (j + 1)])
-            stops.append([x_const, y_end])
+                if direction == 'vertical':
+                    stops.append([const, np.round(stop + j * diff, 3)])
+                elif direction == 'horizontal':
+                    stops.append([np.round(stop + j * diff, 3), const])
+            if direction == 'vertical':
+                stops.append([const, end])
+            elif direction == 'horizontal':
+                stops.append([end, const])
             total_stops.append(stops)
 
     return total_stops
