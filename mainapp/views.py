@@ -21,7 +21,6 @@ class MownView(TemplateView):
             field = json.loads(field)
             field = [[y, x] for (x, y) in field]
 
-
         grid_step = float(self.request.GET.get("grid_step", 0.001))
         grid = get_grid(field, grid_step)
         initial_position = get_initial_position(field, grid)
