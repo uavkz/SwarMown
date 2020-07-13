@@ -45,6 +45,20 @@
             </div>
             <div class="col"></div>
         </div>
+        <div class="row">
+            <div class="col"></div>
+
+            <div class="col">
+                <label for="droneSpeed">Скорость дрона</label>
+                <input type="range" class="custom-range" value="0.01" min="0" max="0.2" step="0.01" id="droneSpeed">
+            </div>
+
+            <div class="col">
+
+            </div>
+
+            <div class="col"></div>
+        </div>
     </form>
 
     <div id="map" style="height: 700px;"></div>
@@ -52,6 +66,10 @@
 
 {% block foot %}
     <script>
+        $('#droneSpeed').on('input propertychange', function(){
+            droneSpeed = parseFloat($('#droneSpeed').val());
+        });
+
         function checkIfInPolygon(point, vs) {
             // ray-casting algorithm based on
             // http://www.ecse.rpi.edu/Homepages/wrf/Research/Short_Notes/pnpoly.html
@@ -106,8 +124,9 @@
         var pickupWaypoints = {{ pickup_waypoints|safe }};
         var grid = {{ grid|safe }};
         var drones = [];
-        var droneSpeed = 0.2;
-        var pickupSpeed = 6;
+        var droneSpeed = 0.01;
+        $('#droneSpeed').val(droneSpeed);
+        var pickupSpeed = 0.4;
         var tick = 0;
         var pickup;
         var project;
@@ -222,9 +241,6 @@
 
         function gameLoop(delta) {
             tick += 1;
-            if (tick % 600 === 0) {
-                droneSpeed += 0.1;
-            }
             let i = 0;
             // Moving Drones
             for (let drone of drones) {
