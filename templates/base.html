@@ -12,11 +12,20 @@
     <!-- Favicon -->
     <link rel="shortcut icon" type="image/png" href="{% static 'img/favicon.jpg' %}"/>
 
-   <script src="{% static 'lib/bootstrap/js/jquery.js' %}"></script>
+    <!-- Main -->
+    <link rel="stylesheet" href="{% static 'css/main.css' %}"/>
+
+    <!-- Jquery -->
+    <script src="{% static 'lib/bootstrap/js/jquery.js' %}"></script>
+
+    <!-- Font-Awesome -->
+    <link rel="stylesheet" href="{% static 'lib/fontawesome/css/all.min.css' %}"/>
+    <link rel="stylesheet" href="{% static 'lib/fontawesome/css/fontawesome.min.css' %}"/>
+
     <!-- Bootstrap -->
     <link rel="stylesheet" href="{% static 'lib/bootstrap/css/bootstrap.min.css' %}"/>
     <link rel="stylesheet" href="{% static 'lib/bootstrap/css/bootstrap-reboot.min.css' %}"/>
-    <script src="{% static 'lib/bootstrap/js/bootstrap.js' %}"></script>
+    <script src="{% static 'lib/bootstrap/js/bootstrap.bundle.min.js' %}"></script>
 
     {% block head %}{% endblock %}
 </head>
@@ -49,6 +58,12 @@
     </nav>
     {% block content %}{% endblock %}
 </div>
+
+<script>
+    $(function () {
+        $('[data-toggle="tooltip"]').tooltip()
+    })
+</script>
 
 {% block foot %}{% endblock %}
 </body>

@@ -54,7 +54,9 @@
             </div>
 
             <div class="col">
-
+                <i id="startButton" class="fas fa-play action-icon ml-1 mt-2" data-toggle="tooltip" title="Старт"></i>
+                <i id="pauseButton" class="fas fa-pause action-icon ml-1 mt-2" data-toggle="tooltip" title="Пауза"></i>
+                <i id="replayButton" class="fas fa-redo-alt action-icon ml-1 mt-2" data-toggle="tooltip" title="Начать с начала"></i>
             </div>
 
             <div class="col"></div>
@@ -68,6 +70,28 @@
     <script>
         $('#droneSpeed').on('input propertychange', function(){
             droneSpeed = parseFloat($('#droneSpeed').val());
+        });
+
+        var lastSpeed = null;
+        $('#pauseButton').click(function () {
+            lastSpeed = droneSpeed;
+            droneSpeed = 0;
+            $('#droneSpeed').val(0);
+        });
+
+        $('#startButton').click(function () {
+            if(lastSpeed !== null){
+                droneSpeed = lastSpeed;
+                $('#droneSpeed').val(droneSpeed);
+                lastSpeed = null;
+            }
+        });
+
+        $('#replayButton').click(function () {
+            map.remove();
+            $("#map").html("");
+            $("#map").html('<div id="map"></div>');
+            initStuff();
         });
 
         function checkIfInPolygon(point, vs) {
@@ -87,51 +111,69 @@
             return inside;
         }
 
-        var fieldPolygon = {{ field|safe }};
-        for(i = 0; i < fieldPolygon.length; i++){
-            tmp = fieldPolygon[i][0];
-            fieldPolygon[i][0] = fieldPolygon[i][1];
-            fieldPolygon[i][1] = tmp;
-        }
-        var gridStep = {{ grid_step|safe }};
-
-        // prepare circle texture, that will be our brush
-        const brush = new PIXI.Graphics();
-        brush.beginFill(0xffffff);
-        brush.drawCircle(0, 0, 500);
-        brush.endFill();
-
-        var initial = {{ initial|safe }};
-        initial = [initial[1], initial[0]];
-        var map = L.map('map').setView(initial, 13);
-        L.tileLayer('https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token={accessToken}', {
-            attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, <a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
-            maxZoom: 18,
-            id: 'mapbox/streets-v11',
-            tileSize: 512,
-            zoomOffset: -1,
-            accessToken: 'pk.eyJ1Ijoia2luZHlhayIsImEiOiJja2F0cml2eTcwNDZhMnJvOXI4N2Y4MjRjIn0.f7FSJnib2jKKvtJe4ql-Bg'
-        }).addTo(map);
-
-        var loader = new PIXI.Loader();
-        loader.add('crop_bad', '{% static 'img/textures/crop_bad.jpg' %}');
-        loader.add('crop_good', '{% static 'img/textures/crop_good.jpg' %}');
-        loader.add('badland', '{% static 'img/textures/badland.jpg' %}');
-        loader.add('drone', '{% static 'img/textures/drone.png' %}');
-        loader.add('pickup', '{% static 'img/textures/pickup.png' %}');
-        loader.load(setupWrapper);
-        var waypoints = {{ waypoints|safe }};
-        var pickupWaypoints = {{ pickup_waypoints|safe }};
-        var grid = {{ grid|safe }};
-        var drones = [];
-        var droneSpeed = 0.01;
-        $('#droneSpeed').val(droneSpeed);
-        var pickupSpeed = 0.4;
-        var tick = 0;
+        var fieldPolygon;
+        var gridStep;
+        var initial;
+        var map;
+        var loader;
+        var waypoints;
+        var pickupWaypoints;
+        var grid;
+        var drones;
+        var droneSpeed;
+        var pickupSpeed;
+        var tick;
         var pickup;
         var project;
         var reverseProject;
-        let stage = new PIXI.Container();
+        var stage;
+        function initStuff() {
+            fieldPolygon = {{ field|safe }};
+            for (i = 0; i < fieldPolygon.length; i++) {
+                tmp = fieldPolygon[i][0];
+                fieldPolygon[i][0] = fieldPolygon[i][1];
+                fieldPolygon[i][1] = tmp;
+            }
+            gridStep = {{ grid_step|safe }};
+
+            // prepare circle texture, that will be our brush
+            const brush = new PIXI.Graphics();
+            brush.beginFill(0xffffff);
+            brush.drawCircle(0, 0, 500);
+            brush.endFill();
+
+            initial = {{ initial|safe }};
+            initial = [initial[1], initial[0]];
+            map = L.map('map').setView(initial, 13);
+            L.tileLayer('https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token={accessToken}', {
+                attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, <a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
+                maxZoom: 18,
+                id: 'mapbox/streets-v11',
+                tileSize: 512,
+                zoomOffset: -1,
+                accessToken: 'pk.eyJ1Ijoia2luZHlhayIsImEiOiJja2F0cml2eTcwNDZhMnJvOXI4N2Y4MjRjIn0.f7FSJnib2jKKvtJe4ql-Bg'
+            }).addTo(map);
+
+            loader = new PIXI.Loader();
+            loader.add('crop_bad', '{% static 'img/textures/crop_bad.jpg' %}');
+            loader.add('crop_good', '{% static 'img/textures/crop_good.jpg' %}');
+            loader.add('badland', '{% static 'img/textures/badland.jpg' %}');
+            loader.add('drone', '{% static 'img/textures/drone.png' %}');
+            loader.add('pickup', '{% static 'img/textures/pickup.png' %}');
+            loader.load(setupWrapper);
+            waypoints = {{ waypoints|safe }};
+            pickupWaypoints = {{ pickup_waypoints|safe }};
+            grid = {{ grid|safe }};
+            drones = [];
+            droneSpeed = 0.01;
+            $('#droneSpeed').val(droneSpeed);
+            pickupSpeed = 0.4;
+            tick = 0;
+            pickup;
+            project;
+            reverseProject;
+            stage = new PIXI.Container();
+        }
 
         function setupWrapper(loader, resources) {
             var markerTexture = resources.drone.texture;
@@ -297,5 +339,7 @@
             }
             i++;
         }
+
+        initStuff();
     </script>
 {% endblock %}
