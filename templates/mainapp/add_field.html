@@ -28,7 +28,9 @@
 
 {% block foot %}
     <script>
+        var mode = "field"; // Or "road"
         var currentField = [];
+        var currentRoad = [];
 
         var map = L.map('map').setView([43.22, 76.85], 13);
         L.tileLayer('https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token={accessToken}', {
@@ -42,11 +44,26 @@
 
         map.on('click', function (e) {
             var popLocation = e.latlng;
-            var marker = L.marker(popLocation).addTo(map);
-            currentField.push([popLocation.lat, popLocation.lng]);
+            if(mode === "field") {
+                var marker = L.marker(popLocation).addTo(map);
+                currentField.push([popLocation.lat, popLocation.lng]);
+            } else if(mode === "road"){
+                var circle = L.circle(popLocation, {
+                    color: '#5e4b7f',
+                    fillOpacity: 0.9,
+                    radius: 200
+                }).addTo(map);
+                currentRoad.push([popLocation.lat, popLocation.lng]);
+            }
         });
 
         $('#saveField').click(function () {
+            if(mode === "field"){
+                mode = "road";
+                $('#saveField').html("Сохранить дорогу");
+                alert("Теперь выберите дорогу");
+                return
+            }
             $.ajax(
                 {
                     url: '/api/field/',
@@ -54,6 +71,7 @@
                     data: {
                         "name": $('#fieldName').val(),
                         "points_serialized": JSON.stringify(currentField),
+                        "road_serialized": JSON.stringify(currentRoad),
                     },
                     beforeSend: function (request) {
                         request.setRequestHeader("X-CSRFToken", '{{ csrf_token }}');
