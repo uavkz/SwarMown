@@ -26,14 +26,6 @@
                     {% endfor %}
                 </select>
             </div>
-            <div class="col form-group">
-                <label for="algorithm">Алгоритм</label>
-                <select id="algorithm" class="form-control" name="algorithm">
-                    <option value="simple">Simple</option>
-                    <option value="ga">GA</option>
-                    <option value="zamboni">Zamboni</option>
-                </select>
-            </div>
 
             <div class="col form-group">
                 <label for="number">Шаг грида</label>
@@ -134,6 +126,7 @@
                 fieldPolygon[i][0] = fieldPolygon[i][1];
                 fieldPolygon[i][1] = tmp;
             }
+            fieldPolygon.push(fieldPolygon[0]);
             gridStep = {{ grid_step|safe }};
 
             // prepare circle texture, that will be our brush
@@ -278,6 +271,7 @@
                 }).addTo(map);
             }
 
+            var polyline = L.polyline(fieldPolygon, {color: 'red'}).addTo(map);
             return stage;
         }
 
