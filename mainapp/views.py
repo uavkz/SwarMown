@@ -16,18 +16,22 @@ class MownView(TemplateView):
 
         if not self.request.GET.get('field'):
             field = get_field()
+            road = []
         else:
-            field = Field.objects.get(id=self.request.GET.get('field')).points_serialized
-            field = json.loads(field)
+            field_obj = Field.objects.get(id=self.request.GET.get('field'))
+            field = json.loads(field_obj.points_serialized)
             field = [[y, x] for (x, y) in field]
+            road = json.loads(field_obj.road_serialized)
+            road = [[y, x] for (x, y) in road]
 
         grid_step = float(self.request.GET.get("grid_step", 0.001))
         grid = get_grid(field, grid_step)
-        initial_position = get_initial_position(field, grid)
+        initial_position = get_initial_position(field, grid, road)
         # [x, y, z, is_active]
-        waypoints, pickup_waypoints = WAYPOINTS_ALGORITHMS[self.request.GET.get("algorithm", "zamboni")]['callable'](grid, initial_position)
+        waypoints, pickup_waypoints = WAYPOINTS_ALGORITHMS[self.request.GET.get("algorithm", "zamboni")]['callable'](grid, initial_position, road)
         context['field_flat'] = [coord for point in field for coord in point]
         context['field'] = field
+        context['road'] = road
         context['grid'] = grid
         context['grid_step'] = grid_step
         context['initial'] = initial_position

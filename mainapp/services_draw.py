@@ -31,7 +31,7 @@ def get_grid(field, step):
     return grid
 
 
-def get_initial_position(field, grid):
+def get_initial_position(field, grid, road):
     #  TODO read from database
     # X/Long, Y/Lat
     return [min([f[0] for f in field]),
@@ -91,7 +91,7 @@ def get_zigzag_path(grid):
     return new_coords
 
 
-def get_waypoints(grid, drones_init):
+def get_waypoints(grid, drones_init, road):
     z = get_zigzag_path(grid)
     return [
         z[len(z) // 2:],
@@ -206,7 +206,7 @@ def drones_num(track_1, track_2, max_drone_flight, init_p, right_edges, path_coo
     return [drones_max, drone_paths, coords, pool_end]
 
 
-def generate_zamboni(grid, drones_inits):
+def generate_zamboni(grid, drones_inits, road):
     from mainapp.kinematic_constants import SWARM_POPULATION, MAX_D, TRUCK_SPEED, DRONE_TIME
 
     zamboni_path = np.array(get_zigzag_path(grid))
