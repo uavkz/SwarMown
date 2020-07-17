@@ -11,3 +11,4 @@ shapely==1.7.0
 scikit-learn==0.22.2.post1
 pandas==1.0.3
 matplotlib==3.2.1
+geopy==1.22.0
