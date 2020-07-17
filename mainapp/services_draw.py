@@ -1,6 +1,6 @@
+import numpy as np
 from shapely.geometry import Point
 from shapely.geometry.polygon import Polygon
-import numpy as np
 
 
 def get_field():
@@ -94,13 +94,13 @@ def get_zigzag_path(grid):
 def get_waypoints(grid, drones_init, road):
     z = get_zigzag_path(grid)
     return [
-        z[len(z) // 2:],
-        z[:len(z) // 2]
-    ], [[drones_init[0], drones_init[1] + (0 if i < (len(z) // 4) else 350)] for i, pos in enumerate(z)]
+               z[len(z) // 2:],
+               z[:len(z) // 2]
+           ], [[drones_init[0], drones_init[1] + (0 if i < (len(z) // 4) else 350)] for i, pos in enumerate(z)]
 
 
 def euclidean(x1, x2, y1, y2):
-    return np.sqrt((x1 - x2)**2 + (y1 - y2)**2)
+    return np.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2)
 
 
 def field_to_fly(track_1, track_2, max_d, init_coord, pool_end, zamboni_path):
@@ -118,7 +118,7 @@ def field_to_fly(track_1, track_2, max_d, init_coord, pool_end, zamboni_path):
     track_drone_d = euclidean(zamboni_path[init_coord, 0], track_1[0], zamboni_path[init_coord, 1], track_1[1])
     max_d = max_d - track_drone_d
     i = init_coord
-    left_on, ind = None, None
+    left_on, ind = None, 0  # TODO FIX THIS SHIT
     while max_d > 0 and i < pool_end:  # left max_dist is larger than ..% battery left
         d = euclidean(zamboni_path[i, 0], zamboni_path[i + 1, 0], zamboni_path[i, 1],
                       zamboni_path[i + 1, 1])  # between two points
@@ -207,21 +207,32 @@ def drones_num(track_1, track_2, max_drone_flight, init_p, right_edges, path_coo
 
 
 def generate_zamboni(grid, drones_inits, road):
-    from mainapp.kinematic_constants import SWARM_POPULATION, MAX_D, TRUCK_SPEED, DRONE_TIME
+    from mainapp.kinematic_constants import SWARM_POPULATION, TRUCK_SPEED, DRONE_TIME
+    from geopy.distance import distance
 
     zamboni_path = np.array(get_zigzag_path(grid))
+    max_d = min_max_d(grid, const=1.1)
+    print('!!! max d', max_d)
     right_edges = get_right_edges(zamboni_path)
+    extreme_points = get_extreme_points(grid)
+    y_end_km = distance(extreme_points['bottom_left'], extreme_points['top_left']).km
+    x_end_km = distance(extreme_points['bottom_left'], extreme_points['bottom_right']).km
+    x_end = extreme_points['bottom_right'][0]
+    y_end = extreme_points['top_left'][1]
     #  TODO fix y_end and x_const values read from drones_inits and field params
-    truck_path_pool = generate_stops(x_init=drones_inits[0], y_init=drones_inits[1], y_end_km=3,
-                                     y_end=43.275, drone_time=DRONE_TIME,
-                                     truck_V=TRUCK_SPEED, x_const=76.85,
-                                     grid=grid, x_end_km=5, y_const=43.215, x_end=76.885)
-    total_pathways, truck_path = best_stop_num(truck_path_pool, MAX_D, right_edges, zamboni_path)
-    pathways_num, pathways, pathways_start_end, pool_endings = all_pools_flight(truck_path, MAX_D, right_edges,
+
+    truck_path_pool = generate_stops(x_init=drones_inits[0], y_init=drones_inits[1], y_end_km=y_end_km,
+                                     y_end=y_end, drone_time=DRONE_TIME,
+                                     truck_V=TRUCK_SPEED, x_const=drones_inits[0],
+                                     grid=grid, x_end_km=x_end_km, y_const=drones_inits[1], x_end=x_end)
+
+    total_pathways, truck_path = best_stop_num(truck_path_pool, max_d, right_edges, zamboni_path)
+    pathways_num, pathways, pathways_start_end, pool_endings = all_pools_flight(truck_path, max_d, right_edges,
                                                                                 zamboni_path)
 
     drone_lifes = when_to_move_forward(truck_path, SWARM_POPULATION, pathways_num)
-    final_pathes = final_path_calculations(drone_lifes, zamboni_path, pool_endings, MAX_D)
+    final_pathes = final_path_calculations(drone_lifes, zamboni_path, pool_endings, max_d)
+    print('!!! final_pathes', final_pathes)
     waypoints = final_pathes.copy()
     for key, value in final_pathes.items():
         new_path = list()
@@ -391,25 +402,76 @@ def find_coord(new_coords, to_find):
             return idx
 
 
+# def final_path_calculations(drone_lifes, path_coords, pool_endings, max_drone_flight):
+#     path_start = 0
+#     lifes = drone_lifes.copy()
+#     fields_number = len(drone_lifes[0])
+#     for field in range(fields_number):
+#         stops_number = len(drone_lifes[0][0]) // 2
+#         for stop in range(stops_number):
+#             for drone in range(len(lifes)):
+#                 drone_life = lifes.get(drone)
+#                 path = drone_life[field]
+#                 if len(drone_life[field][
+#                            (stop * 2) + 1]) == 1:  # if drone flies (==[1]) or stays on the place ([0,1000])
+#                     _, _, path_end = field_to_fly(path[stop * 2], path[(stop + 1) * 2], max_drone_flight,
+#                                                   path_start, pool_endings[field], path_coords)
+#                     drone_life[field][(stop * 2) + 1] = path_coords[path_start:path_end + 1]
+#                 else:  # TODO fix dunno
+#                     continue
+#                 path_start = path_end
+#     return lifes
+#
+
 def final_path_calculations(drone_lifes, path_coords, pool_endings, max_drone_flight):
     path_start = 0
     lifes = drone_lifes.copy()
+    for num in range(len(drone_lifes)):
+        fields_number = len(drone_lifes[num])
+        #         print('fields number', fields_number)
+        for field in range(fields_number):
+            #             print("FIELD: ", field)
+            stops_number = len(drone_lifes[num][field]) // 2
+            #             print("stops number", stops_number)
+            for stop in range(stops_number):
+                for drone in range(len(lifes)):
+                    drone_life = lifes.get(drone)
+                    path = drone_life[field]
+                    if len(path[(stop * 2) + 1]) == 1:  # if drone flies (==[1]) or stays on the place ([0,1000])
 
-    fields_number = len(drone_lifes[0])
-
-    for field in range(fields_number):
-        stops_number = len(drone_lifes[0][0]) // 2
-        for stop in range(stops_number):
-            for drone in range(len(lifes)):
-                drone_life = lifes.get(drone)
-                path = drone_life[field]
-                if len(drone_life[field][
-                           (stop * 2) + 1]) == 1:  # if drone flies (==[1]) or stays on the place ([0,1000])
-                    dist, drone_path, path_end = field_to_fly(path[stop * 2], path[(stop + 1) * 2], max_drone_flight,
-                                                              path_start, pool_endings[field], path_coords)
-                    drone_life[field][(stop * 2) + 1] = path_coords[path_start:path_end + 1]
-                else:  # TODO fix dunno
-                    continue
-                path_start = path_end
-
+                        #                         print('!!! path', path, type(path))
+                        #                         print('!!! stop', stop)
+                        #                         print('!!! path stop', path_start)
+                        #                         print('pool endings', pool_endings)
+                        _, _, path_end = field_to_fly(path[stop * 2], path[(stop + 1) * 2], max_drone_flight,
+                                                      path_start, pool_endings[field], path_coords)
+                        print('!!! path end', path_end)
+                        drone_life[field][(stop * 2) + 1] = path_coords[path_start:path_end + 1]
+                    path_start = path_end
     return lifes
+
+
+def min_max_d(grid, const):
+    horizontal = is_horizontal(grid)
+    extremums = get_extreme_points(grid)
+    bottom_left = extremums['bottom_left']
+    bottom_right = extremums['bottom_right']
+    top_left = extremums['top_left']
+    if horizontal:
+        min_max_distance = np.sqrt(
+            (bottom_right[0] - bottom_left[0]) ** 2 + (top_left[1] - bottom_left[1]) ** 2) + \
+                           (top_left[1] - bottom_left[1]) * const
+    else:
+        min_max_distance = np.sqrt((bottom_right[0] - bottom_left[0]) ** 2 + (top_left[1] - bottom_left[1]) ** 2) + \
+                           (bottom_right[0] - bottom_left[0]) * const
+
+    return min_max_distance
+
+
+def get_extreme_points(grid):
+    output = dict()
+    output['bottom_left'] = np.array([min([f[0] for f in grid]), min([f[1] for f in grid])])
+    output['top_left'] = np.array([min([f[0] for f in grid]), max([f[1] for f in grid])])
+    output['top_right'] = np.array([max([f[0] for f in grid]), max([f[1] for f in grid])])
+    output['bottom_right'] = np.array([max([f[0] for f in grid]), min([f[1] for f in grid])])
+    return output
