@@ -212,7 +212,6 @@ def generate_zamboni(grid, drones_inits, road):
 
     zamboni_path = np.array(get_zigzag_path(grid))
     max_d = min_max_d(grid, const=1.1)
-    print('!!! max d', max_d)
     right_edges = get_right_edges(zamboni_path)
     extreme_points = get_extreme_points(grid)
     y_end_km = distance(extreme_points['bottom_left'], extreme_points['top_left']).km
@@ -229,10 +228,8 @@ def generate_zamboni(grid, drones_inits, road):
     total_pathways, truck_path = best_stop_num(truck_path_pool, max_d, right_edges, zamboni_path)
     pathways_num, pathways, pathways_start_end, pool_endings = all_pools_flight(truck_path, max_d, right_edges,
                                                                                 zamboni_path)
-
     drone_lifes = when_to_move_forward(truck_path, SWARM_POPULATION, pathways_num)
     final_pathes = final_path_calculations(drone_lifes, zamboni_path, pool_endings, max_d)
-    print('!!! final_pathes', final_pathes)
     waypoints = final_pathes.copy()
     for key, value in final_pathes.items():
         new_path = list()
@@ -402,50 +399,21 @@ def find_coord(new_coords, to_find):
             return idx
 
 
-# def final_path_calculations(drone_lifes, path_coords, pool_endings, max_drone_flight):
-#     path_start = 0
-#     lifes = drone_lifes.copy()
-#     fields_number = len(drone_lifes[0])
-#     for field in range(fields_number):
-#         stops_number = len(drone_lifes[0][0]) // 2
-#         for stop in range(stops_number):
-#             for drone in range(len(lifes)):
-#                 drone_life = lifes.get(drone)
-#                 path = drone_life[field]
-#                 if len(drone_life[field][
-#                            (stop * 2) + 1]) == 1:  # if drone flies (==[1]) or stays on the place ([0,1000])
-#                     _, _, path_end = field_to_fly(path[stop * 2], path[(stop + 1) * 2], max_drone_flight,
-#                                                   path_start, pool_endings[field], path_coords)
-#                     drone_life[field][(stop * 2) + 1] = path_coords[path_start:path_end + 1]
-#                 else:  # TODO fix dunno
-#                     continue
-#                 path_start = path_end
-#     return lifes
-#
-
 def final_path_calculations(drone_lifes, path_coords, pool_endings, max_drone_flight):
     path_start = 0
     lifes = drone_lifes.copy()
     for num in range(len(drone_lifes)):
         fields_number = len(drone_lifes[num])
-        #         print('fields number', fields_number)
         for field in range(fields_number):
-            #             print("FIELD: ", field)
             stops_number = len(drone_lifes[num][field]) // 2
-            #             print("stops number", stops_number)
             for stop in range(stops_number):
                 for drone in range(len(lifes)):
                     drone_life = lifes.get(drone)
                     path = drone_life[field]
                     if len(path[(stop * 2) + 1]) == 1:  # if drone flies (==[1]) or stays on the place ([0,1000])
 
-                        #                         print('!!! path', path, type(path))
-                        #                         print('!!! stop', stop)
-                        #                         print('!!! path stop', path_start)
-                        #                         print('pool endings', pool_endings)
                         _, _, path_end = field_to_fly(path[stop * 2], path[(stop + 1) * 2], max_drone_flight,
                                                       path_start, pool_endings[field], path_coords)
-                        print('!!! path end', path_end)
                         drone_life[field][(stop * 2) + 1] = path_coords[path_start:path_end + 1]
                     path_start = path_end
     return lifes
