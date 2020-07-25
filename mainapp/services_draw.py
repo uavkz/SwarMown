@@ -91,7 +91,7 @@ def get_zigzag_path(grid):
     return new_coords
 
 
-def get_waypoints(grid, drones_init, road):
+def get_waypoints(grid, drones_init, road, number_of_drones=2):
     z = get_zigzag_path(grid)
     return [
                z[len(z) // 2:],
@@ -206,8 +206,8 @@ def drones_num(track_1, track_2, max_drone_flight, init_p, right_edges, path_coo
     return [drones_max, drone_paths, coords, pool_end]
 
 
-def generate_zamboni(grid, drones_inits, road):
-    from mainapp.kinematic_constants import SWARM_POPULATION, TRUCK_SPEED, DRONE_TIME
+def generate_zamboni(grid, drones_inits, road, number_of_drones=2):
+    from mainapp.kinematic_constants import TRUCK_SPEED, DRONE_TIME
     from geopy.distance import distance
 
     zamboni_path = np.array(get_zigzag_path(grid))
@@ -228,7 +228,7 @@ def generate_zamboni(grid, drones_inits, road):
     total_pathways, truck_path = best_stop_num(truck_path_pool, max_d, right_edges, zamboni_path)
     pathways_num, pathways, pathways_start_end, pool_endings = all_pools_flight(truck_path, max_d, right_edges,
                                                                                 zamboni_path)
-    drone_lifes = when_to_move_forward(truck_path, SWARM_POPULATION, pathways_num)
+    drone_lifes = when_to_move_forward(truck_path, number_of_drones, pathways_num)
     final_pathes = final_path_calculations(drone_lifes, zamboni_path, pool_endings, max_d)
     waypoints = final_pathes.copy()
     for key, value in final_pathes.items():

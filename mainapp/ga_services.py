@@ -14,7 +14,7 @@ def generate_car_position():
     return [559, 411]
 
 
-def generate_waypoints_ga(grid, drones_inits, road):
+def generate_waypoints_ga(grid, drones_inits, road, number_of_drones=2):
     import numpy as np
 
     if grid is None:

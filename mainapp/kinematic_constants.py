@@ -1,4 +1,3 @@
 # TODO Move to models and DB
-SWARM_POPULATION = 4
 DRONE_TIME = 0.05
 TRUCK_SPEED = 30
