@@ -334,8 +334,9 @@
                     let circleCoords = reverseProject(L.point(drone.x + drone.width / 2, drone.y + drone.height / 2));
                     var circle = L.circle([circleCoords.lat, circleCoords.lng], {
                         color: '#00cc14',
-                        fillOpacity: 0.25,
-                        radius: 36
+                        fillOpacity: 0.1,
+                        opacity: 0.01,
+                        radius: 70000 * gridStep
                     }).addTo(map);
                     {#console.log(circle);#}
                 {#}#}
