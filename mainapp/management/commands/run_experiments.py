@@ -15,8 +15,6 @@ class Command(BaseCommand):
 
         field = get_field()
         grid = get_grid(field, 0.0025)
-        new_coords = get_zigzag_path(grid)
-        new_coords = np.array(new_coords)
         # from geopy.distance import distance
 
         MAX_D = 0.15
@@ -27,9 +25,6 @@ class Command(BaseCommand):
         drones_inits = extremums['bottom_left']
         X_END = extremums['bottom_right'][0]
         Y_END = extremums['top_left'][1]
-        # y_end_km = distance(extreme_points['bottom_left'], extreme_points['top_left']).km
-        # x_end_km = distance(extreme_points['bottom_left'], extreme_points['bottom_right']).km
-
         zamboni_path = get_zigzag_path(grid=grid)
 
         right_edges = get_right_edges(new_coords=zamboni_path)
@@ -70,13 +65,15 @@ class Command(BaseCommand):
 
         plt.figure(figsize=(20, 10))
         plt.grid()
-
         for key, value in waypoints.items():
             to_draw = list()
             for way in value:
                 if len(way) > 2:
                     to_draw.extend(way)
+                else:
+                    to_draw.append(way)
             to_draw = np.array(to_draw)
             plt.plot(to_draw[:, 0], to_draw[:, 1], label=f'drone_{key}')
         plt.legend(loc=4)
+        print('!!! check picture window')
         plt.show()
