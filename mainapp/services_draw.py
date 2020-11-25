@@ -117,6 +117,7 @@ def field_to_fly(track_1, track_2, max_d, init_coord, pool_end, zamboni_path):
     :return:
     """
     dist = 0
+    zamboni_path = np.array(zamboni_path)
     track_drone_d = euclidean(zamboni_path[init_coord, 0], track_1[0], zamboni_path[init_coord, 1], track_1[1])
     max_d = max_d - track_drone_d
     i = init_coord
@@ -144,6 +145,7 @@ def field_to_fly(track_1, track_2, max_d, init_coord, pool_end, zamboni_path):
 
 
 def total_dist(init, final, zamboni_path, total_dist=0):
+    zamboni_path = np.array(zamboni_path)
     for i in range(len(zamboni_path[init:final]) - 1):
         d = euclidean(zamboni_path[i, 0], zamboni_path[i + 1, 0], zamboni_path[i, 1], zamboni_path[i + 1, 1])
         total_dist += d

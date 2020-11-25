@@ -8,7 +8,8 @@ class Command(BaseCommand):
 
     def run(self):
 
-        from mainapp.services_draw import *
+        from mainapp.services_draw import get_right_edges, get_zigzag_path, get_field, get_grid, generate_stops, \
+            get_extreme_points, when_to_move_forward, best_stop_num, all_pools_flight, final_path_calculations
         import matplotlib.pyplot as plt
         import numpy as np
 
@@ -28,8 +29,6 @@ class Command(BaseCommand):
         Y_END = extremums['top_left'][1]
         # y_end_km = distance(extreme_points['bottom_left'], extreme_points['top_left']).km
         # x_end_km = distance(extreme_points['bottom_left'], extreme_points['bottom_right']).km
-        x_end_km = 4.430159050247548
-        y_end_km = 0.8644997816957473
 
         zamboni_path = get_zigzag_path(grid=grid)
 
@@ -81,4 +80,3 @@ class Command(BaseCommand):
             plt.plot(to_draw[:, 0], to_draw[:, 1], label=f'drone_{key}')
         plt.legend(loc=4)
         plt.show()
-
