@@ -2,7 +2,6 @@ import json
 
 from django.views.generic import TemplateView
 
-from mainapp.algorithms import WAYPOINTS_ALGORITHMS
 from mainapp.models import *
 from mainapp.services_draw import *
 
@@ -30,7 +29,7 @@ class MownView(TemplateView):
         grid = get_grid(field, grid_step)
         initial_position = get_initial_position(field, grid, road)
         # [x, y, z, is_active]
-        # waypoints, pickup_waypoints = WAYPOINTS_ALGORITHMS[self.request.GET.get("algorithm", "zamboni")]['callable'](grid, initial_position, road, number_of_drones)
+        # waypoints, pickup_waypoints = generate_zamboni(grid, initial_position, road, number_of_drones)
         context['field_flat'] = [coord for point in field for coord in point]
         context['field'] = field
         context['field_id'] = field_obj.id if field_obj else ""
