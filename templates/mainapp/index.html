@@ -71,17 +71,11 @@
 
         var lastSpeed = null;
         $('#pauseButton').click(function () {
-            lastSpeed = droneSpeed;
-            droneSpeed = 0;
-            $('#droneSpeed').val(0);
+
         });
 
         $('#startButton').click(function () {
-            if(lastSpeed !== null){
-                droneSpeed = lastSpeed;
-                $('#droneSpeed').val(droneSpeed);
-                lastSpeed = null;
-            }
+
         });
 
         $('#replayButton').click(function () {
@@ -91,30 +85,11 @@
             initStuff();
         });
 
-        function checkIfInPolygon(point, vs) {
-            // ray-casting algorithm based on
-            // http://www.ecse.rpi.edu/Homepages/wrf/Research/Short_Notes/pnpoly.html
-            var x = point[0], y = point[1];
-
-            var inside = false;
-            for (var i = 0, j = vs.length - 1; i < vs.length; j = i++) {
-                var xi = vs[i][0], yi = vs[i][1];
-                var xj = vs[j][0], yj = vs[j][1];
-
-                var intersect = ((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
-                if (intersect)
-                    inside = !inside;
-            }
-            return inside;
-        }
-
         var fieldPolygon;
         var gridStep;
         var initial;
         var map;
         var loader;
-        var waypoints;
-        var pickupWaypoints;
         var grid;
         var road;
         var drones;
@@ -125,6 +100,7 @@
         var project;
         var reverseProject;
         var stage;
+
         function initStuff() {
             fieldPolygon = {{ field|safe }};
             road = {{ road|safe }};
@@ -161,8 +137,7 @@
             loader.add('drone', '{% static 'img/textures/drone.png' %}');
             loader.add('pickup', '{% static 'img/textures/pickup.png' %}');
             loader.load(setupWrapper);
-            waypoints = [];
-            pickupWaypoints = [];
+
             grid = {{ grid|safe }};
             drones = [];
             droneSpeed = 0.01;
@@ -309,6 +284,7 @@
 
         function gameLoop(delta) {
             tick += 1;
+            {% comment %}
             let i = 0;
             // Moving Drones
             for (let drone of drones) {
@@ -329,8 +305,9 @@
                 drone.x += delta_x * droneSpeed;
                 drone.y += delta_y * droneSpeed;
 
-                {#if(tick % Math.round((gridStep / droneSpeed / Math.max(10 / drones.length, 3))) === 0 &&#}
-                {#    checkIfInPolygon([drone.x + drone.width / 2, drone.y + drone.height / 2], fieldPolygon)) {#}
+                /*
+                if(tick % Math.round((gridStep / droneSpeed / Math.max(10 / drones.length, 3))) === 0 &&
+                    checkIfInPolygon([drone.x + drone.width / 2, drone.y + drone.height / 2], fieldPolygon)) {
                     let circleCoords = reverseProject(L.point(drone.x + drone.width / 2, drone.y + drone.height / 2));
                     var circle = L.circle([circleCoords.lat, circleCoords.lng], {
                         color: '#00cc14',
@@ -338,8 +315,9 @@
                         opacity: 0.01,
                         radius: 70000 * gridStep
                     }).addTo(map);
-                    {#console.log(circle);#}
-                {#}#}
+                    console.log(circle);
+                }
+                */
 
                 if (Math.abs(drone.x + drone.width / 2 - my_waypoint[0]) < droneSpeed / 2 &&
                     Math.abs(drone.y + drone.height / 2 - my_waypoint[1]) < droneSpeed / 2) {
@@ -364,7 +342,7 @@
                 pickup.x += delta_x * pickupSpeed;
                 pickup.y += delta_y * pickupSpeed;
             }
-            i++;
+            {% endcomment %}
         }
 
         initStuff();
