@@ -161,8 +161,8 @@
             loader.add('drone', '{% static 'img/textures/drone.png' %}');
             loader.add('pickup', '{% static 'img/textures/pickup.png' %}');
             loader.load(setupWrapper);
-            waypoints = {{ waypoints|safe }};
-            pickupWaypoints = {{ pickup_waypoints|safe }};
+            waypoints = [];
+            pickupWaypoints = [];
             grid = {{ grid|safe }};
             drones = [];
             droneSpeed = 0.01;
@@ -352,7 +352,7 @@
             }
 
             // Moving pickup
-            let my_waypoint = pickupWaypoints[0];
+            my_waypoint = pickupWaypoints[0];
             if (!(Math.abs(pickup.x + pickup.width / 2 - my_waypoint[0]) < pickupSpeed &&
                 Math.abs(pickup.y + pickup.height / 2 - my_waypoint[1]) < pickupSpeed)) {
                 let delta_x = my_waypoint[0] - pickup.width / 2 - pickup.x;

@@ -30,16 +30,13 @@ class MownView(TemplateView):
         grid = get_grid(field, grid_step)
         initial_position = get_initial_position(field, grid, road)
         # [x, y, z, is_active]
-        waypoints, pickup_waypoints = WAYPOINTS_ALGORITHMS[self.request.GET.get("algorithm", "zamboni")]['callable'](grid, initial_position, road, number_of_drones)
+        # waypoints, pickup_waypoints = WAYPOINTS_ALGORITHMS[self.request.GET.get("algorithm", "zamboni")]['callable'](grid, initial_position, road, number_of_drones)
         context['field_flat'] = [coord for point in field for coord in point]
         context['field'] = field
         context['field_id'] = field_obj.id if field_obj else ""
         context['road'] = road
         context['grid'] = grid
         context['grid_step'] = grid_step
-        context['number_of_drones'] = number_of_drones
         context['initial'] = initial_position
-        context['waypoints'] = waypoints
-        context['pickup_waypoints'] = pickup_waypoints
-        context['number_of_drones'] = len(waypoints)
+        context['number_of_drones'] = number_of_drones
         return context
