@@ -13,6 +13,7 @@ class Field(models.Model):
     def __str__(self):
         return f"{self.name}"
 
+
 class Mission(models.Model):
     class Meta:
         verbose_name = "Миссия"
@@ -59,6 +60,7 @@ class Mission(models.Model):
     @property
     def drones_verbose(self):
         return ", ".join([str(d) for d in self.drones.all()])
+
 
 class Drone(models.Model):
     class Meta:

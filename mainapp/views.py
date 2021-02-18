@@ -61,8 +61,8 @@ class MissionsCreateView(TemplateView):
             field_id=request.POST['field'],
             grid_step=request.POST['grid_step'],
         )
-        m.drones.add(*request.POST['drones'],)
-        return HttpResponseRedirect(reverse_lazy('mainapp:add_mission'))
+        m.drones.add(*request.POST.getlist('drones'))
+        return HttpResponseRedirect(reverse_lazy('mainapp:list_mission'))
 
 
 class MissionsListView(ListView):
