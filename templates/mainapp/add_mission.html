@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% load static %}
+
+{% block head %}
+{% endblock %}
+
+{% block title %}
+    Добавить миссию
+{% endblock %}
+
+{% block content %}
+    <form action="" method="post">
+        {% csrf_token %}
+        <div class="row">
+            <div class="col"></div>
+            <div class="col">
+                <label for="fieldName">Название миссии</label>
+                <input id="fieldName" name="name" class="form-control" required>
+            </div>
+            <div class="col"></div>
+        </div>
+
+        <div class="row">
+            <div class="col"></div>
+            <div class="col">
+                <label for="fieldName">Описание</label>
+                <textarea id="fieldName" name="description" class="form-control" required></textarea>
+            </div>
+            <div class="col"></div>
+        </div>
+
+        <div class="row">
+            <div class="col"></div>
+            <div class="col">
+                <label for="fieldName">Тип задачи</label>
+                <select id="fieldName" name="type" class="form-control">
+                    {% for type in types %}
+                        <option value="{{ type.0 }}">{{ type.1 }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col"></div>
+        </div>
+
+        <div class="row">
+            <div class="col"></div>
+            <div class="col">
+                <label for="fieldName">Поле</label>
+                <select id="fieldName" name="field" class="form-control">
+                    {% for field in fields %}
+                        <option value="{{ field.id }}">{{ field.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col"></div>
+        </div>
+
+        <div class="row">
+            <div class="col"></div>
+            <div class="col">
+                <label for="fieldName">Ширина облета</label>
+                <input id="fieldName" name="grid_step" type="number" step="0.001" value="0.0001" class="form-control" required>
+            </div>
+            <div class="col"></div>
+        </div>
+
+        <div class="row">
+            <div class="col"></div>
+            <div class="col">
+                <label for="fieldName">Дроны</label>
+                <select id="fieldName" name="drones" class="form-control" multiple required>
+                    {% for drone in drones %}
+                        <option value="{{ drone.id }}">{{ drone.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col"></div>
+        </div>
+
+        <div class="row">
+            <div class="col" style="text-align: center;">
+                <button id="saveField" class="btn btn-primary" style="margin-top: 10px;">Сохранить миссию</button>
+            </div>
+        </div>
+    </form>
+{% endblock %}
+
+{% block foot %}
+
+{% endblock %}

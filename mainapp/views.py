@@ -1,5 +1,7 @@
 import json
 
+from django.http import HttpResponseRedirect
+from django.urls import reverse_lazy
 from django.views.generic import TemplateView
 
 from mainapp.models import *
@@ -39,3 +41,25 @@ class MownView(TemplateView):
         context['initial'] = initial_position
         context['number_of_drones'] = number_of_drones
         return context
+
+
+class MissionsView(TemplateView):
+    template_name = "mainapp/add_mission.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['types'] = Mission.TYPES
+        context['fields'] = Field.objects.all()
+        context['drones'] = Drone.objects.all()
+        return context
+
+    def post(self, request, **kwargs):
+        m = Mission.objects.create(
+            name=request.POST['name'],
+            description=request.POST['description'],
+            type=request.POST['type'],
+            field_id=request.POST['field'],
+            grid_step=request.POST['grid_step'],
+        )
+        m.drones.add(*request.POST['drones'],)
+        return HttpResponseRedirect(reverse_lazy('mainapp:add_mission'))
