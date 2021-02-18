@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% load static %}
+
+{% block head %}
+{% endblock %}
+
+{% block title %}
+    Список миссий
+{% endblock %}
+
+{% block content %}
+    <div class="row">
+        <div class="col-10 col-centered">
+            <table class="table">
+                <thead>
+                <tr>
+                    <th scope="col">ID</th>
+                    <th scope="col">Название</th>
+                    <th scope="col">Тип</th>
+                    <th scope="col">Статус</th>
+                    <th scope="col">Поле</th>
+                    <th scope="col">Дроны</th>
+                    <th scope="col">Действия</th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for mission in object_list %}
+                    <tr>
+                        <th scope="row">{{ mission.id }}</th>
+                        <td>{{ mission.name }}</td>
+                        <td>{{ mission.type_verbose }}</td>
+                        <td>{{ mission.status_verbose }}</td>
+                        <td>{{ mission.field }}</td>
+                        <td>{{ mission.drones_verbose }}</td>
+                        <td>
+                            <a href="#" data-toggle="tooltip" title="Запуск"><i style="color: green;" class="fas fa-play"></i></a>
+                            <a href="#" data-toggle="tooltip" title="Удалить"><i style="color: red;" class="fas fa-times"></i></a>
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+{% endblock %}
+
+{% block foot %}
+    <script>
+        $('[data-toggle="tooltip"]').tooltip()
+    </script>
+{% endblock %}

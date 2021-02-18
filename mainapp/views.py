@@ -2,7 +2,7 @@ import json
 
 from django.http import HttpResponseRedirect
 from django.urls import reverse_lazy
-from django.views.generic import TemplateView
+from django.views.generic import TemplateView, ListView
 
 from mainapp.models import *
 from mainapp.services_draw import *
@@ -43,7 +43,7 @@ class MownView(TemplateView):
         return context
 
 
-class MissionsView(TemplateView):
+class MissionsCreateView(TemplateView):
     template_name = "mainapp/add_mission.html"
 
     def get_context_data(self, **kwargs):
@@ -63,3 +63,8 @@ class MissionsView(TemplateView):
         )
         m.drones.add(*request.POST['drones'],)
         return HttpResponseRedirect(reverse_lazy('mainapp:add_mission'))
+
+
+class MissionsListView(ListView):
+    template_name = "mainapp/list_mission.html"
+    queryset = Mission.objects.all().order_by('-id')

@@ -10,6 +10,8 @@ class Field(models.Model):
     points_serialized = models.TextField() # Json Serialized [[lat, lon], [lat, lon], ...]
     road_serialized = models.TextField(default=[]) # Json Serialized [[lat, lon], [lat, lon], ...]
 
+    def __str__(self):
+        return f"{self.name}"
 
 class Mission(models.Model):
     class Meta:
@@ -43,6 +45,20 @@ class Mission(models.Model):
     drones = models.ManyToManyField('Drone', verbose_name="Дроны")
     waypoints_history = models.ManyToManyField('Waypoint', verbose_name="История", related_name="mission_obj")
 
+    def __str__(self):
+        return f"{self.name} ({self.type}) {self.status}"
+
+    @property
+    def status_verbose(self):
+        return dict(self.STATUSES)[self.status]
+
+    @property
+    def type_verbose(self):
+        return dict(self.TYPES)[self.type]
+
+    @property
+    def drones_verbose(self):
+        return ", ".join([str(d) for d in self.drones.all()])
 
 class Drone(models.Model):
     class Meta:
@@ -58,6 +74,9 @@ class Drone(models.Model):
     max_distance_no_load = models.FloatField(verbose_name="Максимальная дальность полета без доп. нагрузки")
 
     weight = models.FloatField(verbose_name="Вес дрона")
+
+    def __str__(self):
+        return f"{self.name} ({self.model})"
 
 
 class Waypoint(models.Model):
@@ -76,3 +95,6 @@ class Waypoint(models.Model):
     speed = models.FloatField(verbose_name="Скорость полета")
     acceleration = models.FloatField(verbose_name="Ускорение")
     spray_on = models.BooleanField(null=True, blank=True, verbose_name="Включено ли разбрызгивание")
+
+    def __str__(self):
+        return f"{self.mission} ({self.drone}) - {self.datetime}"
