@@ -2,10 +2,16 @@ import json
 
 from django.http import HttpResponseRedirect
 from django.urls import reverse_lazy
+from django.views import View
 from django.views.generic import TemplateView, ListView
 
 from mainapp.models import *
 from mainapp.services_draw import *
+
+
+class Index(View):
+    def get(self, request, **kwargs):
+        return HttpResponseRedirect(reverse_lazy('mainapp:list_mission'))
 
 
 class MownView(TemplateView):
