@@ -17,33 +17,6 @@
     <form action="" method="GET">
         <div class="row">
             <div class="col"></div>
-            <div class="col form-group">
-                <label for="field">Поле</label>
-                <select id="field" class="form-control" name="field">
-                    <option value="">-----</option>
-                    {% for field in fields %}
-                        <option value="{{ field.id }}" {% if field.id == field_id %}selected{% endif %}>{{ field.name }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-
-            <div class="col form-group">
-                <label for="number">Радиус опрыскивания</label>
-                <input id="number" class="form-control" name="grid_step" value="{{ grid_step }}">
-            </div>
-
-            <div class="col form-group">
-                <label for="number_of_drones">Количество дронов</label>
-                <input id="number_of_drones" class="form-control" name="number_of_drones" value="{{ number_of_drones }}">
-            </div>
-
-            <div class="col form-group">
-                <input class="btn btn-primary" type="submit" value="Запустить" style="margin-top: 32px;">
-            </div>
-            <div class="col"></div>
-        </div>
-        <div class="row">
-            <div class="col"></div>
 
             <div class="col">
                 <label for="droneSpeed">Скорость дрона</label>

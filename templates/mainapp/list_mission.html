@@ -34,7 +34,7 @@
                         <td>{{ mission.field }}</td>
                         <td>{{ mission.drones_verbose }}</td>
                         <td>
-                            <a href="#" data-toggle="tooltip" title="Запуск"><i style="color: green;" class="fas fa-play"></i></a>
+                            <a href="{% url 'mainapp:simulate_mission' mission.id %}" data-toggle="tooltip" title="Запуск"><i style="color: green;" class="fas fa-play"></i></a>
                             <a href="#" data-toggle="tooltip" title="Удалить"><i style="color: red;" class="fas fa-times"></i></a>
                         </td>
                     </tr>

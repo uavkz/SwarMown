@@ -14,30 +14,25 @@ class Index(View):
         return HttpResponseRedirect(reverse_lazy('mainapp:list_mission'))
 
 
-class MownView(TemplateView):
-    template_name = "mainapp/index.html"
+class SimulateMissionView(TemplateView):
+    template_name = "mainapp/simulate_mission.html"
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['fields'] = Field.objects.all()
+        context['mission'] = Mission.objects.get(id=kwargs['mission_id'])
 
-        field_obj = None
-        if not self.request.GET.get('field'):
-            field = get_field()
-            road = []
-        else:
-            field_obj = Field.objects.get(id=self.request.GET.get('field'))
-            field = json.loads(field_obj.points_serialized)
-            field = [[y, x] for (x, y) in field]
-            road = json.loads(field_obj.road_serialized)
-            road = [[y, x] for (x, y) in road]
+        field_obj = context['mission'].field
+        field = json.loads(field_obj.points_serialized)
+        field = [[y, x] for (x, y) in field]
+        road = json.loads(field_obj.road_serialized)
+        road = [[y, x] for (x, y) in road]
 
-        grid_step = float(self.request.GET.get("grid_step", 0.001))
-        number_of_drones = int(self.request.GET.get("number_of_drones", 2))
+        grid_step = context['mission'].grid_step
+        number_of_drones = context['mission'].drones.all().count()
         grid = get_grid(field, grid_step)
         initial_position = get_initial_position(field, grid, road)
         # [x, y, z, is_active]
-        # waypoints, pickup_waypoints = generate_zamboni(grid, initial_position, road, number_of_drones)
+
         context['field_flat'] = [coord for point in field for coord in point]
         context['field'] = field
         context['field_id'] = field_obj.id if field_obj else ""
