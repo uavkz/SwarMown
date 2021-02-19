@@ -28,6 +28,12 @@ class Mission(models.Model):
         (3, "Завершен"),
     )
 
+    WAYPOINTS_STATUSES = (
+        (0, "Не рассчитано"),
+        (1, "В процессе расчета"),
+        (2, "Готово"),
+    )
+
     TYPES = (
         (1, "Опрыскивание"),
         (2, "Аеро-фото-съемка"),
@@ -44,7 +50,9 @@ class Mission(models.Model):
     field = models.ForeignKey('Field', on_delete=models.CASCADE, verbose_name="Поля")
     grid_step = models.FloatField(default=0.001, verbose_name="Шаг решетки")
     drones = models.ManyToManyField('Drone', verbose_name="Дроны")
-    waypoints_history = models.ManyToManyField('Waypoint', verbose_name="История", related_name="mission_obj")
+    current_waypoints_status = models.SmallIntegerField(default=0, choices=WAYPOINTS_STATUSES, verbose_name="Статус маршрута")
+    current_waypoints = models.ManyToManyField('Waypoint', blank=True, verbose_name="Текущий путь", related_name="mission")
+    waypoints_history = models.ManyToManyField('Waypoint', blank=True, verbose_name="История", related_name="mission_history")
 
     def __str__(self):
         return f"{self.name} ({self.type}) {self.status}"
@@ -86,10 +94,19 @@ class Waypoint(models.Model):
         verbose_name = "Waypoint облета"
         verbose_name_plural = "Waypointы облетов"
 
-    mission = models.ForeignKey('Mission', on_delete=models.CASCADE)
+    STATUSES = (
+        (-1, "История"),
+        (0, "Не начат"),
+        (1, "В процессе"),
+        (2, "Завершен"),
+    )
+
     drone = models.ForeignKey('Drone', on_delete=models.CASCADE)
 
+    status = models.SmallIntegerField(default=0, choices=STATUSES, verbose_name="Статус")
+
     datetime = models.DateTimeField(verbose_name="Дата и время Waypointа")
+    index = models.PositiveIntegerField(null=True, blank=True, verbose_name="Порядковый номер")
     lat = models.FloatField(verbose_name="Широта")
     lon = models.FloatField(verbose_name="Долгота")
     height = models.FloatField(verbose_name="Высота")
@@ -100,3 +117,7 @@ class Waypoint(models.Model):
 
     def __str__(self):
         return f"{self.mission} ({self.drone}) - {self.datetime}"
+
+    @property
+    def status_verbose(self):
+        return dict(self.STATUSES)[self.status]

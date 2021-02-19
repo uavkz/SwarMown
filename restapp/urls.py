@@ -5,6 +5,7 @@ from restapp.views import *
 
 router = routers.DefaultRouter()
 router.register("field", FieldViewSet, basename="field")
+router.register("waypoints", WaypointsViewSet, basename="waypoints")
 
 app_name = 'restapp'
 

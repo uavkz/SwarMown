@@ -1,3 +1,6 @@
+import json
+
+from django.core import serializers
 from rest_framework import viewsets
 from rest_framework.response import Response
 
@@ -23,3 +26,18 @@ class FieldViewSet(viewsets.ViewSet):
         except Exception as e:
             return Response({"status": 500, "error": str(e)})
         return Response({"status": 200}, status=200)
+
+
+class WaypointsViewSet(viewsets.ViewSet):
+    def list(self, request):
+        mission = Mission.objects.get(id=request.GET.get('mission_id'))
+        if mission.current_waypoints_status != 2 or True:
+            return Response({"error": "Маршрут не готов"}, status=500)
+        next_waypoint = mission.current_waypoints.filter(status=0).order_by('index').first()
+        next_waypoint = json.loads(serializers.serialize('json', [next_waypoint])[1:-1])
+        waypoint_pk = next_waypoint['pk']
+        next_waypoint = next_waypoint['fields']
+        next_waypoint['id'] = waypoint_pk
+        return Response({
+            "next_waypoint": next_waypoint
+        }, status=200)

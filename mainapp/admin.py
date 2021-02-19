@@ -9,8 +9,8 @@ class FieldAdmin(admin.ModelAdmin):
 
 
 class MissionAdmin(admin.ModelAdmin):
-    list_display = ('name', 'status', 'type', 'field', 'grid_step', 'datetime')
-    list_filter = ('status', 'type', )
+    list_display = ('name', 'status', 'current_waypoints_status', 'type', 'field', 'grid_step', 'datetime')
+    list_filter = ('status', 'type', 'current_waypoints_status', )
     search_fields = ('name', )
 
 
@@ -21,8 +21,8 @@ class DroneAdmin(admin.ModelAdmin):
 
 
 class WaypointAdmin(admin.ModelAdmin):
-    list_display = ('mission', 'drone', 'datetime', 'height', 'speed', 'acceleration', 'spray_on', )
-    list_filter = ('mission', 'drone', 'spray_on', )
+    list_display = ('drone', 'datetime', 'index', 'height', 'speed', 'acceleration', 'spray_on', 'status', )
+    list_filter = ('mission', 'drone', 'spray_on', 'status', )
     search_fields = ('name', )
 
 
