@@ -62,6 +62,10 @@ class Mission(models.Model):
         return dict(self.STATUSES)[self.status]
 
     @property
+    def current_waypoints_status_verbose(self):
+        return dict(self.WAYPOINTS_STATUSES)[self.current_waypoints_status]
+
+    @property
     def type_verbose(self):
         return dict(self.TYPES)[self.type]
 
@@ -82,6 +86,7 @@ class Drone(models.Model):
     max_speed = models.FloatField(verbose_name="Максимальная скорость")
     max_height = models.FloatField(verbose_name="Максимальная высота")
     max_distance_no_load = models.FloatField(verbose_name="Максимальная дальность полета без доп. нагрузки")
+    max_load = models.FloatField(verbose_name="Максимальная нагрузка")
 
     weight = models.FloatField(verbose_name="Вес дрона")
 

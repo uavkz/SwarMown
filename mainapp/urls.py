@@ -12,5 +12,7 @@ urlpatterns = [
     path('add-mission/', MissionsCreateView.as_view(), name="add_mission"),
     path('list-mission/', MissionsListView.as_view(), name="list_mission"),
 
-    path('simulating-mission/<int:mission_id>/', SimulateMissionView.as_view(), name="simulate_mission")
+    path('manage-route/<int:mission_id>/', ManageRouteView.as_view(), name="manage_route"),
+
+    path('simulating-mission/<int:mission_id>/', SimulateMissionView.as_view(), name="simulate_mission"),
 ]

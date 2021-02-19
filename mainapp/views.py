@@ -44,6 +44,36 @@ class SimulateMissionView(TemplateView):
         return context
 
 
+class ManageRouteView(TemplateView):
+    template_name = "mainapp/manage_route.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['mission'] = Mission.objects.get(id=kwargs['mission_id'])
+
+        field_obj = context['mission'].field
+        field = json.loads(field_obj.points_serialized)
+        field = [[y, x] for (x, y) in field]
+        road = json.loads(field_obj.road_serialized)
+        road = [[y, x] for (x, y) in road]
+
+        grid_step = context['mission'].grid_step
+        number_of_drones = context['mission'].drones.all().count()
+        grid = get_grid(field, grid_step)
+        initial_position = get_initial_position(field, grid, road)
+        # [x, y, z, is_active]
+
+        context['field_flat'] = [coord for point in field for coord in point]
+        context['field'] = field
+        context['field_id'] = field_obj.id if field_obj else ""
+        context['road'] = road
+        context['grid'] = grid
+        context['grid_step'] = grid_step
+        context['initial'] = initial_position
+        context['number_of_drones'] = number_of_drones
+        return context
+
+
 class MissionsCreateView(TemplateView):
     template_name = "mainapp/add_mission.html"
 

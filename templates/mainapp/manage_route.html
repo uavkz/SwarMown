@@ -10,30 +10,99 @@
 {% endblock %}
 
 {% block title %}
-    Симуляция (Миссия {{ mission }})
+    Управление маршрутом (Миссия {{ mission }})
 {% endblock %}
 
 {% block content %}
     <form action="" method="GET">
-        <div class="row">
+        <div class="row" style="margin-top: 10px;">
             <div class="col"></div>
 
             <div class="col">
-                <label for="droneSpeed">Скорость дрона</label>
-                <input type="range" class="custom-range" value="0.01" min="0" max="0.2" step="0.01" id="droneSpeed">
+                <label for="fieldName">Оптимизация движения машины</label>
+                <select id="fieldName" name="carMove" class="form-control">
+                    <option value="no">Без движения машины</option>
+                    <option value="simple">Равномерное движение</option>
+                    <option value="genetic">Генетическая оптимизация</option>
+                </select>
             </div>
 
             <div class="col">
-                <i id="startButton" class="fas fa-play action-icon ml-1 mt-2" data-toggle="tooltip" title="Старт"></i>
-                <i id="pauseButton" class="fas fa-pause action-icon ml-1 mt-2" data-toggle="tooltip" title="Пауза"></i>
-                <i id="replayButton" class="fas fa-redo-alt action-icon ml-1 mt-2" data-toggle="tooltip" title="Начать с начала"></i>
+                <label for="fieldName">Направление облета</label>
+                <select id="fieldName" name="direction" class="form-control">
+                    <option value="simple">Простая оптимизация</option>
+                    <option value="horizontal">Горизонтальный</option>
+                    <option value="vertical">Вертикальный</option>
+                    <option value="optimization">EM оптимизация</option>
+                    <option value="set">Выбрать</option>
+                </select>
+            </div>
+
+            <div class="col"></div>
+        </div>
+
+        <div class="row" style="margin-top: 10px;">
+            <div class="col"></div>
+
+            <div class="col">
+                <label for="fieldName">Дополнительные функции</label>
+                <div class="row">
+                    <div class="col">
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" name="heightDiff" checked id="exampleCheck1">
+                            <label class="form-check-label" for="exampleCheck1" style="font-size: 0.75rem;">Развод по высотам</label>
+                        </div>
+
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" checked name="roundStartZone" id="exampleCheck1">
+                            <label class="form-check-label" for="exampleCheck1" style="font-size: 0.75rem;">Облет зон старта по дуге</label>
+                        </div>
+                    </div>
+
+                    <div class="col">
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" name="" id="exampleCheck1">
+                            <label class="form-check-label" for="exampleCheck1" style="font-size: 0.75rem;">Фича 3</label>
+                        </div>
+
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" name="" id="exampleCheck1">
+                            <label class="form-check-label" for="exampleCheck1" style="font-size: 0.75rem;">Фича 4</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col">
+                <label for="fieldName">Цель оптимизации</label>
+                <select id="fieldName" name="target" class="form-control">
+                    <option value="">Без оптимизации</option>
+                    <option value="">Общая</option>
+                    <option value="">Время</option>
+                    <option value="">Количество дозарядок</option>
+                    <option value="">Минимальая нагрузка на полет</option>
+                </select>
+            </div>
+
+            <div class="col"></div>
+        </div>
+
+        <div class="row">
+            <div class="col"></div>
+
+            <div class="col" style="text-align: right;">
+                <button id="saveField" class="btn btn-primary" style="margin-top: 10px;" name="submitShow">Посмотреть маршрут</button>
+            </div>
+
+            <div class="col" style="text-align: left;">
+                <button id="saveField" class="btn btn-primary" style="margin-top: 10px;" name="submitSave">Сохранить маршрут</button>
             </div>
 
             <div class="col"></div>
         </div>
     </form>
 
-    <div id="map" style="height: 700px;"></div>
+    <div id="map" style="height: 700px; margin-top: 10px;"></div>
 {% endblock %}
 
 {% block foot %}
