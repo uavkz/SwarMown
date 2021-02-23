@@ -47,9 +47,14 @@ class SimulateMissionView(TemplateView):
 class ManageRouteView(TemplateView):
     template_name = "mainapp/manage_route.html"
 
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['mission'] = Mission.objects.get(id=kwargs['mission_id'])
+    def handle(self, context):
+        car_move = self.request.GET.get("carMove", "no")
+        direction = self.request.GET.get("direction", "simple")
+        target = self.request.GET.get("target", "general")
+        height_diff = self.request.GET.get("heightDiff", False) == "on"
+        round_start_zone = self.request.GET.get("roundStartZone", False) == "on"
+        feature3 = self.request.GET.get("feature3", False) == "on"
+        feature4 = self.request.GET.get("feature4", False) == "on"
 
         field_obj = context['mission'].field
         field = json.loads(field_obj.points_serialized)
@@ -71,6 +76,15 @@ class ManageRouteView(TemplateView):
         context['grid_step'] = grid_step
         context['initial'] = initial_position
         context['number_of_drones'] = number_of_drones
+        context['waypoints'] = self.get_route()
+
+    def get_route(self):
+        return []
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['mission'] = Mission.objects.get(id=kwargs['mission_id'])
+        self.handle(context)
         return context
 
 
