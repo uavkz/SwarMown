@@ -107,56 +107,6 @@
 
 {% block foot %}
     <script>
-        async function getNextWaypoint(){
-            try {
-                result = await _getNextWaypoint();
-            } catch {
-                return null;
-            }
-            console.log("!", result)
-            return result.next_waypoint;
-        }
-
-        async function _getNextWaypoint(){
-            return await $.ajax(
-                {
-                    url: '/api/waypoints/',
-                    method: 'GET',
-                    data: {
-                        "mission_id": mission_id
-                    },
-                    beforeSend: function (request) {
-                        request.setRequestHeader("X-CSRFToken", '{{ csrf_token }}');
-                    },
-                    success: function (result) {
-                    },
-                    error: function (result) {
-                        alert(result.responseJSON.error);
-                    }
-                }
-            );
-        }
-
-        $('#droneSpeed').on('input propertychange', function(){
-            droneSpeed = parseFloat($('#droneSpeed').val());
-        });
-
-        var lastSpeed = null;
-        $('#pauseButton').click(function () {
-
-        });
-
-        $('#startButton').click(function () {
-
-        });
-
-        $('#replayButton').click(function () {
-            map.remove();
-            $("#map").html("");
-            $("#map").html('<div id="map"></div>');
-            initStuff();
-        });
-
         var fieldPolygon;
         var gridStep;
         var initial;
@@ -164,11 +114,7 @@
         var loader;
         var grid;
         var road;
-        var drones;
-        var droneSpeed;
-        var pickupSpeed;
         var tick;
-        var pickup;
         var project;
         var reverseProject;
         var stage;
@@ -203,33 +149,15 @@
                 accessToken: 'pk.eyJ1Ijoia2luZHlhayIsImEiOiJja2F0cml2eTcwNDZhMnJvOXI4N2Y4MjRjIn0.f7FSJnib2jKKvtJe4ql-Bg'
             }).addTo(map);
 
-            loader = new PIXI.Loader();
-            loader.add('crop_bad', '{% static 'img/textures/crop_bad.jpg' %}');
-            loader.add('crop_good', '{% static 'img/textures/crop_good.jpg' %}');
-            loader.add('badland', '{% static 'img/textures/badland.jpg' %}');
-            loader.add('drone', '{% static 'img/textures/drone.png' %}');
-            loader.add('pickup', '{% static 'img/textures/pickup.png' %}');
-            loader.load(setupWrapper);
-
             grid = {{ grid|safe }};
-            drones = [];
-            droneSpeed = 0.01;
-            $('#droneSpeed').val(droneSpeed);
-            pickupSpeed = 0.4;
-            tick = 0;
-            pickup;
-            project;
-            reverseProject;
             stage = new PIXI.Container();
+            loader = new PIXI.Loader();
+            loader.load(setupWrapper);
         }
 
         function setupWrapper(loader, resources) {
-            var markerTexture = resources.drone.texture;
-            var marker = new PIXI.Sprite(markerTexture);
             var firstDraw = true;
             var prevZoom;
-
-            stage.addChild(marker);
 
             var pixiOverlay = L.pixiOverlay(function (utils, event) {
                 if(event.type !== 'redraw') {
@@ -245,10 +173,6 @@
                     firstDraw = false;
                     prevZoom = zoom;
                     renderer.render(container);
-                }
-
-                if (event.type === 'redraw') {
-                    gameLoop(event.delta);
                 }
             }, stage);
             pixiOverlay.addTo(map);
@@ -278,44 +202,6 @@
 
             let field = new PIXI.Graphics();
             field.beginFill(0);
-            var fieldTiling = new PIXI.TilingSprite(resources.crop_bad.texture);
-            fieldTiling.width = 10;
-            fieldTiling.height = 10;
-            fieldTiling.x = coords.x;
-            fieldTiling.y = coords.y;
-            stage.addChild(fieldTiling);
-            let field_flat = {{ field_flat|safe }};
-            for (let i = 0; i < field_flat.length; i++) {
-                if (i % 2 === 1) {
-                    continue;
-                }
-                let coords = project([field_flat[i], field_flat[i + 1]]);
-                field_flat[i] = coords.x;
-                field_flat[i + 1] = coords.y;
-            }
-            field.drawPolygon(field_flat);
-            field.endFill();
-            stage.addChild(field);
-            fieldTiling.mask = field;
-
-            for (i = 0; i < {{ number_of_drones }}; i++) {
-                const drone = new PIXI.Sprite(resources.drone.texture);
-                stage.addChild(drone);
-                let coords = project([initial[0], initial[1]]);
-                drone.x = coords.x;
-                drone.y = coords.y;
-                drone.width = 1/2;
-                drone.height = 1/2;
-                drones.push(drone);
-            }
-
-            pickup = new PIXI.Sprite(resources.pickup.texture);
-            stage.addChild(pickup);
-            coords = project([initial[0], initial[1]]);
-            pickup.x = coords.x;
-            pickup.y = coords.y;
-            pickup.height = 1/2;
-            pickup.width = 1;
 
             // Draw grid
             for (let point of grid) {
@@ -351,69 +237,6 @@
             }
 
             return stage;
-        }
-
-        function gameLoop(delta) {
-            tick += 1;
-            {% comment %}
-            let i = 0;
-            // Moving Drones
-            for (let drone of drones) {
-                if (i >= waypoints.length || waypoints[i].length === 0) {
-                    i++;
-                    continue;
-                }
-                let my_waypoint = waypoints[i][0].slice();
-                let coords = project([my_waypoint[1], my_waypoint[0]]);
-                my_waypoint[0] = coords.x;
-                my_waypoint[1] = coords.y;
-                let delta_x = my_waypoint[0] - drone.width / 2 - drone.x;
-                let delta_y = my_waypoint[1] - drone.height / 2 - drone.y;
-                let delta = Math.sqrt(delta_x * delta_x + delta_y * delta_y);
-                delta_x /= delta;
-                delta_y /= delta;
-
-                drone.x += delta_x * droneSpeed;
-                drone.y += delta_y * droneSpeed;
-
-                /*
-                if(tick % Math.round((gridStep / droneSpeed / Math.max(10 / drones.length, 3))) === 0 &&
-                    checkIfInPolygon([drone.x + drone.width / 2, drone.y + drone.height / 2], fieldPolygon)) {
-                    let circleCoords = reverseProject(L.point(drone.x + drone.width / 2, drone.y + drone.height / 2));
-                    var circle = L.circle([circleCoords.lat, circleCoords.lng], {
-                        color: '#00cc14',
-                        fillOpacity: 0.1,
-                        opacity: 0.01,
-                        radius: 70000 * gridStep
-                    }).addTo(map);
-                    console.log(circle);
-                }
-                */
-
-                if (Math.abs(drone.x + drone.width / 2 - my_waypoint[0]) < droneSpeed / 2 &&
-                    Math.abs(drone.y + drone.height / 2 - my_waypoint[1]) < droneSpeed / 2) {
-                    waypoints[i].shift();
-                    if (pickupWaypoints.length > 1 && i === 0) {
-                        pickupWaypoints.shift();
-                    }
-                }
-                i++;
-            }
-
-            // Moving pickup
-            my_waypoint = pickupWaypoints[0];
-            if (!(Math.abs(pickup.x + pickup.width / 2 - my_waypoint[0]) < pickupSpeed &&
-                Math.abs(pickup.y + pickup.height / 2 - my_waypoint[1]) < pickupSpeed)) {
-                let delta_x = my_waypoint[0] - pickup.width / 2 - pickup.x;
-                let delta_y = my_waypoint[1] - pickup.height / 2 - pickup.y;
-                let delta_pickup = Math.sqrt(delta_x * delta_x + delta_y * delta_y);
-                delta_x /= delta_pickup;
-                delta_y /= delta_pickup;
-
-                pickup.x += delta_x * pickupSpeed;
-                pickup.y += delta_y * pickupSpeed;
-            }
-            {% endcomment %}
         }
 
         initStuff();
