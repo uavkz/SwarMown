@@ -76,10 +76,15 @@ class ManageRouteView(TemplateView):
         context['grid_step'] = grid_step
         context['initial'] = initial_position
         context['number_of_drones'] = number_of_drones
-        context['waypoints'] = self.get_route()
+        waypoints, pickup_waypoints = self.get_route(car_move, direction, target, height_diff, round_start_zone, feature3, feature4,
+                                              grid, initial_position, road, context['mission'].drones.count())
+        context['waypoints'] = waypoints
+        context['pickup_waypoints'] = pickup_waypoints
 
-    def get_route(self):
-        return []
+    def get_route(self, car_move, direction, target, height_diff, round_start_zone, feature3, feature4,
+                  grid, drones_inits, road, number_of_drones):
+        waypoints, pickup_waypoints = generate_zamboni(grid, drones_inits, road, number_of_drones)
+        return waypoints, pickup_waypoints
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)

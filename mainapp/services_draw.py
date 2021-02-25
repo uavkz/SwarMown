@@ -383,6 +383,7 @@ def find_coord(new_coords, to_find):
 
 def final_path_calculations(drone_lifes, path_coords, pool_endings, max_drone_flight):
     path_start = 0
+    path_end = path_start
     lifes = drone_lifes.copy()
     for num in range(len(drone_lifes)):
         fields_number = len(drone_lifes[num])

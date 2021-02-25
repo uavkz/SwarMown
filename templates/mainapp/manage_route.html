@@ -107,6 +107,34 @@
 
 {% block foot %}
     <script>
+        function shuffle(array) {
+            var currentIndex = array.length, temporaryValue, randomIndex;
+
+            // While there remain elements to shuffle...
+            while (0 !== currentIndex) {
+
+                // Pick a remaining element...
+                randomIndex = Math.floor(Math.random() * currentIndex);
+                currentIndex -= 1;
+
+                // And swap it with the current element.
+                temporaryValue = array[currentIndex];
+                array[currentIndex] = array[randomIndex];
+                array[randomIndex] = temporaryValue;
+            }
+
+            return array;
+        }
+
+        var colorPallete = [
+            "#001f3f", "#0074D9", "#7FDBFF", "#39CCCC",
+            "#3D9970", "#2ECC40", "#01FF70", "#FFDC00",
+            "#FF851B", "#FF4136", "#85144b", "#F012BE",
+            "#B10DC9", "#111111", "#AAAAAA", "#DDDDDD"
+        ]
+        shuffle(colorPallete);
+
+        var waypoints;
         var fieldPolygon;
         var gridStep;
         var initial;
@@ -122,6 +150,7 @@
 
         function initStuff() {
             fieldPolygon = {{ field|safe }};
+            waypoints = {{ waypoints|safe }};
             road = {{ road|safe }};
             for (i = 0; i < fieldPolygon.length; i++) {
                 tmp = fieldPolygon[i][0];
@@ -129,6 +158,15 @@
                 fieldPolygon[i][1] = tmp;
             }
             fieldPolygon.push(fieldPolygon[0]);
+
+            for(let droneWaypoints of waypoints) {
+                for (i = 0; i < droneWaypoints.length; i++) {
+                    tmp = droneWaypoints[i][0];
+                    droneWaypoints[i][0] = droneWaypoints[i][1];
+                    droneWaypoints[i][1] = tmp;
+                }
+            }
+
             gridStep = {{ grid_step|safe }};
 
             // prepare circle texture, that will be our brush
@@ -214,6 +252,7 @@
 
             // Draw polygon
             var polyline = L.polyline(fieldPolygon, {color: 'red'}).addTo(map);
+            console.log(fieldPolygon)
 
             // Draw road
             for (let i=0; i < road.length - 1; i++) {
@@ -234,6 +273,18 @@
                         radius: 100
                     }).addTo(map);
                 }
+            }
+
+            // Draw waypoints
+            i = 0;
+            for(let drone_waypoints of waypoints){
+                console.log(drone_waypoints);
+                L.polyline(drone_waypoints, {
+                    color: colorPallete[i],
+                    weight: 2.5,
+                    smoothFactor: 1
+                    }).addTo(map);
+                i += 1;
             }
 
             return stage;
