@@ -2,6 +2,8 @@ import numpy as np
 from shapely.geometry import Point
 from shapely.geometry.polygon import Polygon
 
+from mainapp.utils import unique, euclidean
+
 
 def get_grid(field, step):
     grid = []
@@ -12,10 +14,12 @@ def get_grid(field, step):
     polygon = Polygon(field)
 
     for x in np.linspace(min_x, max_x, round((max_x - min_x) / step)):
+        line = []
         for y in np.linspace(min_y, max_y, round((max_y - min_y) / step)):
             point = Point(x, y)
             if polygon.contains(point):
-                grid.append([x, y])
+                line.append([x, y])
+        grid.append(line)
     return grid
 
 
@@ -24,14 +28,6 @@ def get_initial_position(field, grid, road):
     # X/Long, Y/Lat
     return [min([f[0] for f in field]),
             min([f[1] for f in field])]
-
-
-def unique(list1):
-    unique_list = list()
-    for x in list1:
-        if x not in unique_list:
-            unique_list.append(x)
-    return unique_list
 
 
 def convert_coordinates(a):
@@ -77,10 +73,6 @@ def get_zigzag_path(grid):
                     new_coords.append(coord)
                 counter += 1
     return new_coords
-
-
-def euclidean(x1, x2, y1, y2):
-    return np.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2)
 
 
 def field_to_fly(track_1, track_2, max_d, init_coord, pool_end, zamboni_path):

@@ -7,6 +7,8 @@ from django.views.generic import TemplateView, ListView
 
 from mainapp.models import *
 from mainapp.services_draw import *
+from mainapp.utils import flatten_grid
+from routing.default.service import get_waypoints
 
 
 class Index(View):
@@ -37,7 +39,7 @@ class SimulateMissionView(TemplateView):
         context['field'] = field
         context['field_id'] = field_obj.id if field_obj else ""
         context['road'] = road
-        context['grid'] = grid
+        context['grid'] = list(flatten_grid(grid))
         context['grid_step'] = grid_step
         context['initial'] = initial_position
         context['number_of_drones'] = number_of_drones
@@ -72,18 +74,18 @@ class ManageRouteView(TemplateView):
         context['field'] = field
         context['field_id'] = field_obj.id if field_obj else ""
         context['road'] = road
-        context['grid'] = grid
+        context['grid'] = list(flatten_grid(grid))
         context['grid_step'] = grid_step
         context['initial'] = initial_position
         context['number_of_drones'] = number_of_drones
         waypoints, pickup_waypoints = self.get_route(car_move, direction, target, height_diff, round_start_zone, feature3, feature4,
-                                              grid, initial_position, road, context['mission'].drones.count())
+                                              grid, initial_position, road, context['mission'].drones)
         context['waypoints'] = waypoints
         context['pickup_waypoints'] = pickup_waypoints
 
     def get_route(self, car_move, direction, target, height_diff, round_start_zone, feature3, feature4,
-                  grid, drones_inits, road, number_of_drones):
-        waypoints, pickup_waypoints = generate_zamboni(grid, drones_inits, road, number_of_drones)
+                  grid, drones_init, road, drones):
+        waypoints, pickup_waypoints = get_waypoints(grid, drones_init, road, drones)
         return waypoints, pickup_waypoints
 
     def get_context_data(self, **kwargs):

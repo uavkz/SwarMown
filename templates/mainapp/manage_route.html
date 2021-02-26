@@ -252,7 +252,6 @@
 
             // Draw polygon
             var polyline = L.polyline(fieldPolygon, {color: 'red'}).addTo(map);
-            console.log(fieldPolygon)
 
             // Draw road
             for (let i=0; i < road.length - 1; i++) {
@@ -278,7 +277,6 @@
             // Draw waypoints
             i = 0;
             for(let drone_waypoints of waypoints){
-                console.log(drone_waypoints);
                 L.polyline(drone_waypoints, {
                     color: colorPallete[i],
                     weight: 2.5,
