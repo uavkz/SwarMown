@@ -133,6 +133,9 @@
             "#B10DC9", "#111111", "#AAAAAA", "#DDDDDD"
         ]
         shuffle(colorPallete);
+        for(let i = 0; i < 10; i++){
+            colorPallete.concat(colorPallete);
+        }
 
         var waypoints;
         var fieldPolygon;
