@@ -26,6 +26,8 @@ def get_waypoints(grid, drones_init, road, drones):
                     last_point = point
                     break
             last_point = point
+            if haversine(point, drones_init) > (drone.max_distance_no_load - total_drone_distance):
+                break
             drone_waypoints.append(point)
         total_drone_distance += generate_fly_back(drone_waypoints, drones_init)
         waypoints.append(drone_waypoints)
