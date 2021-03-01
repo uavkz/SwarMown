@@ -55,7 +55,7 @@ class Mission(models.Model):
     waypoints_history = models.ManyToManyField('Waypoint', blank=True, verbose_name="История", related_name="mission_history")
 
     def __str__(self):
-        return f"{self.name} ({self.type}) {self.status}"
+        return f"{self.name} ({self.type_verbose}) {self.status}"
 
     @property
     def status_verbose(self):
