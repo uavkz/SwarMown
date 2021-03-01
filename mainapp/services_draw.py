@@ -1,11 +1,16 @@
+from copy import deepcopy
+
 import numpy as np
 from shapely.geometry import Point
 from shapely.geometry.polygon import Polygon
 
-from mainapp.utils import unique, euclidean
+from mainapp.utils import unique, euclidean, transform_to_google_map_metric, transform_to_lat_lon
 
 
-def get_grid(field, step):
+def get_grid(field, step, angle=0):
+    field = deepcopy(field)
+    transform_to_google_map_metric(field)
+
     grid = []
     min_x = min((p[0] for p in field))
     min_y = min((p[1] for p in field))
@@ -19,6 +24,7 @@ def get_grid(field, step):
             point = Point(x, y)
             if polygon.contains(point):
                 line.append([x, y])
+        transform_to_lat_lon(line)
         grid.append(line)
     return grid
 

@@ -48,7 +48,7 @@ class Mission(models.Model):
     type = models.SmallIntegerField(choices=TYPES, verbose_name="Тип задачи")
 
     field = models.ForeignKey('Field', on_delete=models.CASCADE, verbose_name="Поля")
-    grid_step = models.FloatField(default=0.001, verbose_name="Шаг решетки")
+    grid_step = models.FloatField(default=0.001, verbose_name="Шаг решетки (м)")
     drones = models.ManyToManyField('Drone', verbose_name="Дроны")
     current_waypoints_status = models.SmallIntegerField(default=0, choices=WAYPOINTS_STATUSES, verbose_name="Статус маршрута")
     current_waypoints = models.ManyToManyField('Waypoint', blank=True, verbose_name="Текущий путь", related_name="mission")
