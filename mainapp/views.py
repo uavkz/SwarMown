@@ -88,6 +88,30 @@ class ManageRouteView(TemplateView):
         waypoints, pickup_waypoints = get_waypoints(grid, drones_init, road, drones)
         return waypoints, pickup_waypoints
 
+    def get(self, request, *args, **kwargs):
+        if "submitSave" in self.request.GET:
+            context = self.get_context_data(**kwargs)
+            i = 0
+            context['mission'].current_waypoints_status = 1
+            context['mission'].save()
+            for waypoints in context['waypoints']:
+                for waypoint in waypoints:
+                    Waypoint.objects.create(
+                        drone_id=waypoint['drone']['id'],
+                        index=i,
+                        lat=waypoint['lat'],
+                        lon=waypoint['lon'],
+                        height=waypoint['height'],
+                        speed=waypoint['speed'],
+                        acceleration=waypoint['acceleration'],
+                        spray_on=waypoint['spray_on'],
+                    )
+                    i += 10
+            context['mission'].current_waypoints_status = 2
+            context['mission'].save()
+            return HttpResponseRedirect(reverse_lazy('mainapp:list_mission'))
+        return super().get(request, *args, **kwargs)
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['mission'] = Mission.objects.get(id=kwargs['mission_id'])

@@ -110,7 +110,7 @@ class Waypoint(models.Model):
 
     status = models.SmallIntegerField(default=0, choices=STATUSES, verbose_name="Статус")
 
-    datetime = models.DateTimeField(verbose_name="Дата и время Waypointа")
+    datetime = models.DateTimeField(null=True, blank=True, verbose_name="Дата и время Waypointа")
     index = models.PositiveIntegerField(null=True, blank=True, verbose_name="Порядковый номер")
     lat = models.FloatField(verbose_name="Широта")
     lon = models.FloatField(verbose_name="Долгота")

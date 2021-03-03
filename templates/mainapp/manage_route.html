@@ -137,6 +137,8 @@
             colorPallete.concat(colorPallete);
         }
 
+        var False = false;
+        var True = true;
         var waypoints;
         var fieldPolygon;
         var gridStep;
@@ -161,14 +163,6 @@
                 fieldPolygon[i][1] = tmp;
             }
             fieldPolygon.push(fieldPolygon[0]);
-
-            for(let droneWaypoints of waypoints) {
-                for (i = 0; i < droneWaypoints.length; i++) {
-                    tmp = droneWaypoints[i][0];
-                    droneWaypoints[i][0] = droneWaypoints[i][1];
-                    droneWaypoints[i][1] = tmp;
-                }
-            }
 
             gridStep = {{ grid_step|safe }};
 
