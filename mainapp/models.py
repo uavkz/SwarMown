@@ -1,5 +1,7 @@
 from django.db import models
 
+from mainapp.utils import waypoints_distance
+
 
 class Field(models.Model):
     class Meta:
@@ -72,6 +74,14 @@ class Mission(models.Model):
     @property
     def drones_verbose(self):
         return ", ".join([str(d) for d in self.drones.all()])
+
+    @property
+    def simulated_distance(self):
+        return waypoints_distance(self.current_waypoints)
+
+    @property
+    def history_distance(self):
+        return waypoints_distance(self.waypoints_history)
 
 
 class Drone(models.Model):

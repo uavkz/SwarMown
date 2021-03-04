@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 
 {% load static %}
+{% load humanize %}
 
 {% block head %}
 {% endblock %}
@@ -21,6 +22,7 @@
                     <th scope="col">Статус</th>
                     <th scope="col">Поле</th>
                     <th scope="col">Дроны</th>
+                    <th scope="col">Длина пути</th>
                     <th scope="col">Действия</th>
                 </tr>
                 </thead>
@@ -33,6 +35,7 @@
                         <td>{{ mission.status_verbose }} (Машрут: {{ mission.current_waypoints_status_verbose }})</td>
                         <td>{{ mission.field }} (шаг {{ mission.grid_step }})</td>
                         <td>{{ mission.drones_verbose }}</td>
+                        <td>{% if mission.current_waypoints.count > 0 %}{{ mission.simulated_distance|floatformat:"1"|intcomma }} м{% else %}-{% endif %}</td>
                         <td>
                             {% if mission.current_waypoints_status == 0 %}
                                 <a href="{% url 'mainapp:manage_route' mission.id %}" data-toggle="tooltip" title="Управление маршрутом"><i style="color: blue;" class="fas fa-route"></i></a>

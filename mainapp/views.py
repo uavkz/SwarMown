@@ -96,7 +96,7 @@ class ManageRouteView(TemplateView):
             context['mission'].save()
             for waypoints in context['waypoints']:
                 for waypoint in waypoints:
-                    Waypoint.objects.create(
+                    w = Waypoint.objects.create(
                         drone_id=waypoint['drone']['id'],
                         index=i,
                         lat=waypoint['lat'],
@@ -107,6 +107,7 @@ class ManageRouteView(TemplateView):
                         spray_on=waypoint['spray_on'],
                     )
                     i += 10
+                    context['mission'].current_waypoints.add(w)
             context['mission'].current_waypoints_status = 2
             context['mission'].save()
             return HttpResponseRedirect(reverse_lazy('mainapp:list_mission'))
