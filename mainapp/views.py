@@ -67,7 +67,6 @@ class ManageRouteView(TemplateView):
         grid_step = context['mission'].grid_step
         number_of_drones = context['mission'].drones.all().count()
         grid = get_grid(field, grid_step)
-        initial_position = get_initial_position(field, grid, road)
         # [x, y, z, is_active]
 
         context['field_flat'] = [coord for point in field for coord in point]
@@ -76,17 +75,20 @@ class ManageRouteView(TemplateView):
         context['road'] = road
         context['grid'] = list(flatten_grid(grid))
         context['grid_step'] = grid_step
-        context['initial'] = initial_position
         context['number_of_drones'] = number_of_drones
-        waypoints, pickup_waypoints = self.get_route(car_move, direction, target, height_diff, round_start_zone, feature3, feature4,
-                                              grid, initial_position, road, context['mission'].drones)
+        waypoints, pickup_waypoints, initial_position = self.get_route(
+            car_move, direction, target, height_diff, round_start_zone,
+            feature3, feature4, grid, road, context['mission'].drones
+        )
+        context['initial'] = initial_position
         context['waypoints'] = waypoints
         context['pickup_waypoints'] = pickup_waypoints
 
-    def get_route(self, car_move, direction, target, height_diff, round_start_zone, feature3, feature4,
-                  grid, drones_init, road, drones):
-        waypoints, pickup_waypoints = get_waypoints(grid, drones_init, road, drones)
-        return waypoints, pickup_waypoints
+    def get_route(self, car_move, direction, target, height_diff, round_start_zone,
+                  feature3, feature4, grid, road, drones):
+        initial_position = get_initial_position(grid, road, how=car_move)
+        waypoints, pickup_waypoints = get_waypoints(grid, initial_position, road, drones)
+        return waypoints, pickup_waypoints, initial_position
 
     def get(self, request, *args, **kwargs):
         if "submitSave" in self.request.GET:

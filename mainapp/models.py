@@ -77,11 +77,11 @@ class Mission(models.Model):
 
     @property
     def simulated_distance(self):
-        return waypoints_distance(self.current_waypoints)
+        return waypoints_distance(self.current_waypoints.all())
 
     @property
     def history_distance(self):
-        return waypoints_distance(self.waypoints_history)
+        return waypoints_distance(self.waypoints_history.all())
 
 
 class Drone(models.Model):

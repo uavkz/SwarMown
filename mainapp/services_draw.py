@@ -4,7 +4,8 @@ import numpy as np
 from shapely.geometry import Point
 from shapely.geometry.polygon import Polygon
 
-from mainapp.utils import unique, euclidean, transform_to_google_map_metric, transform_to_lat_lon
+from mainapp.utils import unique, euclidean, transform_to_google_map_metric, transform_to_lat_lon, waypoints_distance, \
+    calc_vincenty
 
 
 def get_grid(field, step, angle=0):
@@ -29,11 +30,31 @@ def get_grid(field, step, angle=0):
     return grid
 
 
-def get_initial_position(field, grid, road):
-    #  TODO read from database
+def get_initial_position(grid, road, how):
     # X/Long, Y/Lat
-    return [min([f[0] for f in field]),
-            min([f[1] for f in field])]
+    if not road:
+        raise Exception("No road")
+    if how == "no":
+        total_distance = waypoints_distance(road, lat_f=lambda x: x[1], lon_f=lambda x: x[0])
+        middle = total_distance / 2
+        dist = 0
+        prev_point = None
+        print("!!!", middle)
+        for point in road:
+            print("!!!", dist)
+            if prev_point:
+                new_dist = calc_vincenty([point[1], point[0]], [prev_point[1], prev_point[0]]) * 1000
+                if dist + new_dist >= middle:
+                    d_x = point[0] - prev_point[0]
+                    d_y = point[1] - prev_point[1]
+                    ratio = (middle - dist) / new_dist
+                    point = [prev_point[0] + d_x * ratio, prev_point[1] + d_y * ratio]
+                    break
+                dist += new_dist
+            prev_point = point
+        return [point[0], point[1]]
+    else:
+        raise Exception("Not implemented")
 
 
 def convert_coordinates(a):

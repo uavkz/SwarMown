@@ -64,12 +64,11 @@ def calc_vincenty(p1, p2, lon_first=False):
     return vincenty(p1, p2)
 
 
-def waypoints_distance(waypoints):
+def waypoints_distance(waypoints, lat_f=lambda x: x.lat, lon_f=lambda x: x.lon):
     total_distance = 0
     prev_waypoint = None
-    for waypoint in waypoints.all():
-        print(waypoint, prev_waypoint)
+    for waypoint in waypoints:
         if prev_waypoint:
-            total_distance += calc_vincenty([waypoint.lat, waypoint.lon], [prev_waypoint.lat, prev_waypoint.lon]) * 1000
+            total_distance += calc_vincenty([lat_f(waypoint), lon_f(waypoint)], [lat_f(prev_waypoint), lon_f(prev_waypoint)]) * 1000
         prev_waypoint = waypoint
     return total_distance
