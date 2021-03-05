@@ -21,7 +21,8 @@
             <div class="col">
                 <label for="fieldName">Оптимизация движения машины</label>
                 <select id="fieldName" name="carMove" class="form-control">
-                    <option value="no" {% if request.GET.carMove == "no" %}selected{% endif %}>Без движения машины</option>
+                    <option value="no" {% if request.GET.carMove == "no" %}selected{% endif %}>Без оптимизации и движения</option>
+                    <option value="start_opt" {% if request.GET.carMove == "no" %}selected{% endif %}>Оптимизация точки старта</option>
                     <option value="simple" {% if request.GET.carMove == "simple" %}selected{% endif %}>Равномерное движение</option>
                     <option value="genetic" {% if request.GET.carMove == "genetic" %}selected{% endif %}>Генетическая оптимизация</option>
                 </select>

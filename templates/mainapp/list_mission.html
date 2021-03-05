@@ -33,7 +33,7 @@
                         <td>{{ mission.name }}</td>
                         <td>{{ mission.type_verbose }}</td>
                         <td>{{ mission.status_verbose }} (Машрут: {{ mission.current_waypoints_status_verbose }})</td>
-                        <td>{{ mission.field }} (шаг {{ mission.grid_step }})</td>
+                        <td>{{ mission.field }} (шаг {{ mission.grid_step }} м)</td>
                         <td>{{ mission.drones_verbose }}</td>
                         <td>{% if mission.current_waypoints.count > 0 %}{{ mission.simulated_distance|floatformat:"1"|intcomma }} м{% else %}-{% endif %}</td>
                         <td>
