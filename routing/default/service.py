@@ -28,26 +28,26 @@ def get_waypoints(grid, drones_init, road, drones, start):
         point = None
         total_drone_distance = 0
         for point in zamboni_iterator:
+            # No more points, all traversed
             if point is None:
                 break
 
-            if total_drone_distance == 0 and not last_point:
+            # Generate fly_to, if it's the first point to traverse by a drone
+            if total_drone_distance == 0:
                 if calc_vincenty(point, drones_init, lon_first=True) > (drone.max_distance_no_load - total_drone_distance):
                     break
-                total_drone_distance += generate_fly_to(drone_waypoints, drones_init, point, drone)
+                total_drone_distance += generate_fly_to(drone_waypoints, drones_init, last_point or point, drone)
 
-            if total_drone_distance == 0 and last_point:
-                if calc_vincenty(point, drones_init, lon_first=True) > (drone.max_distance_no_load - total_drone_distance):
-                    break
-                add_waypoint(drone_waypoints, last_point, drone)
-                total_drone_distance += generate_fly_to(drone_waypoints, drones_init, last_point, drone)
-
+            # If there's an untraversed point from previous drone - traverse it
             if last_point:
                 total_drone_distance += calc_vincenty(last_point, point, lon_first=True)
                 if total_drone_distance >= drone.max_distance_no_load:
                     last_point = point
                     break
+                add_waypoint(drone_waypoints, last_point, drone)
+
             last_point = point
+            # If you will not be able to return - break
             if calc_vincenty(point, drones_init, lon_first=True) > (drone.max_distance_no_load - total_drone_distance):
                 break
             # print("!!! Between", calc_vincenty([drone_waypoints[-2]['lon'], drone_waypoints[-2]['lat']], point, lon_first=True))
