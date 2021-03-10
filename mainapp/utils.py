@@ -1,3 +1,5 @@
+import math
+
 import numpy as np
 import pyproj
 from django.forms import model_to_dict
@@ -27,7 +29,7 @@ def _transform_points(points, from_proj, to_proj):
         point[0], point[1] = pyproj.transform(from_proj, to_proj, point[0], point[1])
 
 
-def transform_to_google_map_metric(points):
+def transform_to_equidistant(points):
     p_ll = pyproj.Proj('epsg:4326')
     # p_mt = pyproj.Proj('epsg:3857')  # metric; same as EPSG:90091, generally good Google Map
     p_mt = pyproj.Proj('epsg:4087')  # metric; equidistant
@@ -72,3 +74,18 @@ def waypoints_distance(waypoints, lat_f=lambda x: x.lat, lon_f=lambda x: x.lon):
             total_distance += calc_vincenty([lat_f(waypoint), lon_f(waypoint)], [lat_f(prev_waypoint), lon_f(prev_waypoint)]) * 1000
         prev_waypoint = waypoint
     return total_distance
+
+
+def rotate(point, origin, angle):
+    """
+    Rotate a point counterclockwise by a given angle around a given origin.
+
+    The angle should be given in degrees.
+    """
+    angle = math.radians(angle)
+    ox, oy = origin
+    px, py = point
+
+    qx = ox + math.cos(angle) * (px - ox) - math.sin(angle) * (py - oy)
+    qy = oy + math.sin(angle) * (px - ox) + math.cos(angle) * (py - oy)
+    return [qx, qy]

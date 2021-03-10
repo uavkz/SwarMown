@@ -4,29 +4,42 @@ import numpy as np
 from shapely.geometry import Point
 from shapely.geometry.polygon import Polygon
 
-from mainapp.utils import unique, euclidean, transform_to_google_map_metric, transform_to_lat_lon, waypoints_distance, \
-    calc_vincenty
+from mainapp.utils import unique, euclidean, transform_to_equidistant, transform_to_lat_lon, waypoints_distance, \
+    calc_vincenty, rotate
 
 
 def get_grid(field, step, angle=0):
     field = deepcopy(field)
-    transform_to_google_map_metric(field)
-
+    transform_to_equidistant(field)
+    polygon = Polygon(field)
     grid = []
+
     min_x = min((p[0] for p in field))
     min_y = min((p[1] for p in field))
     max_x = max((p[0] for p in field))
     max_y = max((p[1] for p in field))
-    polygon = Polygon(field)
+
+    if (max_x - min_x) < (max_y - min_y):
+        min_x -= max_y - min_y
+        max_x += max_y - min_y
+
+    if (max_y - min_y) < (max_x - min_x):
+        min_y -= max_x - min_x
+        max_y += max_x - min_x
 
     for x in np.linspace(min_x, max_x, round((max_x - min_x) / step)):
         line = []
         for y in np.linspace(min_y, max_y, round((max_y - min_y) / step)):
-            point = Point(x, y)
-            if polygon.contains(point):
-                line.append([x, y])
-        transform_to_lat_lon(line)
+            line.append([x, y])
         grid.append(line)
+
+    pivot_point = [(min_x + max_x) / 2, (min_y + max_y) / 2]
+    for i, line in enumerate(grid):
+        line = [rotate(point, pivot_point, angle) for point in line]
+        line = list(filter(lambda x: polygon.contains(Point(x[0], x[1])), line))
+        transform_to_lat_lon(line)
+        grid[i] = line
+
     return grid
 
 
