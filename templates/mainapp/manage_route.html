@@ -75,6 +75,22 @@
             </div>
 
             <div class="col">
+                <label for="fieldName">Точка старта</label>
+                <select id="fieldName" name="start" class="form-control">
+                    <option value="ne" {% if request.GET.start == "ne" %}selected{% endif %}>NE</option>
+                    <option value="nw" {% if request.GET.start == "nw" %}selected{% endif %}>NW</option>
+                    <option value="sw" {% if request.GET.start == "sw" %}selected{% endif %}>SW</option>
+                    <option value="se" {% if request.GET.start == "se" %}selected{% endif %}>SE</option>
+                </select>
+            </div>
+
+            <div class="col"></div>
+        </div>
+
+        <div class="row" style="margin-top: 10px;">
+            <div class="col"></div>
+
+            <div class="col">
                 <label for="fieldName">Цель оптимизации</label>
                 <select id="fieldName" name="target" class="form-control">
                     <option value="general" {% if request.GET.target == "general" %}selected{% endif %}>Общая</option>

@@ -8,7 +8,7 @@ from django.views.generic import TemplateView, ListView
 from mainapp.models import *
 from mainapp.services_draw import *
 from mainapp.utils import flatten_grid
-from routing.default.service import get_waypoints
+from routing.default.service import get_route
 
 
 class Index(View):
@@ -52,6 +52,7 @@ class ManageRouteView(TemplateView):
     def handle(self, context):
         car_move = self.request.GET.get("carMove", "no")
         direction = self.request.GET.get("direction", "simple")
+        start = self.request.GET.get("start", "ne")
         target = self.request.GET.get("target", "general")
         height_diff = self.request.GET.get("heightDiff", False) == "on"
         round_start_zone = self.request.GET.get("roundStartZone", False) == "on"
@@ -74,27 +75,14 @@ class ManageRouteView(TemplateView):
         context['road'] = road
         context['grid_step'] = grid_step
         context['number_of_drones'] = number_of_drones
-        grid, waypoints, pickup_waypoints, initial_position = self.get_route(
-            car_move, direction, target, height_diff, round_start_zone,
+        grid, waypoints, pickup_waypoints, initial_position = get_route(
+            car_move, direction, target, height_diff, round_start_zone, start,
             field, grid_step, feature3, feature4, road, context['mission'].drones
         )
         context['grid'] = list(flatten_grid(grid))
         context['initial'] = initial_position
         context['waypoints'] = waypoints
         context['pickup_waypoints'] = pickup_waypoints
-
-    def get_route(self, car_move, direction, target, height_diff, round_start_zone,
-                  field, grid_step, feature3, feature4, road, drones):
-        if direction == "horizontal":
-            angle = 0
-        elif direction == "vertical":
-            angle = 90
-        else:
-            raise Exception("Not implemented")
-        grid = get_grid(field, grid_step, angle)
-        initial_position = get_initial_position(grid, road, how=car_move)
-        waypoints, pickup_waypoints = get_waypoints(grid, initial_position, road, drones)
-        return grid, waypoints, pickup_waypoints, initial_position
 
     def get(self, request, *args, **kwargs):
         if "submitSave" in self.request.GET:
