@@ -39,9 +39,7 @@ def get_initial_position(grid, road, how):
         middle = total_distance / 2
         dist = 0
         prev_point = None
-        print("!!!", middle)
         for point in road:
-            print("!!!", dist)
             if prev_point:
                 new_dist = calc_vincenty([point[1], point[0]], [prev_point[1], prev_point[0]]) * 1000
                 if dist + new_dist >= middle:

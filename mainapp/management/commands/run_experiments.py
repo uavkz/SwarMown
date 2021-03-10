@@ -78,5 +78,4 @@ class Command(BaseCommand):
             to_draw = np.array(to_draw)
             plt.plot(to_draw[:, 0], to_draw[:, 1], label=f'drone_{key}')
         plt.legend(loc=4)
-        print('!!! check picture window')
         plt.show()
