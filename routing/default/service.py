@@ -30,11 +30,18 @@ def get_waypoints(grid, drones_init, road, drones, start):
         for point in zamboni_iterator:
             if point is None:
                 break
+
             if total_drone_distance == 0 and not last_point:
+                if calc_vincenty(point, drones_init, lon_first=True) > (drone.max_distance_no_load - total_drone_distance):
+                    break
                 total_drone_distance += generate_fly_to(drone_waypoints, drones_init, point, drone)
+
             if total_drone_distance == 0 and last_point:
+                if calc_vincenty(point, drones_init, lon_first=True) > (drone.max_distance_no_load - total_drone_distance):
+                    break
                 add_waypoint(drone_waypoints, last_point, drone)
                 total_drone_distance += generate_fly_to(drone_waypoints, drones_init, last_point, drone)
+
             if last_point:
                 total_drone_distance += calc_vincenty(last_point, point, lon_first=True)
                 if total_drone_distance >= drone.max_distance_no_load:
