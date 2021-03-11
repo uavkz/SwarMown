@@ -32,7 +32,7 @@ class SimulateMissionView(TemplateView):
         grid_step = context['mission'].grid_step
         number_of_drones = context['mission'].drones.all().count()
         grid = get_grid(field, grid_step)
-        initial_position = get_initial_position(field, grid, road)
+        initial_position = get_car_waypoints(field, grid, road)[0]
         # [x, y, z, is_active]
 
         context['field_flat'] = [coord for point in field for coord in point]
@@ -75,14 +75,14 @@ class ManageRouteView(TemplateView):
         context['road'] = road
         context['grid_step'] = grid_step
         context['number_of_drones'] = number_of_drones
-        grid, waypoints, pickup_waypoints, initial_position = get_route(
+        grid, waypoints, car_waypoints, initial_position = get_route(
             car_move, direction, target, height_diff, round_start_zone, start,
             field, grid_step, feature3, feature4, road, context['mission'].drones
         )
         context['grid'] = list(flatten_grid(grid))
         context['initial'] = initial_position
         context['waypoints'] = waypoints
-        context['pickup_waypoints'] = pickup_waypoints
+        context['pickup_waypoints'] = car_waypoints
 
     def get(self, request, *args, **kwargs):
         if "submitSave" in self.request.GET:

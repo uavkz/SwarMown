@@ -43,11 +43,13 @@ def get_grid(field, step, angle=0):
     return grid
 
 
-def get_initial_position(grid, road, how):
+def get_car_waypoints(grid, road, how):
     # X/Long, Y/Lat
     if not road:
         raise Exception("No road")
+    car_waypoints = []
     if how == "no":
+        car_waypoints.append(road[0])
         total_distance = waypoints_distance(road, lat_f=lambda x: x[1], lon_f=lambda x: x[0])
         middle = total_distance / 2
         dist = 0
@@ -63,9 +65,11 @@ def get_initial_position(grid, road, how):
                     break
                 dist += new_dist
             prev_point = point
-        return [point[0], point[1]]
+        car_waypoints.append([point[0], point[1]])
+        car_waypoints.append(road[-1])
     else:
         raise Exception("Not implemented")
+    return car_waypoints
 
 
 def convert_coordinates(a):
