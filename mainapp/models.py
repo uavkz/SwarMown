@@ -1,6 +1,6 @@
 from django.db import models
 
-from mainapp.utils import waypoints_distance
+from mainapp.utils import waypoints_distance, waypoints_flight_time
 
 
 class Field(models.Model):
@@ -82,6 +82,14 @@ class Mission(models.Model):
     @property
     def history_distance(self):
         return waypoints_distance(self.waypoints_history.all())
+
+    @property
+    def simulated_flight_time(self):
+        return waypoints_flight_time(self.current_waypoints.all())
+
+    @property
+    def history_flight_time(self):
+        return waypoints_flight_time(self.waypoints_history.all())
 
 
 class Drone(models.Model):
