@@ -6,7 +6,9 @@ from mainapp.utils import add_waypoint, calc_vincenty
 
 def get_route(car_move, direction, target, height_diff, round_start_zone, start,
               field, grid_step, feature3, feature4, road, drones):
-    if direction == "horizontal":
+    if direction == "simple":
+        angle = 45
+    elif direction == "horizontal":
         angle = 0
     elif direction == "vertical":
         angle = 90

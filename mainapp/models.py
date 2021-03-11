@@ -93,12 +93,12 @@ class Drone(models.Model):
     name = models.CharField(max_length=250, verbose_name="Название")
     model = models.CharField(max_length=250, verbose_name="Модель дрона")
 
-    max_speed = models.FloatField(verbose_name="Максимальная скорость")
-    max_height = models.FloatField(verbose_name="Максимальная высота")
-    max_distance_no_load = models.FloatField(verbose_name="Максимальная дальность полета без доп. нагрузки")
-    max_load = models.FloatField(verbose_name="Максимальная нагрузка")
+    max_speed = models.FloatField(verbose_name="Максимальная скорость (км/ч)")
+    max_height = models.FloatField(verbose_name="Максимальная высота (км)")
+    max_distance_no_load = models.FloatField(verbose_name="Максимальная дальность полета без доп. нагрузки (км)")
+    max_load = models.FloatField(verbose_name="Максимальная нагрузка (кг)")
 
-    weight = models.FloatField(verbose_name="Вес дрона")
+    weight = models.FloatField(verbose_name="Вес дрона (кг)")
 
     def __str__(self):
         return f"{self.name} ({self.model})"
