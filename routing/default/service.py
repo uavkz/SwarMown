@@ -1,4 +1,4 @@
-from itertools import repeat
+from itertools import repeat, cycle
 
 from mainapp.services_draw import get_grid, get_car_waypoints
 from mainapp.utils import add_waypoint, calc_vincenty
@@ -27,7 +27,7 @@ def get_waypoints(grid, car_waypoints, drones, start):
     last_point = None
     for car_waypoint in iterate_car_waypoints(car_waypoints):
         point = None
-        for drone in drones.all():
+        for drone in cycle(drones):
             drone_waypoints = []
             point = None
             total_drone_distance = 0

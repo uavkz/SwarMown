@@ -77,7 +77,7 @@ class ManageRouteView(TemplateView):
         context['number_of_drones'] = number_of_drones
         grid, waypoints, car_waypoints, initial_position = get_route(
             car_move, direction, target, height_diff, round_start_zone, start,
-            field, grid_step, feature3, feature4, road, context['mission'].drones
+            field, grid_step, feature3, feature4, road, context['mission'].drones.all()
         )
         context['grid'] = list(flatten_grid(grid))
         context['initial'] = initial_position
