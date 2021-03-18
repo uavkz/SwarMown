@@ -72,6 +72,32 @@ def get_car_waypoints(grid, road, how):
     return car_waypoints
 
 
+def get_car_waypoints_by_ratio_list(road, ratio_list):
+    # X/Long, Y/Lat
+    if not road:
+        raise Exception("No road")
+    car_waypoints = []
+    total_distance = waypoints_distance(road, lat_f=lambda x: x[1], lon_f=lambda x: x[0])
+    prev_point = None
+    for ratio in ratio_list:
+        dist = 0
+        target_point = ratio * total_distance
+        for point in road:
+            if prev_point:
+                new_dist = calc_vincenty([point[1], point[0]], [prev_point[1], prev_point[0]]) * 1000
+                if dist + new_dist >= target_point:
+                    d_x = point[0] - prev_point[0]
+                    d_y = point[1] - prev_point[1]
+                    ratio = (target_point - dist) / new_dist
+                    point = [prev_point[0] + d_x * ratio, prev_point[1] + d_y * ratio]
+                    break
+                dist += new_dist
+            prev_point = point
+        car_waypoints.append([point[0], point[1]])
+        car_waypoints.append(road[-1])
+    return car_waypoints
+
+
 def convert_coordinates(a):
     a = np.array(a)
     x, y = [], []

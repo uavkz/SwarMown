@@ -1,6 +1,6 @@
 from itertools import repeat, cycle
 
-from mainapp.services_draw import get_grid, get_car_waypoints
+from mainapp.services_draw import get_grid, get_car_waypoints, get_car_waypoints_by_ratio_list
 from mainapp.utils import add_waypoint, calc_vincenty
 
 
@@ -20,7 +20,7 @@ def get_route(car_move, direction, target, height_diff, round_start_zone, start,
     if type(car_move) == str:
        car_waypoints = get_car_waypoints(grid, road, how=car_move)
     elif type(car_move) == list:
-        car_waypoints = car_move
+        car_waypoints = get_car_waypoints_by_ratio_list(road, car_move)
     else:
         raise Exception("Not implemented")
     waypoints = get_waypoints(grid, car_waypoints, drones, start)
