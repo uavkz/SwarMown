@@ -12,10 +12,17 @@ def get_route(car_move, direction, target, height_diff, round_start_zone, start,
         angle = 0
     elif direction == "vertical":
         angle = 90
+    elif type(direction) in [float, int]:
+        angle = direction
     else:
         raise Exception("Not implemented")
     grid = get_grid(field, grid_step, angle)
-    car_waypoints = get_car_waypoints(grid, road, how=car_move)
+    if type(car_move) == str:
+       car_waypoints = get_car_waypoints(grid, road, how=car_move)
+    elif type(car_move) == list:
+        car_waypoints = car_move
+    else:
+        raise Exception("Not implemented")
     waypoints = get_waypoints(grid, car_waypoints, drones, start)
     return grid, waypoints, car_waypoints, car_waypoints[0]
 

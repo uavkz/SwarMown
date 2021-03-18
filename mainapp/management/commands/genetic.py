@@ -47,10 +47,11 @@ class Command(BaseCommand):
         toolbox.register("mutate", lambda x: (x, ))
         toolbox.register("select", tools.selTournament, tournsize=3)
 
-        population = toolbox.population(n=300)
+        population = toolbox.population(n=5)
 
-        NGEN = 40
+        NGEN = 5
         for gen in range(NGEN):
+            print(gen)
             offspring = algorithms.varAnd(population, toolbox, cxpb=0.5, mutpb=0.1)
             fits = toolbox.map(toolbox.evaluate, offspring)
             for fit, ind in zip(fits, offspring):
