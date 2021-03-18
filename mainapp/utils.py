@@ -76,13 +76,13 @@ def waypoints_distance(waypoints, lat_f=lambda x: x.lat, lon_f=lambda x: x.lon):
     return total_distance
 
 
-def waypoints_flight_time(waypoints, lat_f=lambda x: x.lat, lon_f=lambda x: x.lon):
+def waypoints_flight_time(waypoints, lat_f=lambda x: x.lat, lon_f=lambda x: x.lon, max_speed_f=lambda x: x.drone.max_speed):
     total_time = 0
     prev_waypoint = None
     for waypoint in waypoints:
         if prev_waypoint:
             dist = calc_vincenty([lat_f(waypoint), lon_f(waypoint)], [lat_f(prev_waypoint), lon_f(prev_waypoint)])
-            total_time += dist / waypoint.drone.max_speed
+            total_time += dist / max_speed_f(waypoint)
         prev_waypoint = waypoint
     return total_time
 
