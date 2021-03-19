@@ -4,13 +4,11 @@ try:
 
     from django.conf import settings
 
-    # sys.path.append('.')
-
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "swarmown.settings")
     import django
     django.setup()
 except Exception as e:
-    print("!!!!!!!!", e)
+    pass
 
 import json
 import random
@@ -30,13 +28,13 @@ def eval(individual):
                       start=individual[1], field=field, grid_step=mission.grid_step, feature3=None, feature4=None, road=road, drones=drones)
     distance = 0
     time = 0
-    price = 0
+    price = 0 # TODO
 
     for drone_waypoints in waypoints:
         distance += waypoints_distance(drone_waypoints, lat_f=lambda x: x['lat'], lon_f=lambda x: x['lon'])
         time += waypoints_flight_time(drone_waypoints, lat_f=lambda x: x['lat'], lon_f=lambda x: x['lon'], max_speed_f=lambda x: x['drone']['max_speed'])
     number_of_starts = len(waypoints)
-    return (distance, time, price, number_of_starts)
+    return distance, time, price, number_of_starts
 
 
 number_of_drones = 3
@@ -48,7 +46,7 @@ road = [[y, x] for (x, y) in road]
 
 toolbox = base.Toolbox()
 
-creator.create("FitnessMax", base.Fitness, weights=(1.0, 1.0, 1.0, 1.0))
+creator.create("FitnessMax", base.Fitness, weights=(-1.0, -1.0, -1.0, -1.0))
 creator.create("Individual", list, fitness=creator.FitnessMax)
 
 toolbox.register("attr_direction", random.uniform, 0, 360)
