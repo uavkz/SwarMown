@@ -42,7 +42,11 @@ def eval(individual):
     return distance, time, price, number_of_starts
 
 
-mission = Mission.objects.get(id=12)
+MISSION_ID = 12
+NGEN = 5
+POPULATION_SIZE = 8
+
+mission = Mission.objects.get(id=MISSION_ID)
 field = json.loads(mission.field.points_serialized)
 field = [[y, x] for (x, y) in field]
 road = json.loads(mission.field.road_serialized)
@@ -80,9 +84,8 @@ class Command(BaseCommand):
 
     def run(self):
         global toolbox
-        population = toolbox.population(n=8)
+        population = toolbox.population(n=POPULATION_SIZE)
 
-        NGEN = 5
         for gen in range(NGEN):
             print(f"{gen}/{NGEN}")
             offspring = algorithms.varAnd(population, toolbox, cxpb=0.5, mutpb=0.1)
@@ -90,5 +93,5 @@ class Command(BaseCommand):
             for fit, ind in zip(fits, offspring):
                 ind.fitness.values = fit
             population = toolbox.select(offspring, k=len(population))
-        top10 = tools.selBest(population, k=10)
+        top10 = tools.selBest(population, k=3)
         print(top10)
