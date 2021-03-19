@@ -85,11 +85,11 @@ class Mission(models.Model):
 
     @property
     def simulated_flight_time(self):
-        return waypoints_flight_time(self.current_waypoints.all())
+        return waypoints_flight_time(self.current_waypoints.all().order_by('index'))
 
     @property
     def history_flight_time(self):
-        return waypoints_flight_time(self.waypoints_history.all())
+        return waypoints_flight_time(self.waypoints_history.all().order_by('index'))
 
 
 class Drone(models.Model):

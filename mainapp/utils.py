@@ -76,13 +76,27 @@ def waypoints_distance(waypoints, lat_f=lambda x: x.lat, lon_f=lambda x: x.lon):
     return total_distance
 
 
-def waypoints_flight_time(waypoints, lat_f=lambda x: x.lat, lon_f=lambda x: x.lon, max_speed_f=lambda x: x.drone.max_speed):
+def waypoints_flight_time(waypoints, lat_f=lambda x: x.lat, lon_f=lambda x: x.lon,
+                          max_speed_f=lambda x: x.drone.max_speed,
+                          slowdown_ratio_f=lambda x: x.drone.slowdown_ratio_per_degree,
+                          min_slowdown_ratio_f=lambda x: x.drone.min_slowdown_ratio):
     total_time = 0
     prev_waypoint = None
+    prev_prev_waypoint = None
     for waypoint in waypoints:
         if prev_waypoint:
             dist = calc_vincenty([lat_f(waypoint), lon_f(waypoint)], [lat_f(prev_waypoint), lon_f(prev_waypoint)])
-            total_time += dist / max_speed_f(waypoint)
+            speed = max_speed_f(waypoint)
+            if prev_prev_waypoint:
+                slowdown_ratio = slowdown_ratio_f(waypoint)
+                min_slowdown_ratio = min_slowdown_ratio_f(waypoint)
+                if lat_f(waypoint) == lat_f(prev_waypoint) and lon_f(waypoint) == lon_f(prev_waypoint):
+                    continue
+                angle = angle_lat_lon_vectors(prev_prev_waypoint, prev_waypoint, waypoint, lat_f, lon_f)
+                if angle:
+                    speed = speed * max(1 - angle * slowdown_ratio, min_slowdown_ratio)
+            total_time += dist / speed
+        prev_prev_waypoint = prev_waypoint
         prev_waypoint = waypoint
     return total_time
 
@@ -104,3 +118,50 @@ def rotate(point, origin, angle):
     qx = ox + math.cos(angle) * (px - ox) - math.sin(angle) * (py - oy)
     qy = oy + math.sin(angle) * (px - ox) + math.cos(angle) * (py - oy)
     return [qx, qy]
+
+
+def latlong_to_3d(latr, lonr):
+    """Convert a point given latitude and longitude in radians to
+    3-dimensional space, assuming a sphere radius of one."""
+    return np.array((
+        math.cos(latr) * math.cos(lonr),
+        math.cos(latr) * math.sin(lonr),
+        math.sin(latr)
+    ))
+
+
+def angle_between_vectors_degrees(u, v):
+    """Return the angle between two vectors in any dimension space,
+    in degrees."""
+    # Original
+    # return np.degrees(math.acos(np.dot(u, v) / (np.linalg.norm(u) * np.linalg.norm(v))))
+    up = np.dot(u, v)
+    down = np.linalg.norm(u) * np.linalg.norm(v)
+    r = up / down
+    r = min(r, 1)
+    r = max(r, -1)
+    degrees = np.degrees(math.acos(r))
+    return degrees
+
+
+def angle_lat_lon_vectors(a, b, c, lat_f, lon_f):
+    a = (lat_f(a), lon_f(a))
+    b = (lat_f(b), lon_f(b))
+    c = (lat_f(c), lon_f(c))
+
+    # Convert the points to numpy latitude/longitude radians space
+    a = np.radians(np.array(a))
+    b = np.radians(np.array(b))
+    c = np.radians(np.array(c))
+
+    # Vectors in latitude/longitude space
+    avec = a - b
+    cvec = b - c
+
+    # Adjust vectors for changed longitude scale at given latitude into 2D space
+    lat = b[0]
+    avec[1] *= math.cos(lat)
+    cvec[1] *= math.cos(lat)
+
+    # Find the angle between the vectors in 2D space
+    return angle_between_vectors_degrees(avec, cvec)

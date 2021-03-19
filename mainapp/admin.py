@@ -21,7 +21,7 @@ class DroneAdmin(admin.ModelAdmin):
 
 
 class WaypointAdmin(admin.ModelAdmin):
-    list_display = ('drone', 'datetime', 'index', 'height', 'speed', 'acceleration', 'spray_on', 'status', )
+    list_display = ('drone', 'datetime', 'index', 'lat', 'lon', 'speed', 'spray_on', 'status', )
     list_filter = ('mission', 'drone', 'spray_on', 'status', )
     search_fields = ('name', )
 

@@ -38,6 +38,7 @@ def get_waypoints(grid, car_waypoints, drones, start):
             drone_waypoints = []
             point = None
             total_drone_distance = 0
+            first_run = True
             for point in zamboni_iterator:
                 # No more points, all traversed
                 if point is None:
@@ -50,19 +51,21 @@ def get_waypoints(grid, car_waypoints, drones, start):
                     total_drone_distance += generate_fly_to(drone_waypoints, car_waypoint, last_point or point, drone)
 
                 # If there's an untraversed point from previous drone - traverse it
-                if last_point:
+                if last_point and first_run:
                     total_drone_distance += calc_vincenty(last_point, point, lon_first=True)
                     if total_drone_distance >= drone.max_distance_no_load:
                         last_point = point
                         break
                     add_waypoint(drone_waypoints, last_point, drone)
+                    first_run = False # Prevent duplicating
 
                 last_point = point
                 # If you will not be able to return - break
                 if calc_vincenty(point, car_waypoint, lon_first=True) > (drone.max_distance_no_load - total_drone_distance):
                     break
                 # print("!!! Between", calc_vincenty([drone_waypoints[-2]['lon'], drone_waypoints[-2]['lat']], point, lon_first=True))
-                total_drone_distance += calc_vincenty([drone_waypoints[-2]['lon'], drone_waypoints[-2]['lat']], point, lon_first=True)
+                if len(drone_waypoints) > 1:
+                    total_drone_distance += calc_vincenty([drone_waypoints[-2]['lon'], drone_waypoints[-2]['lat']], point, lon_first=True)
                 add_waypoint(drone_waypoints, point, drone)
             total_drone_distance += generate_fly_back(drone_waypoints, car_waypoint, drone)
             waypoints.append(drone_waypoints)
@@ -75,7 +78,6 @@ def get_waypoints(grid, car_waypoints, drones, start):
 
 def generate_fly_to(drone_waypoints, drones_init, coord_to, drone):
     add_waypoint(drone_waypoints, drones_init, drone)
-    add_waypoint(drone_waypoints, coord_to, drone)
     # print("!!! TO", calc_vincenty(drones_init, coord_to, lon_first=True))
     return calc_vincenty(drones_init, coord_to, lon_first=True)
 
