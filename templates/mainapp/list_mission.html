@@ -37,9 +37,7 @@
                         <td>{{ mission.drones_verbose }}</td>
                         <td>{% if mission.current_waypoints.count > 0 %}{{ mission.simulated_distance|floatformat:"1"|intcomma }} м ({{ mission.simulated_flight_time|floatformat:"1"|intcomma }} ч){% else %}-{% endif %}</td>
                         <td>
-                            {% if mission.current_waypoints_status == 0 %}
-                                <a href="{% url 'mainapp:manage_route' mission.id %}" data-toggle="tooltip" title="Управление маршрутом"><i style="color: blue;" class="fas fa-route"></i></a>
-                            {% endif %}
+                            <a href="{% url 'mainapp:manage_route' mission.id %}" data-toggle="tooltip" title="Управление маршрутом"><i style="color: blue;" class="fas fa-route"></i></a>
                             <a href="{% url 'mainapp:simulate_mission' mission.id %}" data-toggle="tooltip" title="Запуск"><i style="color: green;" class="fas fa-play"></i></a>
                             <a href="#" data-toggle="tooltip" title="Удалить"><i style="color: red;" class="fas fa-times"></i></a>
                         </td>

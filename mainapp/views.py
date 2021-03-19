@@ -90,6 +90,7 @@ class ManageRouteView(TemplateView):
             i = 0
             context['mission'].current_waypoints_status = 1
             context['mission'].save()
+            context['mission'].current_waypoints.all().delete()
             for waypoints in context['waypoints']:
                 for waypoint in waypoints:
                     w = Waypoint.objects.create(
