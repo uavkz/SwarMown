@@ -87,6 +87,10 @@ def waypoints_flight_time(waypoints, lat_f=lambda x: x.lat, lon_f=lambda x: x.lo
     return total_time
 
 
+def drone_flight_price(drone, distance, time):
+    return drone['price_per_cycle'] + drone['price_per_kilometer'] * distance + drone['price_per_hour'] * time
+
+
 def rotate(point, origin, angle):
     """
     Rotate a point counterclockwise by a given angle around a given origin.
