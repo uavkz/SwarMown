@@ -34,7 +34,9 @@ def eval(individual):
         new_distance = waypoints_distance(drone_waypoints, lat_f=lambda x: x['lat'], lon_f=lambda x: x['lon'])
         new_time = waypoints_flight_time(drone_waypoints, lat_f=lambda x: x['lat'],
                                          lon_f=lambda x: x['lon'],
-                                         max_speed_f=lambda x: x['drone']['max_speed'])
+                                         max_speed_f=lambda x: x['drone']['max_speed'],
+                                         slowdown_ratio_f=lambda x: x['drone']['slowdown_ratio_per_degree'],
+                                         min_slowdown_ratio_f=lambda x: x['drone']['min_slowdown_ratio'])
         distance += new_distance
         time += new_time
         price += drone_flight_price(drone_waypoints[0]['drone'], new_distance, new_time)
