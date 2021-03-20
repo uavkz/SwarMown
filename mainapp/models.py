@@ -73,7 +73,7 @@ class Mission(models.Model):
 
     @property
     def drones_verbose(self):
-        return ", ".join([str(d) for d in self.drones.all()])
+        return ", ".join([str(d) for d in self.drones.all().order_by('id')])
 
     @property
     def simulated_distance(self):

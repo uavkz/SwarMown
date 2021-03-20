@@ -23,7 +23,7 @@ from routing.default.service import get_route
 
 
 def eval(individual):
-    drones = [list(mission.drones.all())[i] for i in individual[2]]
+    drones = [list(mission.drones.all().order_by('id'))[i] for i in individual[2]]
     grid, waypoints, _, initial = get_route(car_move=individual[3], direction=individual[0], target=None, height_diff=None, round_start_zone=None,
                       start=individual[1], field=field, grid_step=mission.grid_step, feature3=None, feature4=None, road=road, drones=drones)
     distance = 0
