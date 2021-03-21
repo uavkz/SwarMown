@@ -19,6 +19,7 @@ from scoop import futures
 
 from mainapp.models import Mission
 from mainapp.utils import waypoints_distance, waypoints_flight_time, drone_flight_price
+from mainapp.utils_excel import log_excel
 from routing.default.service import get_route
 
 
@@ -45,8 +46,10 @@ def eval(individual):
 
 
 MISSION_ID = 12
-NGEN = 5
-POPULATION_SIZE = 8
+NGEN = 10
+POPULATION_SIZE = 16
+# Distance, Time, Price, NumberOfStarts
+TARGET_WEIGHTS = (-1.0, -1.0, -1.0, -1.0)
 
 mission = Mission.objects.get(id=MISSION_ID)
 field = json.loads(mission.field.points_serialized)
@@ -57,7 +60,7 @@ number_of_drones = mission.drones.all().count()
 
 toolbox = base.Toolbox()
 
-creator.create("FitnessMax", base.Fitness, weights=(-1.0, -1.0, -1.0, -1.0))
+creator.create("FitnessMax", base.Fitness, weights=TARGET_WEIGHTS)
 creator.create("Individual", list, fitness=creator.FitnessMax)
 
 toolbox.register("attr_direction", random.uniform, 0, 360) # 0
@@ -88,6 +91,7 @@ class Command(BaseCommand):
         global toolbox
         population = toolbox.population(n=POPULATION_SIZE)
 
+        iterations = []
         for gen in range(NGEN):
             print(f"{gen}/{NGEN}")
             offspring = algorithms.varAnd(population, toolbox, cxpb=0.5, mutpb=0.1)
@@ -95,5 +99,37 @@ class Command(BaseCommand):
             for fit, ind in zip(fits, offspring):
                 ind.fitness.values = fit
             population = toolbox.select(offspring, k=len(population))
-        top10 = tools.selBest(population, k=3)
-        print(top10)
+            top = tools.selBest(population, k=1)
+
+            fitnesses = [sum([t * tw for t, tw in zip(ind.fitness.values, TARGET_WEIGHTS)]) for ind in offspring]
+            iterations.append(
+                {
+                    "best_ind": top[0],
+
+                    "best_distance": min((ind.fitness.values[0] for ind in offspring)),
+                    "average_distance": sum((ind.fitness.values[0] for ind in offspring)) / len(offspring),
+                    "best_time": min((ind.fitness.values[1] for ind in offspring)),
+                    "average_time": sum((ind.fitness.values[1] for ind in offspring)) / len(offspring),
+                    "best_price": min((ind.fitness.values[2] for ind in offspring)),
+                    "average_price": sum((ind.fitness.values[2] for ind in offspring)) / len(offspring),
+                    "best_number_of_starts": min((ind.fitness.values[3] for ind in offspring)),
+                    "average_number_of_starts": sum((ind.fitness.values[3] for ind in offspring)) / len(offspring),
+
+                    "best_fit": max(fitnesses),
+                    "average_fit": sum(fitnesses) / len(fitnesses)
+                }
+            )
+
+        log_excel(
+            name="test",
+            info={
+                "population_size": POPULATION_SIZE,
+                "target_weights": TARGET_WEIGHTS,
+                "number_of_iterations": NGEN,
+                "mission": f"{mission.id} - {mission.name}",
+                "field": f"{mission.field.id} - {mission.field.name}",
+                "grid_step": mission.grid_step
+            },
+            drones=mission.drones.all(),
+            iterations=iterations,
+        )

@@ -15,7 +15,8 @@ class MissionAdmin(admin.ModelAdmin):
 
 
 class DroneAdmin(admin.ModelAdmin):
-    list_display = ('name', 'model', 'max_speed', 'max_distance_no_load', 'slowdown_ratio_per_degree', 'min_slowdown_ratio', 'price_per_cycle', 'price_per_kilometer', 'price_per_hour',)
+    list_display = ('name', 'model', 'max_speed', 'max_distance_no_load', 'slowdown_ratio_per_degree',
+                    'min_slowdown_ratio', 'price_per_cycle', 'price_per_kilometer', 'price_per_hour',)
     list_filter = ()
     search_fields = ('name', 'model', )
 
