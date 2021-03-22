@@ -4,23 +4,36 @@ try:
 
     from django.conf import settings
 
+    sys.path.append('C:\\Users\\KindYAK\\Desktop\\SwarMown\\')
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "swarmown.settings")
     import django
     django.setup()
 except Exception as e:
     pass
 
+import argparse
 import json
 import random
 
 from deap import creator, base, tools, algorithms
-from django.core.management.base import BaseCommand
 from scoop import futures
 
 from mainapp.models import Mission
 from mainapp.utils import waypoints_distance, waypoints_flight_time, drone_flight_price
 from mainapp.utils_excel import log_excel
 from routing.default.service import get_route
+
+
+parser = argparse.ArgumentParser()
+
+# Add long and short argument
+parser.add_argument("--mission_id", "-m", help="Mission id")
+parser.add_argument("--ngen", "-n", help="Number of generations")
+parser.add_argument("--population_size", "-p", help="Population size")
+parser.add_argument("--filename", "-f", help="Filename for output (without extension)")
+
+# Read arguments from the command line
+args = parser.parse_args()
 
 
 def eval(individual):
@@ -45,9 +58,9 @@ def eval(individual):
     return distance, time, price, number_of_starts
 
 
-MISSION_ID = 12
-NGEN = 10
-POPULATION_SIZE = 16
+MISSION_ID = int(args.mission_id)
+NGEN = int(args.ngen)
+POPULATION_SIZE = int(args.population_size)
 # Distance, Time, Price, NumberOfStarts
 TARGET_WEIGHTS = (-1.0, -1.0, -1.0, -1.0)
 
@@ -83,53 +96,53 @@ toolbox.register("select", tools.selTournament, tournsize=3)
 toolbox.register("map", futures.map)
 
 
-class Command(BaseCommand):
-    def handle(self, *args, **options):
-        self.run()
+def run():
+    global toolbox
+    population = toolbox.population(n=POPULATION_SIZE)
 
-    def run(self):
-        global toolbox
-        population = toolbox.population(n=POPULATION_SIZE)
+    iterations = []
+    for gen in range(NGEN):
+        print(f"{gen}/{NGEN}")
+        offspring = algorithms.varAnd(population, toolbox, cxpb=0.5, mutpb=0.1)
+        fits = toolbox.map(toolbox.evaluate, offspring)
+        for fit, ind in zip(fits, offspring):
+            ind.fitness.values = fit
+        population = toolbox.select(offspring, k=len(population))
+        top = tools.selBest(population, k=1)
 
-        iterations = []
-        for gen in range(NGEN):
-            print(f"{gen}/{NGEN}")
-            offspring = algorithms.varAnd(population, toolbox, cxpb=0.5, mutpb=0.1)
-            fits = toolbox.map(toolbox.evaluate, offspring)
-            for fit, ind in zip(fits, offspring):
-                ind.fitness.values = fit
-            population = toolbox.select(offspring, k=len(population))
-            top = tools.selBest(population, k=1)
+        fitnesses = [sum([t * tw for t, tw in zip(ind.fitness.values, TARGET_WEIGHTS)]) for ind in offspring]
+        iterations.append(
+            {
+                "best_ind": top[0],
 
-            fitnesses = [sum([t * tw for t, tw in zip(ind.fitness.values, TARGET_WEIGHTS)]) for ind in offspring]
-            iterations.append(
-                {
-                    "best_ind": top[0],
+                "best_distance": min((ind.fitness.values[0] for ind in offspring)),
+                "average_distance": sum((ind.fitness.values[0] for ind in offspring)) / len(offspring),
+                "best_time": min((ind.fitness.values[1] for ind in offspring)),
+                "average_time": sum((ind.fitness.values[1] for ind in offspring)) / len(offspring),
+                "best_price": min((ind.fitness.values[2] for ind in offspring)),
+                "average_price": sum((ind.fitness.values[2] for ind in offspring)) / len(offspring),
+                "best_number_of_starts": min((ind.fitness.values[3] for ind in offspring)),
+                "average_number_of_starts": sum((ind.fitness.values[3] for ind in offspring)) / len(offspring),
 
-                    "best_distance": min((ind.fitness.values[0] for ind in offspring)),
-                    "average_distance": sum((ind.fitness.values[0] for ind in offspring)) / len(offspring),
-                    "best_time": min((ind.fitness.values[1] for ind in offspring)),
-                    "average_time": sum((ind.fitness.values[1] for ind in offspring)) / len(offspring),
-                    "best_price": min((ind.fitness.values[2] for ind in offspring)),
-                    "average_price": sum((ind.fitness.values[2] for ind in offspring)) / len(offspring),
-                    "best_number_of_starts": min((ind.fitness.values[3] for ind in offspring)),
-                    "average_number_of_starts": sum((ind.fitness.values[3] for ind in offspring)) / len(offspring),
-
-                    "best_fit": max(fitnesses),
-                    "average_fit": sum(fitnesses) / len(fitnesses)
-                }
-            )
-
-        log_excel(
-            name="test",
-            info={
-                "population_size": POPULATION_SIZE,
-                "target_weights": TARGET_WEIGHTS,
-                "number_of_iterations": NGEN,
-                "mission": f"{mission.id} - {mission.name}",
-                "field": f"{mission.field.id} - {mission.field.name}",
-                "grid_step": mission.grid_step
-            },
-            drones=mission.drones.all(),
-            iterations=iterations,
+                "best_fit": max(fitnesses),
+                "average_fit": sum(fitnesses) / len(fitnesses)
+            }
         )
+
+    log_excel(
+        name=args.filename,
+        info={
+            "population_size": POPULATION_SIZE,
+            "target_weights": TARGET_WEIGHTS,
+            "number_of_iterations": NGEN,
+            "mission": f"{mission.id} - {mission.name}",
+            "field": f"{mission.field.id} - {mission.field.name}",
+            "grid_step": mission.grid_step
+        },
+        drones=mission.drones.all(),
+        iterations=iterations,
+    )
+
+
+if __name__ == "__main__":
+    run()
