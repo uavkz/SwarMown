@@ -81,7 +81,7 @@ toolbox.register("attr_start", lambda: ["ne", "nw", "se", "sw"][random.randint(0
 toolbox.register("attr_drones", lambda: [random.randint(0, number_of_drones - 1) for _ in
                                          range(random.randint(1, number_of_drones * 3))]) # 2
 toolbox.register("attr_car_points",
-                 lambda: [random.uniform(0, 1) for _ in range(random.randint(1, number_of_drones * 2))]) # 3
+                 lambda: [random.uniform(0, 1) for _ in range(random.randint(1, 5))]) # 3
 
 toolbox.register("individual", tools.initCycle, creator.Individual,
                  (toolbox.attr_direction, toolbox.attr_start, toolbox.attr_drones, toolbox.attr_car_points
