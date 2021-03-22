@@ -43,6 +43,7 @@ def eval(individual):
     distance = 0
     time = 0
     price = 0
+    number_of_starts = len(waypoints)
 
     for drone_waypoints in waypoints:
         new_distance = waypoints_distance(drone_waypoints, lat_f=lambda x: x['lat'], lon_f=lambda x: x['lon'])
@@ -53,8 +54,7 @@ def eval(individual):
                                          min_slowdown_ratio_f=lambda x: x['drone']['min_slowdown_ratio'])
         distance += new_distance
         time += new_time
-        price += drone_flight_price(drone_waypoints[0]['drone'], new_distance, new_time)
-    number_of_starts = len(waypoints)
+        price += drone_flight_price(drone_waypoints[0]['drone'], new_distance, new_time, mission, number_of_starts)
     return distance, time, price, number_of_starts
 
 
@@ -62,7 +62,7 @@ MISSION_ID = int(args.mission_id)
 NGEN = int(args.ngen)
 POPULATION_SIZE = int(args.population_size)
 # Distance, Time, Price, NumberOfStarts
-TARGET_WEIGHTS = (-1.0, -1.0, -1.0, -1.0)
+TARGET_WEIGHTS = (-1.0, )
 
 mission = Mission.objects.get(id=MISSION_ID)
 field = json.loads(mission.field.points_serialized)
@@ -105,8 +105,17 @@ def run():
         print(f"{gen}/{NGEN}")
         offspring = algorithms.varAnd(population, toolbox, cxpb=0.5, mutpb=0.1)
         fits = toolbox.map(toolbox.evaluate, offspring)
+        fitness_params = []
         for fit, ind in zip(fits, offspring):
-            ind.fitness.values = fit
+            ind.fitness.values = (fit[2], )
+            fitness_params.append(
+                {
+                    "distance": fit[0],
+                    "time": fit[1],
+                    "price": fit[2],
+                    "number_of_starts": fit[3],
+                }
+            )
         population = toolbox.select(offspring, k=len(population))
         top = tools.selBest(population, k=1)
 
@@ -115,14 +124,14 @@ def run():
             {
                 "best_ind": top[0],
 
-                "best_distance": min((ind.fitness.values[0] for ind in offspring)),
-                "average_distance": sum((ind.fitness.values[0] for ind in offspring)) / len(offspring),
-                "best_time": min((ind.fitness.values[1] for ind in offspring)),
-                "average_time": sum((ind.fitness.values[1] for ind in offspring)) / len(offspring),
-                "best_price": min((ind.fitness.values[2] for ind in offspring)),
-                "average_price": sum((ind.fitness.values[2] for ind in offspring)) / len(offspring),
-                "best_number_of_starts": min((ind.fitness.values[3] for ind in offspring)),
-                "average_number_of_starts": sum((ind.fitness.values[3] for ind in offspring)) / len(offspring),
+                "best_distance": min((ind['distance'] for ind in fitness_params)),
+                "average_distance": sum((ind['distance'] for ind in fitness_params)) / len(fitness_params),
+                "best_time": min((ind['time'] for ind in fitness_params)),
+                "average_time": sum((ind['time'] for ind in fitness_params)) / len(fitness_params),
+                "best_price": min((ind['price'] for ind in fitness_params)),
+                "average_price": sum((ind['price'] for ind in fitness_params)) / len(fitness_params),
+                "best_number_of_starts": min((ind['number_of_starts'] for ind in fitness_params)),
+                "average_number_of_starts": sum((ind['number_of_starts'] for ind in fitness_params)) / len(fitness_params),
 
                 "best_fit": max(fitnesses),
                 "average_fit": sum(fitnesses) / len(fitnesses)
@@ -137,7 +146,9 @@ def run():
             "number_of_iterations": NGEN,
             "mission": f"{mission.id} - {mission.name}",
             "field": f"{mission.field.id} - {mission.field.name}",
-            "grid_step": mission.grid_step
+            "grid_step": mission.grid_step,
+            "start_price": mission.start_price,
+            "hourly_price": mission.hourly_price,
         },
         drones=mission.drones.all(),
         iterations=iterations,

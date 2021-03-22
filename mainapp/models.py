@@ -56,6 +56,9 @@ class Mission(models.Model):
     current_waypoints = models.ManyToManyField('Waypoint', blank=True, verbose_name="Текущий путь", related_name="mission")
     waypoints_history = models.ManyToManyField('Waypoint', blank=True, verbose_name="История", related_name="mission_history")
 
+    start_price = models.FloatField(default=3, verbose_name="Цена за один старт (оплата пилоту)")
+    hourly_price = models.FloatField(default=3, verbose_name="Цена за один час (оплата пилоту)")
+
     def __str__(self):
         return f"{self.name} ({self.type_verbose}) {self.status}"
 

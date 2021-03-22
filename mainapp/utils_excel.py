@@ -28,21 +28,14 @@ def log_excel(
     sheet_info.row(1).write(1, info['field'], style_text_big)
     sheet_info.row(2).write(0, "Grid step (m)", style_text_big)
     sheet_info.row(2).write(1, info['grid_step'], style_text_big)
-
-    sheet_info.row(4).write(0, "Distance weight", style_text_big)
-    sheet_info.row(4).write(1, info['target_weights'][0], style_text_big)
-    sheet_info.row(5).write(0, "Time weight", style_text_big)
-    sheet_info.row(5).write(1, info['target_weights'][1], style_text_big)
-    sheet_info.row(6).write(0, "Price weight", style_text_big)
-    sheet_info.row(6).write(1, info['target_weights'][2], style_text_big)
-    sheet_info.row(7).write(0, "Number of starts weight", style_text_big)
-    sheet_info.row(7).write(1, info['target_weights'][3], style_text_big)
-
-    sheet_info.row(9).write(0, "Population size", style_text_big)
-    sheet_info.row(9).write(1, info['population_size'], style_text_big)
-    sheet_info.row(10).write(0, "Number of iterations", style_text_big)
-    sheet_info.row(10).write(1, info['number_of_iterations'], style_text_big)
-
+    sheet_info.row(3).write(0, "Population size", style_text_big)
+    sheet_info.row(3).write(1, info['population_size'], style_text_big)
+    sheet_info.row(4).write(0, "Number of iterations", style_text_big)
+    sheet_info.row(4).write(1, info['number_of_iterations'], style_text_big)
+    sheet_info.row(5).write(0, "Wage per start", style_text_big)
+    sheet_info.row(5).write(1, info['start_price'], style_text_big)
+    sheet_info.row(6).write(0, "Wage per hour", style_text_big)
+    sheet_info.row(6).write(1, info['hourly_prices'], style_text_big)
     # Drones
     sheet_drones = book.add_sheet("Drones")
     sheet_drones.portrait = False

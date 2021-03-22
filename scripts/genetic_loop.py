@@ -16,7 +16,7 @@ import os
 from mainapp.models import Mission
 
 
-for mission in Mission.objects.all().filter(id__in=[12, 9]):
+for mission in Mission.objects.all().filter(id__in=[12]):
     mission_id = mission.id
     ngen = 2
     population_size = 4
