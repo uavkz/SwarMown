@@ -31,6 +31,8 @@ parser.add_argument("--mission_id", "-m", help="Mission id")
 parser.add_argument("--ngen", "-n", help="Number of generations")
 parser.add_argument("--population_size", "-p", help="Population size")
 parser.add_argument("--filename", "-f", help="Filename for output (without extension)")
+parser.add_argument("--max-time", "-t", help="Maximum time")
+parser.add_argument("--borderline_time", "-b", help="Borderline time")
 
 # Read arguments from the command line
 args = parser.parse_args()
@@ -42,7 +44,7 @@ def eval(individual):
                       start=individual[1], field=field, grid_step=mission.grid_step, feature3=None, feature4=None, road=road, drones=drones)
     distance = 0
     time = 0
-    price = 0
+    drone_price, salary, penalty = 0, 0, 0
     number_of_starts = len(waypoints)
 
     for drone_waypoints in waypoints:
@@ -54,8 +56,11 @@ def eval(individual):
                                          min_slowdown_ratio_f=lambda x: x['drone']['min_slowdown_ratio'])
         distance += new_distance
         time += new_time
-        price += drone_flight_price(drone_waypoints[0]['drone'], new_distance, new_time, mission, number_of_starts)
-    return distance, time, price, number_of_starts
+        drone_price_n, salary_n, penalty_n = drone_flight_price(drone_waypoints[0]['drone'], new_distance, new_time, mission, number_of_starts, float(args.max_time), float(args.borderline_time))
+        drone_price += drone_price_n
+        salary += salary_n
+        penalty += penalty_n
+    return distance, time, drone_price, salary, penalty, number_of_starts
 
 
 MISSION_ID = int(args.mission_id)
@@ -106,14 +111,16 @@ def run():
         offspring = algorithms.varAnd(population, toolbox, cxpb=0.5, mutpb=0.1)
         fits = toolbox.map(toolbox.evaluate, offspring)
         fitness_params = []
-        for fit, ind in zip(fits, offspring):
-            ind.fitness.values = (fit[2], )
+        for (distance, time, drone_price, salary, penalty, number_of_starts), ind in zip(fits, offspring):
+            ind.fitness.values = (drone_price + salary + penalty, )
             fitness_params.append(
                 {
-                    "distance": fit[0],
-                    "time": fit[1],
-                    "price": fit[2],
-                    "number_of_starts": fit[3],
+                    "distance": distance,
+                    "time": time,
+                    "drone_price": drone_price,
+                    "salary": salary,
+                    "penalty": penalty,
+                    "number_of_starts": number_of_starts,
                 }
             )
         population = toolbox.select(offspring, k=len(population))
@@ -128,8 +135,12 @@ def run():
                 "average_distance": sum((ind['distance'] for ind in fitness_params)) / len(fitness_params),
                 "best_time": min((ind['time'] for ind in fitness_params)),
                 "average_time": sum((ind['time'] for ind in fitness_params)) / len(fitness_params),
-                "best_price": min((ind['price'] for ind in fitness_params)),
-                "average_price": sum((ind['price'] for ind in fitness_params)) / len(fitness_params),
+                "best_drone_price": min((ind['drone_price'] for ind in fitness_params)),
+                "average_drone_price": sum((ind['drone_price'] for ind in fitness_params)) / len(fitness_params),
+                "best_salary": min((ind['salary'] for ind in fitness_params)),
+                "average_salary": sum((ind['salary'] for ind in fitness_params)) / len(fitness_params),
+                "best_penalty": min((ind['penalty'] for ind in fitness_params)),
+                "average_penalty": sum((ind['penalty'] for ind in fitness_params)) / len(fitness_params),
                 "best_number_of_starts": min((ind['number_of_starts'] for ind in fitness_params)),
                 "average_number_of_starts": sum((ind['number_of_starts'] for ind in fitness_params)) / len(fitness_params),
 

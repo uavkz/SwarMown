@@ -35,7 +35,7 @@ def log_excel(
     sheet_info.row(5).write(0, "Wage per start", style_text_big)
     sheet_info.row(5).write(1, info['start_price'], style_text_big)
     sheet_info.row(6).write(0, "Wage per hour", style_text_big)
-    sheet_info.row(6).write(1, info['hourly_prices'], style_text_big)
+    sheet_info.row(6).write(1, info['hourly_price'], style_text_big)
     # Drones
     sheet_drones = book.add_sheet("Drones")
     sheet_drones.portrait = False
@@ -85,24 +85,32 @@ def log_excel(
     sheet_iters.col(4).width = 256 * 11
     sheet_iters.col(5).width = 256 * 11
     sheet_iters.col(6).width = 256 * 11
-    sheet_iters.col(7).width = 256 * 15
-    sheet_iters.col(8).width = 256 * 15
+    sheet_iters.col(7).width = 256 * 11
+    sheet_iters.col(8).width = 256 * 11
     sheet_iters.col(9).width = 256 * 11
     sheet_iters.col(10).width = 256 * 11
-    sheet_iters.col(11).width = 256 * 133
+    sheet_iters.col(11).width = 256 * 15
+    sheet_iters.col(12).width = 256 * 15
+    sheet_iters.col(13).width = 256 * 11
+    sheet_iters.col(14).width = 256 * 11
+    sheet_iters.col(15).width = 256 * 133
 
     sheet_iters.row(0).write(0, "Number", style_table_header)
     sheet_iters.row(0).write(1, "Best Distance", style_table_header)
     sheet_iters.row(0).write(2, "Average distance", style_table_header)
     sheet_iters.row(0).write(3, "Best time", style_table_header)
     sheet_iters.row(0).write(4, "Average time", style_table_header)
-    sheet_iters.row(0).write(5, "Best price", style_table_header)
-    sheet_iters.row(0).write(6, "Average price", style_table_header)
-    sheet_iters.row(0).write(7, "Best number of starts", style_table_header)
-    sheet_iters.row(0).write(8, "Average number of starts", style_table_header)
-    sheet_iters.row(0).write(9, "Best fit", style_table_header)
-    sheet_iters.row(0).write(10, "Average fit", style_table_header)
-    sheet_iters.row(0).write(11, "Best solution", style_table_header)
+    sheet_iters.row(0).write(5, "Best drone price", style_table_header)
+    sheet_iters.row(0).write(6, "Average drone price", style_table_header)
+    sheet_iters.row(0).write(7, "Best salary", style_table_header)
+    sheet_iters.row(0).write(8, "Average salary", style_table_header)
+    sheet_iters.row(0).write(9, "Best penalty", style_table_header)
+    sheet_iters.row(0).write(10, "Average penalty", style_table_header)
+    sheet_iters.row(0).write(11, "Best number of starts", style_table_header)
+    sheet_iters.row(0).write(12, "Average number of starts", style_table_header)
+    sheet_iters.row(0).write(13, "Best fit", style_table_header)
+    sheet_iters.row(0).write(14, "Average fit", style_table_header)
+    sheet_iters.row(0).write(15, "Best solution", style_table_header)
 
     for i, iteration in enumerate(iterations):
         sheet_iters.row(i + 1).write(0, i, style_text_medium)
@@ -110,13 +118,17 @@ def log_excel(
         sheet_iters.row(i + 1).write(2, iteration['average_distance'], style_text_medium)
         sheet_iters.row(i + 1).write(3, iteration['best_time'], style_text_medium)
         sheet_iters.row(i + 1).write(4, iteration['average_time'], style_text_medium)
-        sheet_iters.row(i + 1).write(5, iteration['best_price'], style_text_medium)
-        sheet_iters.row(i + 1).write(6, iteration['average_price'], style_text_medium)
-        sheet_iters.row(i + 1).write(7, iteration['best_number_of_starts'], style_text_medium)
-        sheet_iters.row(i + 1).write(8, iteration['average_number_of_starts'], style_text_medium)
-        sheet_iters.row(i + 1).write(9, iteration['best_fit'], style_text_medium)
-        sheet_iters.row(i + 1).write(10, iteration['average_fit'], style_text_medium)
-        sheet_iters.row(i + 1).write(11, str(iteration['best_ind']), style_text_medium)
+        sheet_iters.row(i + 1).write(5, iteration['best_drone_price'], style_text_medium)
+        sheet_iters.row(i + 1).write(6, iteration['average_drone_price'], style_text_medium)
+        sheet_iters.row(i + 1).write(7, iteration['best_salary'], style_text_medium)
+        sheet_iters.row(i + 1).write(8, iteration['average_salary'], style_text_medium)
+        sheet_iters.row(i + 1).write(9, iteration['best_penalty'], style_text_medium)
+        sheet_iters.row(i + 1).write(10, iteration['average_penalty'], style_text_medium)
+        sheet_iters.row(i + 1).write(11, iteration['best_number_of_starts'], style_text_medium)
+        sheet_iters.row(i + 1).write(12, iteration['average_number_of_starts'], style_text_medium)
+        sheet_iters.row(i + 1).write(13, iteration['best_fit'], style_text_medium)
+        sheet_iters.row(i + 1).write(14, iteration['average_fit'], style_text_medium)
+        sheet_iters.row(i + 1).write(15, str(iteration['best_ind']), style_text_medium)
 
     book.save(f"{name}.xls")
 

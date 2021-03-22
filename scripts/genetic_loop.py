@@ -18,9 +18,11 @@ from mainapp.models import Mission
 
 for mission in Mission.objects.all().filter(id__in=[12]):
     mission_id = mission.id
-    ngen = 2
-    population_size = 4
+    ngen = 10
+    population_size = 40
+    max_time = 3
+    borderline_time = 2.5
     filename = f"test_{mission_id}"
 
     print(filename)
-    os.system(f"python -m scoop scripts\\genetic.py --mission_id {mission_id} --ngen {ngen} --population_size {population_size} --filename {filename}")
+    os.system(f"python -m scoop scripts\\genetic.py --mission_id {mission_id} --ngen {ngen} --population_size {population_size} --filename {filename} --max-time {max_time} --borderline_time {borderline_time}")
