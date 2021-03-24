@@ -18,8 +18,8 @@ from mainapp.models import Mission
 
 for mission in Mission.objects.all().filter(id__in=[12]):
     mission_id = mission.id
-    ngen = 20
-    population_size = 80
+    ngen = 4
+    population_size = 4
     max_time = 8
     borderline_time = 2
     max_working_speed = 7
