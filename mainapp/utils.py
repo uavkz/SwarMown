@@ -101,16 +101,19 @@ def waypoints_flight_time(waypoints, lat_f=lambda x: x.lat, lon_f=lambda x: x.lo
     return total_time
 
 
-def drone_flight_price(drone, distance, time, mission, number_of_starts, max_time, borderline_time):
+def drone_flight_price(drone, distance, time, mission, number_of_starts):
     drone_price = drone['price_per_cycle'] + drone['price_per_kilometer'] * distance + drone['price_per_hour'] * time
     salary = mission.hourly_price * time + mission.start_price * number_of_starts
+    return drone_price, salary
+
+
+def flight_penalty(time, borderline_time, max_time, salary, drone_price):
     penalty = 0
     if time > max_time:
         penalty = (salary + drone_price) * 1000 ** (time - max_time)
     elif time > borderline_time:
         penalty = (salary + drone_price) * (time - borderline_time) / (max_time - borderline_time)
-    return drone_price, salary, penalty
-
+    return penalty
 
 def rotate(point, origin, angle):
     """

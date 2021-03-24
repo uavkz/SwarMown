@@ -19,7 +19,7 @@ from deap import creator, base, tools, algorithms
 from scoop import futures
 
 from mainapp.models import Mission
-from mainapp.utils import waypoints_distance, waypoints_flight_time, drone_flight_price
+from mainapp.utils import waypoints_distance, waypoints_flight_time, drone_flight_price, flight_penalty
 from mainapp.utils_excel import log_excel
 from routing.default.service import get_route
 
@@ -56,10 +56,10 @@ def eval(individual):
                                          min_slowdown_ratio_f=lambda x: x['drone']['min_slowdown_ratio'])
         distance += new_distance
         time += new_time
-        drone_price_n, salary_n, penalty_n = drone_flight_price(drone_waypoints[0]['drone'], new_distance, new_time, mission, number_of_starts, float(args.max_time), float(args.borderline_time))
+        drone_price_n, salary_n, = drone_flight_price(drone_waypoints[0]['drone'], new_distance, new_time, mission, number_of_starts)
         drone_price += drone_price_n
         salary += salary_n
-        penalty += penalty_n
+    penalty = flight_penalty(time, float(args.borderline_time), float(args.max_time), salary, drone_price)
     return distance, time, drone_price, salary, penalty, number_of_starts
 
 
