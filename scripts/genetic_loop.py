@@ -19,9 +19,9 @@ from mainapp.models import Mission
 for mission in Mission.objects.all().filter(id__in=[12]):
     mission_id = mission.id
     ngen = 10
-    population_size = 40
-    max_time = 3
-    borderline_time = 2.5
+    population_size = 20
+    max_time = 10
+    borderline_time = 5
     filename = f"test_{mission_id}"
 
     print(filename)

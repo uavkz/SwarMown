@@ -78,10 +78,10 @@ def get_car_waypoints_by_ratio_list(road, ratio_list):
         raise Exception("No road")
     car_waypoints = []
     total_distance = waypoints_distance(road, lat_f=lambda x: x[1], lon_f=lambda x: x[0])
-    prev_point = None
     for ratio in ratio_list:
         dist = 0
         target_point = ratio * total_distance
+        prev_point = None
         for point in road:
             if prev_point:
                 new_dist = calc_vincenty([point[1], point[0]], [prev_point[1], prev_point[0]]) * 1000
@@ -94,7 +94,6 @@ def get_car_waypoints_by_ratio_list(road, ratio_list):
                 dist += new_dist
             prev_point = point
         car_waypoints.append([point[0], point[1]])
-        car_waypoints.append(road[-1])
     return car_waypoints
 
 

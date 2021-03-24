@@ -32,9 +32,9 @@ def get_waypoints(grid, car_waypoints, drones, start):
     zamboni_iterator = iterate_zamboni(grid, start)
 
     last_point = None
-    for car_waypoint in iterate_car_waypoints(car_waypoints):
+    for car_waypoint, next_car_waypoint in iterate_car_waypoints(car_waypoints):
         point = None
-        for drone in cycle(drones):
+        for drone in drones:
             drone_waypoints = []
             point = None
             total_drone_distance = 0
@@ -47,7 +47,7 @@ def get_waypoints(grid, car_waypoints, drones, start):
                 # Generate fly_to, if it's the first point to traverse by a drone
                 if total_drone_distance == 0:
                     if calc_vincenty(point, car_waypoint, lon_first=True) > (drone.max_distance_no_load - total_drone_distance):
-                        break
+                        continue
                     total_drone_distance += generate_fly_to(drone_waypoints, car_waypoint, last_point or point, drone)
 
                 # If there's an untraversed point from previous drone - traverse it
@@ -61,13 +61,13 @@ def get_waypoints(grid, car_waypoints, drones, start):
 
                 last_point = point
                 # If you will not be able to return - break
-                if calc_vincenty(point, car_waypoint, lon_first=True) > (drone.max_distance_no_load - total_drone_distance):
+                if calc_vincenty(point, next_car_waypoint, lon_first=True) > (drone.max_distance_no_load - total_drone_distance):
                     break
                 # print("!!! Between", calc_vincenty([drone_waypoints[-2]['lon'], drone_waypoints[-2]['lat']], point, lon_first=True))
                 if len(drone_waypoints) > 1:
                     total_drone_distance += calc_vincenty([drone_waypoints[-2]['lon'], drone_waypoints[-2]['lat']], point, lon_first=True)
                 add_waypoint(drone_waypoints, point, drone)
-            total_drone_distance += generate_fly_back(drone_waypoints, car_waypoint, drone)
+            total_drone_distance += generate_fly_back(drone_waypoints, next_car_waypoint, drone)
             waypoints.append(drone_waypoints)
             if point is None:
                 break
@@ -106,7 +106,14 @@ def iterate_zamboni(grid, start):
 
 
 def iterate_car_waypoints(car_waypoints):
+    c, prev_c = None, None
     for car_waypoint in car_waypoints:
-        yield car_waypoint
+        prev_c = c
+        c = car_waypoint
+        if c and prev_c:
+            yield prev_c, c
+
     for car_waypoint in repeat(car_waypoints[-1]):
-        yield car_waypoint
+        prev_c = c
+        c = car_waypoint
+        yield prev_c, c

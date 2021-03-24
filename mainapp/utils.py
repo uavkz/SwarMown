@@ -115,6 +115,7 @@ def flight_penalty(time, borderline_time, max_time, salary, drone_price):
         penalty = (salary + drone_price) * (time - borderline_time) / (max_time - borderline_time)
     return penalty
 
+
 def rotate(point, origin, angle):
     """
     Rotate a point counterclockwise by a given angle around a given origin.

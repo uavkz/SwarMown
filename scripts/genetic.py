@@ -78,7 +78,7 @@ def custom_mutate(ind, mutation_chance=0.03):
         start = ["ne", "nw", "se", "sw"][random.randint(0, 3)]
 
     if random.random() <= mutation_chance:
-        if random.random() < 0.5: # Delete random
+        if random.random() < 0.5 and len(drones) > 1: # Delete random
             del drones[random.randint(0, len(drones) - 1)]
 
         if random.random() < 0.5: # Insert random
@@ -88,11 +88,11 @@ def custom_mutate(ind, mutation_chance=0.03):
             random.shuffle(drones)
 
     if random.random() <= mutation_chance:
-        if random.random() < 0.5:  # Delete random
+        if random.random() < 0.5  and len(car_points) > 1:  # Delete random
             del car_points[random.randint(0, len(car_points) - 1)]
 
         if random.random() < 0.5:  # Insert random
-            drones.insert(random.randint(0, len(car_points) - 1), random.uniform(0, 1))
+            car_points.insert(random.randint(0, len(car_points) - 1), random.uniform(0, 1))
 
         if random.random() < 0.25:  # Shuffle random
             random.shuffle(car_points)
