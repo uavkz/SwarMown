@@ -42,7 +42,7 @@ args = parser.parse_args()
 
 def eval(individual):
     drones = [list(mission.drones.all().order_by('id'))[i] for i in individual[2]]
-    grid, waypoints, _, initial = get_route(car_move=individual[3], direction=individual[0], target=None, height_diff=None, round_start_zone=None,
+    grid, waypoints, _, initial = get_route(car_move=individual[3], direction=individual[0], height_diff=None, round_start_zone=None,
                       start=individual[1], field=field, grid_step=mission.grid_step, feature3=None, feature4=None, road=road, drones=drones)
     distance = 0
     time = 0
@@ -74,8 +74,7 @@ def custom_mutate(ind):
 
     if random.random() <= MUTATION_CHANCE:
         direction += random.gauss(0, 45)
-        direction = min(direction, 360)
-        direction = max(direction, 0)
+        direction %= 360
 
     if random.random() <= MUTATION_CHANCE:
         start = ["ne", "nw", "se", "sw"][random.randint(0, 3)]
