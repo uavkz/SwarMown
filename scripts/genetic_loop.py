@@ -18,12 +18,12 @@ from mainapp.models import Mission
 
 for mission in Mission.objects.all().filter(id__in=[12]):
     mission_id = mission.id
-    ngen = 2
-    population_size = 4
-    max_time = 10
-    borderline_time = 5
-    max_working_speed = 5
-    mutation_chance = 0.05
+    ngen = 20
+    population_size = 80
+    max_time = 8
+    borderline_time = 2
+    max_working_speed = 7
+    mutation_chance = 0.07
     filename = f"test_{mission_id}"
 
     print(filename)

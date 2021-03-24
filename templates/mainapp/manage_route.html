@@ -91,14 +91,8 @@
             <div class="col"></div>
 
             <div class="col">
-                <label for="fieldName">Цель оптимизации</label>
-                <select id="fieldName" name="target" class="form-control">
-                    <option value="general" {% if request.GET.target == "general" %}selected{% endif %}>Общая</option>
-                    <option value="time" {% if request.GET.target == "time" %}selected{% endif %}>Время</option>
-                    <option value="num_recharge" {% if request.GET.target == "num_recharge" %}selected{% endif %}>Количество дозарядок</option>
-                    <option value="min_load" {% if request.GET.target == "min_load" %}selected{% endif %}>Минимальая нагрузка на полет</option>
-                    <option value="no" {% if request.GET.target == "no" %}selected{% endif %}>Без оптимизации</option>
-                </select>
+                <label for="fieldName">Сериализованный объект</label>
+                <input id="fieldName" name="serialized" class="form-control" value="{{ request.GET.serialized }}"/>
             </div>
 
             <div class="col"></div>

@@ -4,7 +4,7 @@ from mainapp.services_draw import get_grid, get_car_waypoints, get_car_waypoints
 from mainapp.utils import add_waypoint, calc_vincenty
 
 
-def get_route(car_move, direction, target, height_diff, round_start_zone, start,
+def get_route(car_move, direction, height_diff, round_start_zone, start,
               field, grid_step, feature3, feature4, road, drones):
     if direction == "simple":
         angle = 45

@@ -53,11 +53,14 @@ class ManageRouteView(TemplateView):
         car_move = self.request.GET.get("carMove", "no")
         direction = self.request.GET.get("direction", "simple")
         start = self.request.GET.get("start", "ne")
-        target = self.request.GET.get("target", "general")
         height_diff = self.request.GET.get("heightDiff", False) == "on"
         round_start_zone = self.request.GET.get("roundStartZone", False) == "on"
         feature3 = self.request.GET.get("feature3", False) == "on"
         feature4 = self.request.GET.get("feature4", False) == "on"
+
+        serialized = self.request.GET.get("serialized", False)
+        if serialized:
+            serialized = json.loads(serialized.replace("'", '"'))
 
         field_obj = context['mission'].field
         field = json.loads(field_obj.points_serialized)
@@ -75,10 +78,18 @@ class ManageRouteView(TemplateView):
         context['road'] = road
         context['grid_step'] = grid_step
         context['number_of_drones'] = number_of_drones
-        grid, waypoints, car_waypoints, initial_position = get_route(
-            car_move, direction, target, height_diff, round_start_zone, start,
-            field, grid_step, feature3, feature4, road, context['mission'].drones.all().order_by('id')
-        )
+        if serialized:
+            drones = [list(context['mission'].drones.all().order_by('id'))[i] for i in serialized[2]]
+            grid, waypoints, car_waypoints, initial_position = get_route(
+                car_move=serialized[3], direction=serialized[0], height_diff=None, round_start_zone=None,
+                start=serialized[1], field=field, grid_step=context['mission'].grid_step, feature3=None, feature4=None,
+                road=road, drones=drones
+            )
+        else:
+            grid, waypoints, car_waypoints, initial_position = get_route(
+                car_move, direction, height_diff, round_start_zone, start,
+                field, grid_step, feature3, feature4, road, context['mission'].drones.all().order_by('id')
+            )
         context['grid'] = list(flatten_grid(grid))
         context['initial'] = initial_position
         context['waypoints'] = waypoints
