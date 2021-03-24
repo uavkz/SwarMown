@@ -56,7 +56,7 @@ def get_waypoints(grid, car_waypoints, drones, start):
                     if total_drone_distance >= drone.max_distance_no_load:
                         last_point = point
                         break
-                    add_waypoint(drone_waypoints, last_point, drone)
+                    add_waypoint(drone_waypoints, last_point, drone, spray_on=True)
                     first_run = False # Prevent duplicating
 
                 last_point = point
@@ -66,7 +66,7 @@ def get_waypoints(grid, car_waypoints, drones, start):
                 # print("!!! Between", calc_vincenty([drone_waypoints[-2]['lon'], drone_waypoints[-2]['lat']], point, lon_first=True))
                 if len(drone_waypoints) > 1:
                     total_drone_distance += calc_vincenty([drone_waypoints[-2]['lon'], drone_waypoints[-2]['lat']], point, lon_first=True)
-                add_waypoint(drone_waypoints, point, drone)
+                add_waypoint(drone_waypoints, point, drone, spray_on=True)
             total_drone_distance += generate_fly_back(drone_waypoints, next_car_waypoint, drone)
             waypoints.append(drone_waypoints)
             if point is None:
