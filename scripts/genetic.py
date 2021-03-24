@@ -174,21 +174,22 @@ def run():
         top = tools.selBest(population, k=1)
 
         fitnesses = [sum([t * tw for t, tw in zip(ind.fitness.values, TARGET_WEIGHTS)]) for ind in offspring]
+        best_solution = max(fitness_params, key=lambda x: x['drone_price'] + x['salary'] + x['penalty'])
         iterations.append(
             {
                 "best_ind": top[0],
 
-                "best_distance": min((ind['distance'] for ind in fitness_params)),
+                "best_distance": best_solution['distance'],
                 "average_distance": sum((ind['distance'] for ind in fitness_params)) / len(fitness_params),
-                "best_time": min((ind['time'] for ind in fitness_params)),
+                "best_time": best_solution['time'],
                 "average_time": sum((ind['time'] for ind in fitness_params)) / len(fitness_params),
-                "best_drone_price": min((ind['drone_price'] for ind in fitness_params)),
+                "best_drone_price": best_solution['drone_price'],
                 "average_drone_price": sum((ind['drone_price'] for ind in fitness_params)) / len(fitness_params),
-                "best_salary": min((ind['salary'] for ind in fitness_params)),
+                "best_salary": best_solution['salary'],
                 "average_salary": sum((ind['salary'] for ind in fitness_params)) / len(fitness_params),
-                "best_penalty": min((ind['penalty'] for ind in fitness_params)),
+                "best_penalty": best_solution['penalty'],
                 "average_penalty": sum((ind['penalty'] for ind in fitness_params)) / len(fitness_params),
-                "best_number_of_starts": min((ind['number_of_starts'] for ind in fitness_params)),
+                "best_number_of_starts": best_solution['number_of_starts'],
                 "average_number_of_starts": sum((ind['number_of_starts'] for ind in fitness_params)) / len(fitness_params),
 
                 "best_fit": max(fitnesses),
