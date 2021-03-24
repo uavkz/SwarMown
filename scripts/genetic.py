@@ -33,6 +33,8 @@ parser.add_argument("--population_size", "-p", help="Population size")
 parser.add_argument("--filename", "-f", help="Filename for output (without extension)")
 parser.add_argument("--max-time", "-t", help="Maximum time")
 parser.add_argument("--borderline_time", "-b", help="Borderline time")
+parser.add_argument("--max_working_speed", "-mxs", help="Max working speed")
+parser.add_argument("--mutation_chance", "-mt", help="Mutation chance")
 
 # Read arguments from the command line
 args = parser.parse_args()
@@ -49,11 +51,12 @@ def eval(individual):
 
     for drone_waypoints in waypoints:
         new_distance = waypoints_distance(drone_waypoints, lat_f=lambda x: x['lat'], lon_f=lambda x: x['lon'])
-        new_time = waypoints_flight_time(drone_waypoints, lat_f=lambda x: x['lat'],
-                                         lon_f=lambda x: x['lon'],
+        new_time = waypoints_flight_time(drone_waypoints, float(args.max_working_speed),
+                                         lat_f=lambda x: x['lat'], lon_f=lambda x: x['lon'],
                                          max_speed_f=lambda x: x['drone']['max_speed'],
                                          slowdown_ratio_f=lambda x: x['drone']['slowdown_ratio_per_degree'],
-                                         min_slowdown_ratio_f=lambda x: x['drone']['min_slowdown_ratio'])
+                                         min_slowdown_ratio_f=lambda x: x['drone']['min_slowdown_ratio'],
+                                         spray_on_f=lambda x: x['spray_on'])
         distance += new_distance
         time += new_time
         drone_price_n, salary_n, = drone_flight_price(drone_waypoints[0]['drone'], new_distance, new_time, mission, number_of_starts)
@@ -63,21 +66,21 @@ def eval(individual):
     return distance, time, drone_price, salary, penalty, number_of_starts
 
 
-def custom_mutate(ind, mutation_chance=0.03):
+def custom_mutate(ind):
     direction = ind[0]
     start = ind[1]
     drones = ind[2]
     car_points = ind[3]
 
-    if random.random() <= mutation_chance:
+    if random.random() <= MUTATION_CHANCE:
         direction += random.gauss(0, 45)
         direction = min(direction, 360)
         direction = max(direction, 0)
 
-    if random.random() <= mutation_chance:
+    if random.random() <= MUTATION_CHANCE:
         start = ["ne", "nw", "se", "sw"][random.randint(0, 3)]
 
-    if random.random() <= mutation_chance:
+    if random.random() <= MUTATION_CHANCE:
         if random.random() < 0.5 and len(drones) > 1: # Delete random
             del drones[random.randint(0, len(drones) - 1)]
 
@@ -87,8 +90,8 @@ def custom_mutate(ind, mutation_chance=0.03):
         if random.random() < 0.5: # Shuffle random
             random.shuffle(drones)
 
-    if random.random() <= mutation_chance:
-        if random.random() < 0.5  and len(car_points) > 1:  # Delete random
+    if random.random() <= MUTATION_CHANCE:
+        if random.random() < 0.5 and len(car_points) > 1:  # Delete random
             del car_points[random.randint(0, len(car_points) - 1)]
 
         if random.random() < 0.5:  # Insert random
@@ -110,6 +113,7 @@ def custom_mutate(ind, mutation_chance=0.03):
 MISSION_ID = int(args.mission_id)
 NGEN = int(args.ngen)
 POPULATION_SIZE = int(args.population_size)
+MUTATION_CHANCE = float(args.mutation_chance)
 # Distance, Time, Price, NumberOfStarts
 TARGET_WEIGHTS = (-1.0, )
 
@@ -204,6 +208,7 @@ def run():
             "grid_step": mission.grid_step,
             "start_price": mission.start_price,
             "hourly_price": mission.hourly_price,
+            "max_working_speed": args.max_working_speed,
         },
         drones=mission.drones.all(),
         iterations=iterations,

@@ -36,6 +36,8 @@ def log_excel(
     sheet_info.row(5).write(1, info['start_price'], style_text_big)
     sheet_info.row(6).write(0, "Wage per hour", style_text_big)
     sheet_info.row(6).write(1, info['hourly_price'], style_text_big)
+    sheet_info.row(7).write(0, "Max working time", style_text_big)
+    sheet_info.row(7).write(1, info['max_working_speed'], style_text_big)
     # Drones
     sheet_drones = book.add_sheet("Drones")
     sheet_drones.portrait = False

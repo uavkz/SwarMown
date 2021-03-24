@@ -76,10 +76,12 @@ def waypoints_distance(waypoints, lat_f=lambda x: x.lat, lon_f=lambda x: x.lon):
     return total_distance
 
 
-def waypoints_flight_time(waypoints, lat_f=lambda x: x.lat, lon_f=lambda x: x.lon,
+def waypoints_flight_time(waypoints, max_working_speed=100,
+                          lat_f=lambda x: x.lat, lon_f=lambda x: x.lon,
                           max_speed_f=lambda x: x.drone.max_speed,
                           slowdown_ratio_f=lambda x: x.drone.slowdown_ratio_per_degree,
-                          min_slowdown_ratio_f=lambda x: x.drone.min_slowdown_ratio):
+                          min_slowdown_ratio_f=lambda x: x.drone.min_slowdown_ratio,
+                          spray_on_f=lambda x: False):
     total_time = 0
     prev_waypoint = None
     prev_prev_waypoint = None
@@ -95,6 +97,8 @@ def waypoints_flight_time(waypoints, lat_f=lambda x: x.lat, lon_f=lambda x: x.lo
                 angle = angle_lat_lon_vectors(prev_prev_waypoint, prev_waypoint, waypoint, lat_f, lon_f)
                 if angle:
                     speed = speed * max(1 - angle * slowdown_ratio, min_slowdown_ratio)
+                if spray_on_f(waypoint):
+                    speed = min(max_working_speed, speed)
             total_time += dist / speed
         prev_prev_waypoint = prev_waypoint
         prev_waypoint = waypoint
