@@ -50,14 +50,14 @@ class Mission(models.Model):
     type = models.SmallIntegerField(choices=TYPES, verbose_name="Тип задачи")
 
     field = models.ForeignKey('Field', on_delete=models.CASCADE, verbose_name="Поля")
-    grid_step = models.FloatField(default=0.001, verbose_name="Шаг решетки (м)")
-    drones = models.ManyToManyField('Drone', verbose_name="Дроны")
+    grid_step = models.FloatField(default=100, verbose_name="Шаг решетки (м)")
+    drones = models.ManyToManyField('Drone', blank=True, verbose_name="Дроны")
     current_waypoints_status = models.SmallIntegerField(default=0, choices=WAYPOINTS_STATUSES, verbose_name="Статус маршрута")
     current_waypoints = models.ManyToManyField('Waypoint', blank=True, verbose_name="Текущий путь", related_name="mission")
     waypoints_history = models.ManyToManyField('Waypoint', blank=True, verbose_name="История", related_name="mission_history")
 
-    start_price = models.FloatField(default=3, verbose_name="Цена за один старт (оплата пилоту)")
-    hourly_price = models.FloatField(default=3, verbose_name="Цена за один час (оплата пилоту)")
+    start_price = models.FloatField(default=3, verbose_name="Цена за один старт (оплата пилоту, $)")
+    hourly_price = models.FloatField(default=10, verbose_name="Цена за один час (оплата пилоту, $)")
 
     def __str__(self):
         return f"{self.name} ({self.type_verbose}) {self.status}"

@@ -19,13 +19,11 @@ def get_grid(field, step, angle=0):
     max_x = max((p[0] for p in field))
     max_y = max((p[1] for p in field))
 
-    if (max_x - min_x) < (max_y - min_y):
-        min_x -= max_y - min_y
-        max_x += max_y - min_y
+    min_x -= (max_y - min_y)
+    max_x += (max_y - min_y)
 
-    if (max_y - min_y) < (max_x - min_x):
-        min_y -= max_x - min_x
-        max_y += max_x - min_x
+    min_y -= (max_x - min_x)
+    max_y += (max_x - min_x)
 
     for x in np.linspace(min_x, max_x, round((max_x - min_x) / step)):
         line = []
