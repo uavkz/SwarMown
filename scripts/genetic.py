@@ -63,6 +63,50 @@ def eval(individual):
     return distance, time, drone_price, salary, penalty, number_of_starts
 
 
+def custom_mutate(ind, mutation_chance=0.03):
+    direction = ind[0]
+    start = ind[1]
+    drones = ind[2]
+    car_points = ind[3]
+
+    if random.random() <= mutation_chance:
+        direction += random.gauss(0, 45)
+        direction = min(direction, 360)
+        direction = max(direction, 0)
+
+    if random.random() <= mutation_chance:
+        start = ["ne", "nw", "se", "sw"][random.randint(0, 3)]
+
+    if random.random() <= mutation_chance:
+        if random.random() < 0.5: # Delete random
+            del drones[random.randint(0, len(drones) - 1)]
+
+        if random.random() < 0.5: # Insert random
+            drones.insert(random.randint(0, len(drones) - 1), random.randint(0, number_of_drones - 1))
+
+        if random.random() < 0.5: # Shuffle random
+            random.shuffle(drones)
+
+    if random.random() <= mutation_chance:
+        if random.random() < 0.5:  # Delete random
+            del car_points[random.randint(0, len(car_points) - 1)]
+
+        if random.random() < 0.5:  # Insert random
+            drones.insert(random.randint(0, len(car_points) - 1), random.uniform(0, 1))
+
+        if random.random() < 0.25:  # Shuffle random
+            random.shuffle(car_points)
+
+        if random.random() < 0.75:  # Sort
+            car_points = list(sorted(car_points))
+
+    ind[0] = direction
+    ind[1] = start
+    ind[2] = drones
+    ind[3] = car_points
+    return ind,
+
+
 MISSION_ID = int(args.mission_id)
 NGEN = int(args.ngen)
 POPULATION_SIZE = int(args.population_size)
@@ -96,7 +140,7 @@ toolbox.register("population", tools.initRepeat, list, toolbox.individual)
 
 toolbox.register("evaluate", eval)
 toolbox.register("mate", tools.cxTwoPoint)
-toolbox.register("mutate", lambda x: (x,))
+toolbox.register("mutate", custom_mutate)
 toolbox.register("select", tools.selTournament, tournsize=3)
 toolbox.register("map", futures.map)
 
