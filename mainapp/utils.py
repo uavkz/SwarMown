@@ -114,7 +114,7 @@ def drone_flight_price(drone, distance, time, mission, number_of_starts):
 def flight_penalty(time, borderline_time, max_time, salary, drone_price):
     penalty = 0
     if time > max_time:
-        penalty = (salary + drone_price) * 1000 ** (time - max_time)
+        penalty = (salary + drone_price) * 1000 ** min((time - max_time), 100)
     elif time > borderline_time:
         penalty = (salary + drone_price) * (time - borderline_time) / (max_time - borderline_time)
     return penalty
