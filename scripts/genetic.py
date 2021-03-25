@@ -209,6 +209,8 @@ def run():
             "start_price": mission.start_price,
             "hourly_price": mission.hourly_price,
             "max_working_speed": float(args.max_working_speed),
+            "borderline_time": float(args.borderline_time),
+            "max_time": float(args.max_time),
         },
         drones=mission.drones.all(),
         iterations=iterations,
