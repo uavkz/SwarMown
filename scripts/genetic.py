@@ -96,9 +96,6 @@ def custom_mutate(ind):
         if random.random() < 0.5:  # Insert random
             car_points.insert(random.randint(0, len(car_points) - 1), random.uniform(0, 1))
 
-        if random.random() < 0.25:  # Shuffle random
-            random.shuffle(car_points)
-
         if random.random() < 0.75:  # Sort
             car_points = list(sorted(car_points))
 
@@ -154,12 +151,14 @@ def run():
 
     iterations = []
     for gen in range(NGEN):
-        print(f"{gen}/{NGEN}")
-        offspring = algorithms.varAnd(population, toolbox, cxpb=0.5, mutpb=0.1)
+        print(f"{gen+1}/{NGEN}")
+        offspring = algorithms.varAnd(population, toolbox, cxpb=0.5, mutpb=1)
         fits = toolbox.map(toolbox.evaluate, offspring)
         fitness_params = []
         for (distance, time, drone_price, salary, penalty, number_of_starts), ind in zip(fits, offspring):
             ind.fitness.values = (drone_price + salary + penalty, )
+            ind[2] = ind[2][:number_of_starts]
+            ind[3] = ind[3][:number_of_starts]
             fitness_params.append(
                 {
                     "distance": distance,
@@ -174,7 +173,7 @@ def run():
         top = tools.selBest(population, k=1)
 
         fitnesses = [sum([t * tw for t, tw in zip(ind.fitness.values, TARGET_WEIGHTS)]) for ind in offspring]
-        best_solution = max(fitness_params, key=lambda x: x['drone_price'] + x['salary'] + x['penalty'])
+        best_solution = min(fitness_params, key=lambda x: x['drone_price'] + x['salary'] + x['penalty'])
         iterations.append(
             {
                 "best_ind": top[0],
