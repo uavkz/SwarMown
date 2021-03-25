@@ -73,6 +73,7 @@ def get_waypoints(grid, car_waypoints, drones, start):
                 break
         if point is None:
             break
+    waypoints = list(filter(lambda x: len(x) > 1, waypoints))
     return waypoints
 
 
