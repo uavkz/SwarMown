@@ -80,21 +80,21 @@ def custom_mutate(ind):
         start = ["ne", "nw", "se", "sw"][random.randint(0, 3)]
 
     if random.random() <= MUTATION_CHANCE:
-        if random.random() < 0.5 and len(drones) > 1: # Delete random
-            del drones[random.randint(0, len(drones) - 1)]
-
         if random.random() < 0.5: # Insert random
             drones.insert(random.randint(0, len(drones) - 1), random.randint(0, number_of_drones - 1))
+
+        if random.random() < 0.5 and len(drones) > 1: # Delete random
+            del drones[random.randint(0, len(drones) - 1)]
 
         if random.random() < 0.5: # Shuffle random
             random.shuffle(drones)
 
     if random.random() <= MUTATION_CHANCE:
-        if random.random() < 0.5 and len(car_points) > 1:  # Delete random
-            del car_points[random.randint(0, len(car_points) - 1)]
-
         if random.random() < 0.5:  # Insert random
             car_points.insert(random.randint(0, len(car_points) - 1), random.uniform(0, 1))
+
+        if random.random() < 0.5 and len(car_points) > 1:  # Delete random
+            del car_points[random.randint(0, len(car_points) - 1)]
 
         if random.random() < 0.75:  # Sort
             car_points = list(sorted(car_points))
