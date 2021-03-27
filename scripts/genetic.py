@@ -72,6 +72,12 @@ def custom_mutate(ind):
     drones = ind[2]
     car_points = ind[3]
 
+    if not car_points:
+        car_points = [random.uniform(0, 1)]
+
+    if not drones:
+        drones = [random.randint(0, number_of_drones - 1)]
+
     if random.random() <= MUTATION_CHANCE:
         direction += random.gauss(0, 45)
         direction %= 360
