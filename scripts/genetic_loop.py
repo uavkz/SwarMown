@@ -18,8 +18,8 @@ from mainapp.models import Mission
 
 for mission in Mission.objects.all():
     mission_id = mission.id
-    ngen = 50
-    population_size = 200
+    ngen = 150
+    population_size = 250
     max_time = 8
     borderline_time = 2
     max_working_speed = 7
