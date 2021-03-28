@@ -105,6 +105,12 @@ def custom_mutate(ind):
         if random.random() < 0.75:  # Sort
             car_points = list(sorted(car_points))
 
+    if not car_points:
+        car_points = [random.uniform(0, 1)]
+
+    if not drones:
+        drones = [random.randint(0, number_of_drones - 1)]
+
     ind[0] = direction
     ind[1] = start
     ind[2] = drones
