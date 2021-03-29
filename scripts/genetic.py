@@ -48,6 +48,8 @@ def eval(individual):
     time = 0
     drone_price, salary, penalty = 0, 0, 0
     number_of_starts = len(waypoints)
+    grid_traversed = 0
+    grid_total = sum([len(line) for line in grid])
 
     for drone_waypoints in waypoints:
         new_distance = waypoints_distance(drone_waypoints, lat_f=lambda x: x['lat'], lon_f=lambda x: x['lon'])
@@ -62,7 +64,8 @@ def eval(individual):
         drone_price_n, salary_n, = drone_flight_price(drone_waypoints[0]['drone'], new_distance, new_time, mission, number_of_starts)
         drone_price += drone_price_n
         salary += salary_n
-    penalty = flight_penalty(time, float(args.borderline_time), float(args.max_time), salary, drone_price)
+        grid_traversed += max(0, len(drone_waypoints) - 2)
+    penalty = flight_penalty(time, float(args.borderline_time), float(args.max_time), salary, drone_price, grid_total, grid_traversed)
     return distance, time, drone_price, salary, penalty, number_of_starts
 
 

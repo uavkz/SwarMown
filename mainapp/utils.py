@@ -111,12 +111,15 @@ def drone_flight_price(drone, distance, time, mission, number_of_starts):
     return drone_price, salary
 
 
-def flight_penalty(time, borderline_time, max_time, salary, drone_price):
+def flight_penalty(time, borderline_time, max_time, salary, drone_price, total_grid, grid_traversed):
     penalty = 0
     if time > max_time:
         penalty = (salary + drone_price) * 1000 ** min((time - max_time), 100)
     elif time > borderline_time:
         penalty = (salary + drone_price) * (time - borderline_time) / (max_time - borderline_time)
+
+    if total_grid - grid_traversed > 3:
+        penalty += 1_000_000
     return penalty
 
 
