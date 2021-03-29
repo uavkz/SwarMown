@@ -210,6 +210,8 @@ def run():
                 "average_fit": sum(fitnesses) / len(fitnesses)
             }
         )
+        if gen % 10 == 0:
+            print(f"Top score {max(fitnesses)}, average score {sum(fitnesses) / len(fitnesses)}")
 
     log_excel(
         name=args.filename,
