@@ -105,10 +105,9 @@ def waypoints_flight_time(waypoints, max_working_speed=100,
     return total_time
 
 
-def drone_flight_price(drone, distance, time, mission, number_of_starts):
+def drone_flight_price(drone, distance, time):
     drone_price = drone['price_per_cycle'] + drone['price_per_kilometer'] * distance + drone['price_per_hour'] * time
-    salary = mission.hourly_price * time + mission.start_price * number_of_starts
-    return drone_price, salary
+    return drone_price
 
 
 def flight_penalty(time, borderline_time, max_time, salary, drone_price, total_grid, grid_traversed):
