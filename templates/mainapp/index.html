@@ -1,0 +1,372 @@
+{% extends "base.html" %}
+
+{% load static %}
+
+{% block head %}
+    <link rel="stylesheet" href="{% static 'css/leaflet.css' %}"/>
+    <script src="{% static 'js/leaflet.js' %}"></script>
+    <script src="{% static 'js/pixi.min.js' %}"></script>
+    <script src="{% static 'js/L.PixiOverlay.min.js' %}"></script>
+{% endblock %}
+
+{% block title %}
+    Главная
+{% endblock %}
+
+{% block content %}
+    <form action="" method="GET">
+        <div class="row">
+            <div class="col"></div>
+            <div class="col form-group">
+                <label for="field">Поле</label>
+                <select id="field" class="form-control" name="field">
+                    <option value="">-----</option>
+                    {% for field in fields %}
+                        <option value="{{ field.id }}" {% if field.id == field_id %}selected{% endif %}>{{ field.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="col form-group">
+                <label for="number">Радиус опрыскивания</label>
+                <input id="number" class="form-control" name="grid_step" value="{{ grid_step }}">
+            </div>
+
+            <div class="col form-group">
+                <label for="number_of_drones">Количество дронов</label>
+                <input id="number_of_drones" class="form-control" name="number_of_drones" value="{{ number_of_drones }}">
+            </div>
+
+            <div class="col form-group">
+                <input class="btn btn-primary" type="submit" value="Запустить" style="margin-top: 32px;">
+            </div>
+            <div class="col"></div>
+        </div>
+        <div class="row">
+            <div class="col"></div>
+
+            <div class="col">
+                <label for="droneSpeed">Скорость дрона</label>
+                <input type="range" class="custom-range" value="0.01" min="0" max="0.2" step="0.01" id="droneSpeed">
+            </div>
+
+            <div class="col">
+                <i id="startButton" class="fas fa-play action-icon ml-1 mt-2" data-toggle="tooltip" title="Старт"></i>
+                <i id="pauseButton" class="fas fa-pause action-icon ml-1 mt-2" data-toggle="tooltip" title="Пауза"></i>
+                <i id="replayButton" class="fas fa-redo-alt action-icon ml-1 mt-2" data-toggle="tooltip" title="Начать с начала"></i>
+            </div>
+
+            <div class="col"></div>
+        </div>
+    </form>
+
+    <div id="map" style="height: 700px;"></div>
+{% endblock %}
+
+{% block foot %}
+    <script>
+        $('#droneSpeed').on('input propertychange', function(){
+            droneSpeed = parseFloat($('#droneSpeed').val());
+        });
+
+        var lastSpeed = null;
+        $('#pauseButton').click(function () {
+            lastSpeed = droneSpeed;
+            droneSpeed = 0;
+            $('#droneSpeed').val(0);
+        });
+
+        $('#startButton').click(function () {
+            if(lastSpeed !== null){
+                droneSpeed = lastSpeed;
+                $('#droneSpeed').val(droneSpeed);
+                lastSpeed = null;
+            }
+        });
+
+        $('#replayButton').click(function () {
+            map.remove();
+            $("#map").html("");
+            $("#map").html('<div id="map"></div>');
+            initStuff();
+        });
+
+        function checkIfInPolygon(point, vs) {
+            // ray-casting algorithm based on
+            // http://www.ecse.rpi.edu/Homepages/wrf/Research/Short_Notes/pnpoly.html
+            var x = point[0], y = point[1];
+
+            var inside = false;
+            for (var i = 0, j = vs.length - 1; i < vs.length; j = i++) {
+                var xi = vs[i][0], yi = vs[i][1];
+                var xj = vs[j][0], yj = vs[j][1];
+
+                var intersect = ((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+                if (intersect)
+                    inside = !inside;
+            }
+            return inside;
+        }
+
+        var fieldPolygon;
+        var gridStep;
+        var initial;
+        var map;
+        var loader;
+        var waypoints;
+        var pickupWaypoints;
+        var grid;
+        var road;
+        var drones;
+        var droneSpeed;
+        var pickupSpeed;
+        var tick;
+        var pickup;
+        var project;
+        var reverseProject;
+        var stage;
+        function initStuff() {
+            fieldPolygon = {{ field|safe }};
+            road = {{ road|safe }};
+            for (i = 0; i < fieldPolygon.length; i++) {
+                tmp = fieldPolygon[i][0];
+                fieldPolygon[i][0] = fieldPolygon[i][1];
+                fieldPolygon[i][1] = tmp;
+            }
+            fieldPolygon.push(fieldPolygon[0]);
+            gridStep = {{ grid_step|safe }};
+
+            // prepare circle texture, that will be our brush
+            const brush = new PIXI.Graphics();
+            brush.beginFill(0xffffff);
+            brush.drawCircle(0, 0, 500);
+            brush.endFill();
+
+            initial = {{ initial|safe }};
+            initial = [initial[1], initial[0]];
+            map = L.map('map').setView(initial, 13);
+            L.tileLayer('https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token={accessToken}', {
+                attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, <a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
+                maxZoom: 18,
+                id: 'mapbox/streets-v11',
+                tileSize: 512,
+                zoomOffset: -1,
+                accessToken: 'pk.eyJ1Ijoia2luZHlhayIsImEiOiJja2F0cml2eTcwNDZhMnJvOXI4N2Y4MjRjIn0.f7FSJnib2jKKvtJe4ql-Bg'
+            }).addTo(map);
+
+            loader = new PIXI.Loader();
+            loader.add('crop_bad', '{% static 'img/textures/crop_bad.jpg' %}');
+            loader.add('crop_good', '{% static 'img/textures/crop_good.jpg' %}');
+            loader.add('badland', '{% static 'img/textures/badland.jpg' %}');
+            loader.add('drone', '{% static 'img/textures/drone.png' %}');
+            loader.add('pickup', '{% static 'img/textures/pickup.png' %}');
+            loader.load(setupWrapper);
+            waypoints = {{ waypoints|safe }};
+            pickupWaypoints = {{ pickup_waypoints|safe }};
+            grid = {{ grid|safe }};
+            drones = [];
+            droneSpeed = 0.01;
+            $('#droneSpeed').val(droneSpeed);
+            pickupSpeed = 0.4;
+            tick = 0;
+            pickup;
+            project;
+            reverseProject;
+            stage = new PIXI.Container();
+        }
+
+        function setupWrapper(loader, resources) {
+            var markerTexture = resources.drone.texture;
+            var marker = new PIXI.Sprite(markerTexture);
+            var firstDraw = true;
+            var prevZoom;
+
+            stage.addChild(marker);
+
+            var pixiOverlay = L.pixiOverlay(function (utils, event) {
+                if(event.type !== 'redraw') {
+                    var zoom = utils.getMap().getZoom();
+                    var container = utils.getContainer();
+                    var renderer = utils.getRenderer();
+                    project = utils.latLngToLayerPoint;
+                    reverseProject = utils.layerPointToLatLng;
+                    var scale = utils.getScale();
+
+                    setup(loader, resources, container, project, scale);
+
+                    firstDraw = false;
+                    prevZoom = zoom;
+                    renderer.render(container);
+                }
+
+                if (event.type === 'redraw') {
+                    gameLoop(event.delta);
+                }
+            }, stage);
+            pixiOverlay.addTo(map);
+
+            let ticker = new PIXI.Ticker();
+            ticker.autoStart = false;
+            ticker.stop()
+            let renderer = PIXI.autoDetectRenderer();
+            ticker.add(function (time) {
+                {#gameLoop(time);#}
+                pixiOverlay.redraw({type: "redraw", delta: time});
+            });
+            {#ticker.minFPS = 5;#}
+            {#ticker.maxFPS = 60;#}
+            ticker.start();
+        }
+
+        function setup(loader, resources, stage, project, scale) {
+            let latLng = initial.slice();
+            let coords = project(latLng);
+            {#const background = new PIXI.Sprite(resources.badland.texture);#}
+            {#stage.addChild(background);#}
+            {#background.width = 1;#}
+            {#background.height = 1;#}
+            {#background.x = coords.x;#}
+            {#background.y = coords.y;#}
+
+            let field = new PIXI.Graphics();
+            field.beginFill(0);
+            var fieldTiling = new PIXI.TilingSprite(resources.crop_bad.texture);
+            fieldTiling.width = 10;
+            fieldTiling.height = 10;
+            fieldTiling.x = coords.x;
+            fieldTiling.y = coords.y;
+            stage.addChild(fieldTiling);
+            let field_flat = {{ field_flat|safe }};
+            for (let i = 0; i < field_flat.length; i++) {
+                if (i % 2 === 1) {
+                    continue;
+                }
+                let coords = project([field_flat[i], field_flat[i + 1]]);
+                field_flat[i] = coords.x;
+                field_flat[i + 1] = coords.y;
+            }
+            field.drawPolygon(field_flat);
+            field.endFill();
+            stage.addChild(field);
+            fieldTiling.mask = field;
+
+            for (i = 0; i < {{ number_of_drones }}; i++) {
+                const drone = new PIXI.Sprite(resources.drone.texture);
+                stage.addChild(drone);
+                let coords = project([initial[0], initial[1]]);
+                drone.x = coords.x;
+                drone.y = coords.y;
+                drone.width = 1/2;
+                drone.height = 1/2;
+                drones.push(drone);
+            }
+
+            pickup = new PIXI.Sprite(resources.pickup.texture);
+            stage.addChild(pickup);
+            coords = project([initial[0], initial[1]]);
+            pickup.x = coords.x;
+            pickup.y = coords.y;
+            pickup.height = 1/2;
+            pickup.width = 1;
+
+            // Draw grid
+            for (let point of grid) {
+                let circle = L.circle([point[1], point[0]], {
+                    color: '#da3e28',
+                    fillOpacity: 0.5,
+                    radius: 9
+                }).addTo(map);
+            }
+
+            // Draw polygon
+            var polyline = L.polyline(fieldPolygon, {color: 'red'}).addTo(map);
+
+            // Draw road
+            for (let i=0; i < road.length - 1; i++) {
+                let curPoint = road[i];
+                console.log(Math.sqrt((curPoint[0] - road[i+1][0])*(curPoint[0] - road[i+1][0]) + (curPoint[1] - road[i+1][1])*(curPoint[1] - road[i+1][1])));
+                while(Math.sqrt((curPoint[0] - road[i+1][0])*(curPoint[0] - road[i+1][0]) + (curPoint[1] - road[i+1][1])*(curPoint[1] - road[i+1][1])) > 0.0015){
+                    console.log(Math.sqrt((curPoint[0] - road[i+1][0])*(curPoint[0] - road[i+1][0]) + (curPoint[1] - road[i+1][1])*(curPoint[1] - road[i+1][1])));
+                    let delta_x = road[i+1][0] - curPoint[0];
+                    let delta_y = road[i+1][1] - curPoint[1];
+                    let delta = Math.sqrt(delta_x * delta_x + delta_y * delta_y);
+                    delta_x /= delta;
+                    delta_y /= delta;
+
+                    curPoint[0] += delta_x * 0.001;
+                    curPoint[1] += delta_y * 0.001;
+
+                    let circle = L.circle([curPoint[1], curPoint[0]], {
+                        color: '#5e4b7f',
+                        fillOpacity: 0.9,
+                        radius: 100
+                    }).addTo(map);
+                }
+            }
+
+            return stage;
+        }
+
+        function gameLoop(delta) {
+            tick += 1;
+            let i = 0;
+            // Moving Drones
+            for (let drone of drones) {
+                if (i >= waypoints.length || waypoints[i].length === 0) {
+                    i++;
+                    continue;
+                }
+                let my_waypoint = waypoints[i][0].slice();
+                let coords = project([my_waypoint[1], my_waypoint[0]]);
+                my_waypoint[0] = coords.x;
+                my_waypoint[1] = coords.y;
+                let delta_x = my_waypoint[0] - drone.width / 2 - drone.x;
+                let delta_y = my_waypoint[1] - drone.height / 2 - drone.y;
+                let delta = Math.sqrt(delta_x * delta_x + delta_y * delta_y);
+                delta_x /= delta;
+                delta_y /= delta;
+
+                drone.x += delta_x * droneSpeed;
+                drone.y += delta_y * droneSpeed;
+
+                {#if(tick % Math.round((gridStep / droneSpeed / Math.max(10 / drones.length, 3))) === 0 &&#}
+                {#    checkIfInPolygon([drone.x + drone.width / 2, drone.y + drone.height / 2], fieldPolygon)) {#}
+                    let circleCoords = reverseProject(L.point(drone.x + drone.width / 2, drone.y + drone.height / 2));
+                    var circle = L.circle([circleCoords.lat, circleCoords.lng], {
+                        color: '#00cc14',
+                        fillOpacity: 0.1,
+                        opacity: 0.01,
+                        radius: 70000 * gridStep
+                    }).addTo(map);
+                    {#console.log(circle);#}
+                {#}#}
+
+                if (Math.abs(drone.x + drone.width / 2 - my_waypoint[0]) < droneSpeed / 2 &&
+                    Math.abs(drone.y + drone.height / 2 - my_waypoint[1]) < droneSpeed / 2) {
+                    waypoints[i].shift();
+                    if (pickupWaypoints.length > 1 && i === 0) {
+                        pickupWaypoints.shift();
+                    }
+                }
+                i++;
+            }
+
+            // Moving pickup
+            let my_waypoint = pickupWaypoints[0];
+            if (!(Math.abs(pickup.x + pickup.width / 2 - my_waypoint[0]) < pickupSpeed &&
+                Math.abs(pickup.y + pickup.height / 2 - my_waypoint[1]) < pickupSpeed)) {
+                let delta_x = my_waypoint[0] - pickup.width / 2 - pickup.x;
+                let delta_y = my_waypoint[1] - pickup.height / 2 - pickup.y;
+                let delta_pickup = Math.sqrt(delta_x * delta_x + delta_y * delta_y);
+                delta_x /= delta_pickup;
+                delta_y /= delta_pickup;
+
+                pickup.x += delta_x * pickupSpeed;
+                pickup.y += delta_y * pickupSpeed;
+            }
+            i++;
+        }
+
+        initStuff();
+    </script>
+{% endblock %}
