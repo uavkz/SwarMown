@@ -113,6 +113,7 @@ def custom_mutate(ind):
     if not drones:
         drones = [random.randint(0, number_of_drones - 1)]
 
+    drones = drones[:MAX_DRONES_ON_CAR]
     ind[0] = direction
     ind[1] = start
     ind[2] = drones
@@ -126,6 +127,8 @@ POPULATION_SIZE = int(args.population_size)
 MUTATION_CHANCE = float(args.mutation_chance)
 # Distance, Time, Price, NumberOfStarts
 TARGET_WEIGHTS = (-1.0, )
+
+MAX_DRONES_ON_CAR = 5
 
 mission = Mission.objects.get(id=MISSION_ID)
 field = json.loads(mission.field.points_serialized)
