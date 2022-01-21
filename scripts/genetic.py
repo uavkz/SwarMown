@@ -63,7 +63,7 @@ def eval(individual):
         grid_traversed += max(0, len(drone_waypoints) - 2)
 
     time = max(drone_flight_time.values())
-    salary = mission.hourly_price * time + mission.start_price * number_of_starts
+    salary = mission.hourly_price * time * len(drone_flight_time) + mission.start_price * number_of_starts
     penalty = flight_penalty(time, float(args.borderline_time), float(args.max_time), salary, drone_price, grid_total, grid_traversed)
     return distance, time, drone_price, salary, penalty, number_of_starts
 
