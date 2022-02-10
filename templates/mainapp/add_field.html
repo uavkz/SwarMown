@@ -33,15 +33,14 @@
         var currentRoad = [];
 
         var map = L.map('map').setView([43.22, 76.85], 13);
-        L.tileLayer('https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token={accessToken}', {
+        L.tileLayer('https://api.mapbox.com/styles/v1/kindyak/{id}/tiles/{z}/{x}/{y}?access_token={accessToken}', {
             attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, <a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
             maxZoom: 18,
-            id: 'mapbox/streets-v11',
+            id: 'ckzh2v0mz00dv14tafevvqzgs',
             tileSize: 512,
             zoomOffset: -1,
             accessToken: 'pk.eyJ1Ijoia2luZHlhayIsImEiOiJja2F0cml2eTcwNDZhMnJvOXI4N2Y4MjRjIn0.f7FSJnib2jKKvtJe4ql-Bg'
         }).addTo(map);
-
         map.on('click', function (e) {
             var popLocation = e.latlng;
             if(mode === "field") {

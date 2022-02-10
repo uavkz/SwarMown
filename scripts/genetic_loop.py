@@ -4,7 +4,7 @@ try:
 
     from django.conf import settings
 
-    sys.path.append('C:\\Users\\KindYAK\\Desktop\\SwarMown\\')
+    sys.path.append('C:\\Users\\HaveToCook\\Desktop\\SwarMown\\')
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "swarmown.settings")
     import django
     django.setup()
