@@ -58,7 +58,7 @@ def eval(individual):
                                          spray_on_f=lambda x: x['spray_on'])
         distance += new_distance
         drone_flight_time[drone_waypoints[0]['drone']['id']] += new_time + (15 / 60)
-        drone_price_n, salary_n, = drone_flight_price(drone_waypoints[0]['drone'], new_distance, new_time)
+        drone_price_n = drone_flight_price(drone_waypoints[0]['drone'], new_distance, new_time)
         drone_price += drone_price_n
         grid_traversed += max(0, len(drone_waypoints) - 2)
 
