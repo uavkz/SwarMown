@@ -93,6 +93,10 @@ class ManageRouteView(TemplateView):
         context['grid'] = list(flatten_grid(grid))
         context['initial'] = initial_position
         context['waypoints'] = waypoints
+        # print("!!!")
+        # with open(f"{field_obj}.txt", "w") as f:
+        #     for w in waypoints[0]:
+        #         f.write(f"{w['lat']} {w['lon']}\n")
         context['pickup_waypoints'] = car_waypoints
 
     def get(self, request, *args, **kwargs):

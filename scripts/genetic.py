@@ -150,8 +150,8 @@ toolbox.register("attr_car_points",
                  lambda: [random.uniform(0, 1) for _ in range(random.randint(1, 5))]) # 3
 
 toolbox.register("individual", tools.initCycle, creator.Individual,
-                 (toolbox.attr_direction, toolbox.attr_start, toolbox.attr_drones, toolbox.attr_car_points
-                  ))
+                 (toolbox.attr_direction, toolbox.attr_start, toolbox.attr_drones, toolbox.attr_car_points)
+                 )
 
 toolbox.register("population", tools.initRepeat, list, toolbox.individual)
 

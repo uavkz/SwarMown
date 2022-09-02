@@ -186,10 +186,10 @@
             initial = {{ initial|safe }};
             initial = [initial[1], initial[0]];
             map = L.map('map').setView(initial, 13);
-            L.tileLayer('https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token={accessToken}', {
+            L.tileLayer('https://api.mapbox.com/styles/v1/kindyak/{id}/tiles/{z}/{x}/{y}?access_token={accessToken}', {
                 attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, <a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
                 maxZoom: 18,
-                id: 'mapbox/streets-v11',
+                id: 'ckzh2v0mz00dv14tafevvqzgs',
                 tileSize: 512,
                 zoomOffset: -1,
                 accessToken: 'pk.eyJ1Ijoia2luZHlhayIsImEiOiJja2F0cml2eTcwNDZhMnJvOXI4N2Y4MjRjIn0.f7FSJnib2jKKvtJe4ql-Bg'
@@ -249,12 +249,12 @@
             let field = new PIXI.Graphics();
             field.beginFill(0);
 
-            // Draw grid
+            // Draw grid TODO
             for (let point of grid) {
                 let circle = L.circle([point[1], point[0]], {
                     color: '#da3e28',
                     fillOpacity: 0.5,
-                    radius: 9
+                    radius: 2
                 }).addTo(map);
             }
 
@@ -277,12 +277,12 @@
                     let circle = L.circle([curPoint[1], curPoint[0]], {
                         color: '#5e4b7f',
                         fillOpacity: 0.9,
-                        radius: 100
+                        radius: 10
                     }).addTo(map);
                 }
             }
 
-            // Draw waypoints
+            // Draw waypoints TODO
             i = 0;
             for(let drone_waypoints of waypoints){
                 L.polyline(drone_waypoints, {

@@ -15,6 +15,27 @@ class Field(models.Model):
     def __str__(self):
         return f"{self.name}"
 
+#
+# import json
+# from shapely.geometry import shape
+#
+# f = Field.objects.get(id=26)
+# j = json.loads(f.points_serialized)
+#
+# co = {"type": "Polygon", "coordinates": [
+#     [
+#         (j[1], j[0]) for j in j
+#     ]
+# ]}
+# lon, lat = zip(*co['coordinates'][0])
+# from pyproj import Proj
+# # 43.27038611295692, 76.7296543207424
+# # 43.14601796133043, 77.03074836368798
+# pa = Proj("+proj=aea +lat_1=1 +lat_2=0 +lat_0=89 +lon_0=179")
+#
+# x, y = pa(lon, lat)
+# cop = {"type": "Polygon", "coordinates": [zip(x, y)]}
+# print(round(shape(cop).area))  # 268952044107.43506
 
 class Mission(models.Model):
     class Meta:
