@@ -1,4 +1,4 @@
-django==3.0.3
+django==3.2.24
 django-annoying==0.10.6
 django-extensions==2.2.8
 django-jet==1.0.8
