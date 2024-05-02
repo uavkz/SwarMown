@@ -1,6 +1,8 @@
+import csv
 import json
 
 from django.http import HttpResponseRedirect
+from django.http import HttpResponse
 from django.urls import reverse_lazy
 from django.views import View
 from django.views.generic import TemplateView, ListView
@@ -123,6 +125,20 @@ class ManageRouteView(TemplateView):
             context['mission'].current_waypoints_status = 2
             context['mission'].save()
             return HttpResponseRedirect(reverse_lazy('mainapp:list_mission'))
+        if "getCsv" in self.request.GET:
+            context = self.get_context_data(**kwargs)
+            response = HttpResponse(content_type='text/csv')
+            response['Content-Disposition'] = 'attachment; filename="waypoints.csv"'
+            writer = csv.writer(response)
+            writer.writerow(['lat', 'lon', 'height', 'drone_id', 'drone_name', 'drone_model', 'speed', 'acceleration', 'spray_on'])
+            for waypoints in context['waypoints']:
+                for waypoint in waypoints:
+                    writer.writerow([
+                        waypoint["lat"], waypoint["lon"], waypoint["height"],
+                        waypoint["drone"]["id"], waypoint["drone"]["name"], waypoint["drone"]["model"],
+                        waypoint["speed"], waypoint["acceleration"], waypoint["spray_on"]
+                    ])
+            return response
         return super().get(request, *args, **kwargs)
 
     def get_context_data(self, **kwargs):
