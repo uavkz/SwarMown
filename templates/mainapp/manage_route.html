@@ -109,8 +109,21 @@
                 <button id="saveField" class="btn btn-primary" style="margin-top: 10px;" name="submitSave">Сохранить маршрут</button>
             </div>
 
-            <div class="col" style="text-align: left;">
-                <button id="getCsv" class="btn btn-primary" style="margin-top: 10px;" name="getCsv">Скачать как CSV</button>
+            <div class="col"></div>
+        </div>
+        <div class="row" style="margin-top: 10px;">
+            <div class="col"></div>
+
+            <div class="col">
+                <label for="height">Высота над уровнем моря (м)</label>
+                <input id="height" name="height" class="form-control" value="{% if request.GET.height %}{{ request.GET.height }}{% else %}450{% endif %}"/>
+            </div>
+            <div class="col">
+                <div class="col" style="text-align: left;">
+                    <label for="height" style="visibility: hidden;">Высота над уровнем моря (м)</label>
+                    <button id="getCsv" class="btn btn-primary" style="margin-top: 0" name="getCsv">Скачать как CSV</button>
+                </div>
+
             </div>
 
             <div class="col"></div>

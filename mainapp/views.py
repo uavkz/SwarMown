@@ -134,7 +134,7 @@ class ManageRouteView(TemplateView):
             for waypoints in context['waypoints']:
                 for waypoint in waypoints:
                     writer.writerow([
-                        waypoint["lat"], waypoint["lon"], waypoint["height"],
+                        waypoint["lat"], waypoint["lon"], float(request.GET.get("height", 450.0)),
                         waypoint["drone"]["id"], waypoint["drone"]["name"], waypoint["drone"]["model"],
                         waypoint["speed"], waypoint["acceleration"], waypoint["spray_on"]
                     ])
