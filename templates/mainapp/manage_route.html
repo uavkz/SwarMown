@@ -115,8 +115,12 @@
             <div class="col"></div>
 
             <div class="col">
-                <label for="height">Высота над уровнем моря (м)</label>
+                <label for="height">Высота облёта над землёй (м)</label>
                 <input id="height" name="height" class="form-control" value="{% if request.GET.height %}{{ request.GET.height }}{% else %}450{% endif %}"/>
+            </div>
+            <div class="col">
+                <label for="height_absolute">Высота поля на уровнем моря (м)</label>
+                <input id="height_absolute" name="height_absolute" class="form-control" value="{% if request.GET.height_absolute %}{{ request.GET.height_absolute }}{% else %}450{% endif %}"/>
             </div>
             <div class="col">
                 <div class="col" style="text-align: left;">
@@ -181,6 +185,23 @@
         var stage;
         var mission_id = {{ mission.id }};
 
+        function getElevation(lat, lng) {
+            const accessToken = 'pk.eyJ1Ijoia2luZHlhayIsImEiOiJja2F0cml2eTcwNDZhMnJvOXI4N2Y4MjRjIn0.f7FSJnib2jKKvtJe4ql-Bg';
+            const url = `https://api.mapbox.com/v4/mapbox.mapbox-terrain-v2/tilequery/${lng},${lat}.json?layers=contour&limit=50&access_token=${accessToken}`;
+
+            return fetch(url)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.features && data.features.length > 0) {
+                        const elevations = data.features.map(feature => feature.properties.ele);
+                        var highestElevation = Math.max(...elevations);
+                        return highestElevation;
+                    } else {
+                        alert(`No elevation data available for (${lat}, ${lng}).`);
+                    }
+            }).catch(error => console.error('Error fetching elevation data:', error));
+        }
+
         function initStuff() {
             fieldPolygon = {{ field|safe }};
             waypoints = {{ waypoints|safe }};
@@ -211,6 +232,19 @@
                 zoomOffset: -1,
                 accessToken: 'pk.eyJ1Ijoia2luZHlhayIsImEiOiJja2F0cml2eTcwNDZhMnJvOXI4N2Y4MjRjIn0.f7FSJnib2jKKvtJe4ql-Bg'
             }).addTo(map);
+
+            map.on('click', function(e) {
+                const { lat, lng } = e.latlng;
+                getElevation(lat, lng)
+                    .then(elevation => alert(`Elevation at (${lat}, ${lng}) is approximately ${elevation} meters.`))
+                    .catch(error => alert(error.message));
+            });
+
+            getElevation(initial[0], initial[1])
+                .then(elevation => {
+                    document.getElementById("height_absolute").value = elevation;
+                })
+                .catch(error => alert(error.message));
 
             grid = {{ grid|safe }};
             stage = new PIXI.Container();

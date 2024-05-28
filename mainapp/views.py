@@ -130,11 +130,12 @@ class ManageRouteView(TemplateView):
             response = HttpResponse(content_type='text/csv')
             response['Content-Disposition'] = 'attachment; filename="waypoints.csv"'
             writer = csv.writer(response)
-            writer.writerow(['lat', 'lon', 'height', 'drone_id', 'drone_name', 'drone_model', 'speed', 'acceleration', 'spray_on'])
+            writer.writerow(['lat', 'lon', 'height', 'height_global', 'drone_id', 'drone_name', 'drone_model', 'speed', 'acceleration', 'spray_on'])
             for waypoints in context['waypoints']:
                 for waypoint in waypoints:
                     writer.writerow([
                         waypoint["lat"], waypoint["lon"], float(request.GET.get("height", 450.0)),
+                        float(request.GET.get("height_absolute", 700.0)),
                         waypoint["drone"]["id"], waypoint["drone"]["name"], waypoint["drone"]["model"],
                         waypoint["speed"], waypoint["acceleration"], waypoint["spray_on"]
                     ])
