@@ -4,8 +4,7 @@ import numpy as np
 from shapely.geometry import Point
 from shapely.geometry.polygon import Polygon
 
-from mainapp.utils import unique, euclidean, transform_to_equidistant, transform_to_lat_lon, waypoints_distance, \
-    calc_vincenty, rotate
+from mainapp.utils import unique, euclidean, transform_to_equidistant, transform_to_lat_lon, waypoints_distance, calc_vincenty, rotate
 
 
 def get_grid(field, step, angle=0):
