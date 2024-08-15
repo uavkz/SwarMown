@@ -19,7 +19,7 @@ import random
 
 from mainapp.models import *
 from mainapp.utils import drone_flight_price, flight_penalty
-from routing.default.service import get_route
+from mainapp.service_routing import get_route
 
 from concurrent import futures
 

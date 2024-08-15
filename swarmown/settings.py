@@ -41,7 +41,6 @@ INSTALLED_APPS = [
     'rest_framework',
     'mainapp',
     'restapp',
-    'routing',
 ]
 
 MIDDLEWARE = [

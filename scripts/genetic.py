@@ -19,7 +19,7 @@ from scoop import futures
 from mainapp.models import Mission
 from mainapp.utils import waypoints_distance, waypoints_flight_time, drone_flight_price, flight_penalty
 from mainapp.utils_excel import log_excel
-from routing.default.service import get_route
+from mainapp.service_routing import get_route
 
 parser = argparse.ArgumentParser()
 
