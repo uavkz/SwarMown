@@ -1,3 +1,10 @@
+import datetime
+import pickle
+
+from pyproj import Transformer
+
+from mainapp.services_draw import get_grid
+
 try:
     import os, sys
     sys.path.append('C:\\Users\\KindYAK\\Desktop\\SwarMown\\')
@@ -20,6 +27,7 @@ from mainapp.models import Mission
 from mainapp.utils import waypoints_distance, waypoints_flight_time, drone_flight_price, flight_penalty
 from mainapp.utils_excel import log_excel
 from mainapp.service_routing import get_route
+from mainapp.utils import transform_to_equidistant
 
 parser = argparse.ArgumentParser()
 
@@ -39,8 +47,12 @@ args = parser.parse_args()
 
 def eval(individual):
     drones = [list(mission.drones.all().order_by('id'))[i] for i in individual[2]]
-    grid, waypoints, _, initial = get_route(car_move=individual[3], direction=individual[0], height_diff=None, round_start_zone=None,
-                      start=individual[1], field=field, grid_step=mission.grid_step, feature3=None, feature4=None, road=road, drones=drones)
+    grid, waypoints, _, initial = get_route(
+        car_move=individual[3], direction=individual[0], height_diff=None, round_start_zone=None,
+        start=individual[1], field=field, grid_step=mission.grid_step, feature3=None, feature4=None, road=road,
+        drones=drones,
+        pyproj_transformer=pyproj_transformer,
+    )
     distance = 0
     drone_price, salary, penalty = 0, 0, 0
     number_of_starts = len(waypoints)
@@ -137,6 +149,12 @@ road = json.loads(mission.field.road_serialized)
 road = [[y, x] for (x, y) in road]
 number_of_drones = mission.drones.all().count()
 
+pyproj_transformer = Transformer.from_crs(
+    'epsg:4087',
+    'epsg:4326',
+    always_xy=True,
+)
+
 toolbox = base.Toolbox()
 
 creator.create("FitnessMax", base.Fitness, weights=TARGET_WEIGHTS)
@@ -212,8 +230,7 @@ def run():
                 "average_fit": sum(fitnesses) / len(fitnesses)
             }
         )
-        if gen % 10 == 0:
-            print(f"Top score {max(fitnesses)}, average score {sum(fitnesses) / len(fitnesses)}")
+        print(f"Top score {max(fitnesses)}, average score {sum(fitnesses) / len(fitnesses)}")
 
     log_excel(
         name=args.filename,

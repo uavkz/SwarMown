@@ -4,12 +4,14 @@ import numpy as np
 from shapely.geometry import Point
 from shapely.geometry.polygon import Polygon
 
-from mainapp.utils import unique, euclidean, transform_to_equidistant, transform_to_lat_lon, waypoints_distance, calc_vincenty, rotate
+from mainapp.utils import transform_to_equidistant, transform_to_lat_lon, waypoints_distance, \
+    calc_vincenty, rotate
 
 
-def get_grid(field, step, angle=0):
+def get_grid(field, step, angle=0, do_transform=True, trans=None):
     field = deepcopy(field)
-    transform_to_equidistant(field)
+    if do_transform:
+        transform_to_equidistant(field)
     polygon = Polygon(field)
     grid = []
 
@@ -34,7 +36,11 @@ def get_grid(field, step, angle=0):
     for i, line in enumerate(grid):
         line = [rotate(point, pivot_point, angle) for point in line]
         line = list(filter(lambda x: polygon.contains(Point(x[0], x[1])), line))
-        transform_to_lat_lon(line)
+        if trans is None:
+            transform_to_lat_lon(line)
+        else:
+            for point in line:
+                point[0], point[1] = trans.transform(point[1], point[0])
         grid[i] = line
 
     return grid

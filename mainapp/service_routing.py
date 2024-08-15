@@ -4,8 +4,11 @@ from mainapp.services_draw import get_grid, get_car_waypoints, get_car_waypoints
 from mainapp.utils import add_waypoint, calc_vincenty
 
 
-def get_route(car_move, direction, height_diff, round_start_zone, start,
-              field, grid_step, feature3, feature4, road, drones):
+def get_route(
+    car_move, direction, height_diff, round_start_zone, start,
+    field, grid_step, feature3, feature4, road, drones,
+    grid=None, pyproj_transformer=None,
+):
     if direction == "simple":
         angle = 45
     elif direction == "horizontal":
@@ -16,7 +19,8 @@ def get_route(car_move, direction, height_diff, round_start_zone, start,
         angle = direction
     else:
         raise Exception("Not implemented")
-    grid = get_grid(field, grid_step, angle)
+    if grid == None:
+        grid = get_grid(field, grid_step, angle, trans=pyproj_transformer)
     if type(car_move) == str:
        car_waypoints = get_car_waypoints(grid, road, how=car_move)
     elif type(car_move) == list:
