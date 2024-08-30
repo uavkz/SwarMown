@@ -27,7 +27,7 @@ def get_all_points(context):
     all_points = []
     for waypoints in context['waypoints']:
         for waypoint in waypoints:
-            all_points.append([waypoint['lon'], waypoint['lat']])
+            all_points.append([waypoint['lat'], waypoint['lon']])
 
     return get_elevations_for_points_dict(all_points)
 
