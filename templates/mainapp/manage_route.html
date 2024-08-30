@@ -116,11 +116,11 @@
 
             <div class="col">
                 <label for="height">Высота облёта над землёй (м)</label>
-                <input id="height" name="height" class="form-control" value="{% if request.GET.height %}{{ request.GET.height }}{% else %}450{% endif %}"/>
+                <input autocomplete="off" id="height" name="height" class="form-control" value="{% if request.GET.height %}{{ request.GET.height }}{% else %}450{% endif %}"/>
             </div>
             <div class="col">
                 <label for="height_absolute">Высота поля на уровнем моря (м)</label>
-                <input id="height_absolute" name="height_absolute" class="form-control" value="{% if request.GET.height_absolute %}{{ request.GET.height_absolute }}{% else %}450{% endif %}"/>
+                <input autocomplete="off" id="height_absolute" name="height_absolute" class="form-control" value="{% if request.GET.height_absolute %}{{ request.GET.height_absolute }}{% else %}{% endif %}"/>
             </div>
             <div class="col" style="text-align: left; max-width: 170px; padding-top: 10px;">
                 <button id="getCsv" class="btn btn-primary" style="margin-top: 0" name="getCsv">Скачать как CSV</button>
@@ -239,11 +239,11 @@
                     .catch(error => alert(error.message));
             });
 
-            getElevation(initial[0], initial[1])
-                .then(elevation => {
-                    document.getElementById("height_absolute").value = elevation;
-                })
-                .catch(error => alert(error.message));
+            {#getElevation(initial[0], initial[1])#}
+            {#    .then(elevation => {#}
+            {#        document.getElementById("height_absolute").value = elevation;#}
+            {#    })#}
+            {#    .catch(error => alert(error.message));#}
 
             grid = {{ grid|safe }};
             stage = new PIXI.Container();

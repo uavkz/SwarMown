@@ -1,3 +1,4 @@
+import asyncio
 import csv
 import json
 import zipfile
@@ -13,12 +14,22 @@ from mainapp.models import *
 from mainapp.services_draw import *
 from mainapp.utils import flatten_grid
 from mainapp.service_routing import get_route
+from mainapp.utils_gis import get_elevations_for_points_dict
 from mainapp.utils_mavlink import create_plan_file
 
 
 class Index(View):
     def get(self, request, **kwargs):
         return HttpResponseRedirect(reverse_lazy('mainapp:list_mission'))
+
+
+def get_all_points(context):
+    all_points = []
+    for waypoints in context['waypoints']:
+        for waypoint in waypoints:
+            all_points.append([waypoint['lon'], waypoint['lat']])
+
+    return get_elevations_for_points_dict(all_points)
 
 
 class ManageRouteView(TemplateView):
@@ -104,13 +115,19 @@ class ManageRouteView(TemplateView):
             response['Content-Disposition'] = 'attachment; filename="waypoints.csv"'
             writer = csv.writer(response)
             writer.writerow(['lat', 'lon', 'height', 'height_global', 'drone_id', 'drone_name', 'drone_model', 'speed', 'acceleration', 'spray_on'])
+            elevations_dict = asyncio.run(get_all_points(context))
             for waypoints in context['waypoints']:
                 for waypoint in waypoints:
+                    height_absolute = request.GET.get(
+                        "height_absolute", False
+                    )
+                    if not height_absolute:
+                        height_absolute = elevations_dict[(round(waypoint['lat'], 3)), round(waypoint['lon'], 3)]
                     writer.writerow([
                         waypoint["lat"],
                         waypoint["lon"],
-                        float(request.GET.get("height", 450.0)),
-                        float(request.GET.get("height_absolute", 700.0)),
+                        height_absolute + float(request.GET.get("height", 450.0)),
+                        height_absolute,
                         waypoint["drone"]["id"],
                         waypoint["drone"]["name"], waypoint["drone"]["model"],
                         waypoint["speed"],
@@ -121,14 +138,20 @@ class ManageRouteView(TemplateView):
         if "getJson" in self.request.GET:
             context = self.get_context_data(**kwargs)
             data = []
+            elevations_dict = asyncio.run(get_all_points(context))
             for waypoints in context['waypoints']:
                 for waypoint in waypoints:
+                    height_absolute = request.GET.get(
+                        "height_absolute", False
+                    )
+                    if not height_absolute:
+                        height_absolute = elevations_dict[(round(waypoint['lat'], 3)), round(waypoint['lon'], 3)]
                     data.append(
                         {
                             "lat": waypoint["lat"],
                             "lon": waypoint["lon"],
-                            "height": float(request.GET.get("height", 450.0)),
-                            "height_global": float(request.GET.get("height_absolute", 700.0)),
+                            "height": height_absolute + float(request.GET.get("height", 450.0)),
+                            "height_global": height_absolute,
                             "drone_id": waypoint["drone"]["id"],
                             "drone_name": waypoint["drone"]["name"],
                             "drone_model": waypoint["drone"]["model"],
