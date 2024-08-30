@@ -1,5 +1,7 @@
 import csv
 import json
+import zipfile
+from io import BytesIO
 
 from django.http import HttpResponseRedirect
 from django.http import HttpResponse
@@ -11,6 +13,7 @@ from mainapp.models import *
 from mainapp.services_draw import *
 from mainapp.utils import flatten_grid
 from mainapp.service_routing import get_route
+from mainapp.utils_mavlink import create_plan_file
 
 
 class Index(View):
@@ -104,12 +107,60 @@ class ManageRouteView(TemplateView):
             for waypoints in context['waypoints']:
                 for waypoint in waypoints:
                     writer.writerow([
-                        waypoint["lat"], waypoint["lon"], float(request.GET.get("height", 450.0)),
+                        waypoint["lat"],
+                        waypoint["lon"],
+                        float(request.GET.get("height", 450.0)),
                         float(request.GET.get("height_absolute", 700.0)),
-                        waypoint["drone"]["id"], waypoint["drone"]["name"], waypoint["drone"]["model"],
-                        waypoint["speed"], waypoint["acceleration"], waypoint["spray_on"]
+                        waypoint["drone"]["id"],
+                        waypoint["drone"]["name"], waypoint["drone"]["model"],
+                        waypoint["speed"],
+                        waypoint["acceleration"],
+                        waypoint["spray_on"],
                     ])
+                return response
+        if "getJson" in self.request.GET:
+            context = self.get_context_data(**kwargs)
+            data = []
+            for waypoints in context['waypoints']:
+                for waypoint in waypoints:
+                    data.append(
+                        {
+                            "lat": waypoint["lat"],
+                            "lon": waypoint["lon"],
+                            "height": float(request.GET.get("height", 450.0)),
+                            "height_global": float(request.GET.get("height_absolute", 700.0)),
+                            "drone_id": waypoint["drone"]["id"],
+                            "drone_name": waypoint["drone"]["name"],
+                            "drone_model": waypoint["drone"]["model"],
+                            "speed": waypoint["speed"],
+                            "acceleration": waypoint["acceleration"],
+                            "spray_on": waypoint["spray_on"],
+                        }
+                    )
+            drone_ids = list(set([d['drone_id'] for d in data]))
+            jsons = [
+                create_plan_file([
+                    [d['lat'], d['lon'], d['height']]
+                    for d in data if d['drone_id'] == drone_id
+                ], drone_id)
+                for drone_id in drone_ids
+            ]
+            if len(jsons) == 1:
+                response = HttpResponse(json.dumps(jsons[0]), content_type='application/json')
+                response['Content-Disposition'] = 'attachment; filename="plan.json"'
+            else:
+                zip_buffer = BytesIO()
+                with zipfile.ZipFile(zip_buffer, 'w') as zip_file:
+                    for i, (json_data, drone_id)  in enumerate(zip(jsons, drone_ids)):
+                        file_name = f"plan_{drone_id}_{i}.json"
+                        zip_file.writestr(file_name, json.dumps(json_data))
+
+                zip_buffer.seek(0)
+                response = HttpResponse(zip_buffer, content_type='application/zip')
+                response['Content-Disposition'] = 'attachment; filename="plans.zip"'
+
             return response
+
         return super().get(request, *args, **kwargs)
 
     def get_context_data(self, **kwargs):

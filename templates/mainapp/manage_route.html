@@ -122,12 +122,11 @@
                 <label for="height_absolute">Высота поля на уровнем моря (м)</label>
                 <input id="height_absolute" name="height_absolute" class="form-control" value="{% if request.GET.height_absolute %}{{ request.GET.height_absolute }}{% else %}450{% endif %}"/>
             </div>
-            <div class="col">
-                <div class="col" style="text-align: left;">
-                    <label for="height" style="visibility: hidden;">Высота над уровнем моря (м)</label>
-                    <button id="getCsv" class="btn btn-primary" style="margin-top: 0" name="getCsv">Скачать как CSV</button>
-                </div>
-
+            <div class="col" style="text-align: left; max-width: 170px; padding-top: 10px;">
+                <button id="getCsv" class="btn btn-primary" style="margin-top: 0" name="getCsv">Скачать как CSV</button>
+            </div>
+            <div class="col" style="text-align: left; max-width: 220px; padding-top: 10px;">
+                <button id="getJson" class="btn btn-primary" style="margin-top: 0" name="getJson">Скачать как Json (MavLink)</button>
             </div>
 
             <div class="col"></div>
