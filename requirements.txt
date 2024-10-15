@@ -1,3 +1,10 @@
+# Python 3.8+ required
+# Also one needs to install pode:
+# git clone https://github.com/LostFan123/pode.git
+# cd pode
+# git checkout 0ad2db3da91556f02662e3c567ffe5d467df36dd
+# pip install .
+
 django==3.0.3
 django-annoying==0.10.6
 django-extensions==2.2.8
@@ -6,11 +13,8 @@ django-widget-tweaks==1.4.5
 djangorestframework==3.11.0
 djangorestframework-jwt==1.11.0
 gunicorn==20.0.4
-numpy==1.18.2
-shapely==1.7.0
-scikit-learn==0.22.2.post1
-pandas==1.0.3
-matplotlib==3.2.1
+numpy==2.0.2
+shapely==2.0.6
 geopy==1.22.0
 haversine==2.3.0
 vincenty==0.1.4
@@ -20,3 +24,8 @@ scoop==0.7.1.1
 xlwt==1.3.0
 aiohttp==3.8.6
 tenacity==8.2.3
+
+# Probably unused
+#scikit-learn==0.22.2.post1
+#pandas==1.0.3
+#matplotlib==3.2.1
