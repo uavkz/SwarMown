@@ -20,6 +20,7 @@
         </div>
         <div class="col">
             <button id="saveField" class="btn btn-primary" style="margin-top: 32px;">Сохранить поле</button>
+            <button id="anotherHole" class="btn btn-primary" style="margin-top: 32px; display: none;">Ещё препятствие</button>
         </div>
         <div class="col"></div>
     </div>
@@ -28,9 +29,20 @@
 
 {% block foot %}
     <script>
-        var mode = "field"; // Or "road"
+        var mode = "field"; // Or "road" or "holes"
         var currentField = [];
         var currentRoad = [];
+        var currentHole = []; // List of coordinates
+        var currentHoles = []; // List of lists
+
+        const holeColors = [
+            '#E6194B', '#3CB44B', '#FFE119', '#4363D8', '#F58231',
+            '#911EB4', '#42D4F4', '#F032E6', '#BFEF45', '#FABEBE',
+            '#469990', '#E6BEFF', '#9A6324', '#FFD8B1', '#800000',
+            '#AAFFC3', '#808000', '#000075', '#A9A9A9', '#FFFFB3'
+        ];
+
+        var holeColorIndex = 0;
 
         var map = L.map('map').setView([43.22, 76.85], 13);
         L.tileLayer('https://api.mapbox.com/styles/v1/kindyak/{id}/tiles/{z}/{x}/{y}?access_token={accessToken}', {
@@ -46,14 +58,52 @@
             if(mode === "field") {
                 var marker = L.marker(popLocation).addTo(map);
                 currentField.push([popLocation.lat, popLocation.lng]);
-            } else if(mode === "road"){
+            } else if(mode === "road") {
                 var circle = L.circle(popLocation, {
                     color: '#5e4b7f',
                     fillOpacity: 0.9,
-                    radius: 200
+                    radius: 100
                 }).addTo(map);
                 currentRoad.push([popLocation.lat, popLocation.lng]);
+            } else if(mode === "holes") {
+                function getOffsetLatLng(center, northMeters, eastMeters) {
+                    var earthRadius = 6378137; // Earth's radius in meters
+                    var dLat = northMeters / earthRadius;
+                    var dLng = eastMeters / (earthRadius * Math.cos(center.lat * Math.PI / 180));
+
+                    var newLat = center.lat + (dLat * (180 / Math.PI));
+                    var newLng = center.lng + (dLng * (180 / Math.PI));
+
+                    return L.latLng(newLat, newLng);
+                }
+
+                var sizeMeters = 50; // Half the desired square size
+                var halfSize = sizeMeters / 2;
+
+                var nw = getOffsetLatLng(popLocation, halfSize, -halfSize);
+                var ne = getOffsetLatLng(popLocation, halfSize, halfSize);
+                var se = getOffsetLatLng(popLocation, -halfSize, halfSize);
+                var sw = getOffsetLatLng(popLocation, -halfSize, -halfSize);
+
+                var squareCoords = [nw, ne, se, sw];
+
+                var square = L.polygon(squareCoords, {
+                    color: holeColors[holeColorIndex],
+                    fillOpacity: 0.9
+                }).addTo(map);
+                currentHole.push([popLocation.lat, popLocation.lng]);
             }
+        });
+
+        $('#anotherHole').click(function () {
+            if (currentHole.length < 3) {
+                alert("Сначала выберите препятствие, оно должно содержать не менее 3 точек");
+                return
+            }
+            currentHoles.push(currentHole);
+            currentHole = [];
+            holeColorIndex += 1;
+            alert("Препятствие добавлено, выберите следующее");
         });
 
         $('#saveField').click(function () {
@@ -63,6 +113,18 @@
                 alert("Теперь выберите дорогу");
                 return
             }
+            if(mode === "road") {
+                mode = "holes";
+                $('#saveField').html("Сохранить поле");
+                alert("Теперь выберите препятствия");
+                $('#anotherHole').show();
+                return
+            }
+
+            if(currentHole.length > 0) {
+                currentHoles.push(currentHole);
+            }
+
             $.ajax(
                 {
                     url: '/api/field/',
@@ -71,6 +133,7 @@
                         "name": $('#fieldName').val(),
                         "points_serialized": JSON.stringify(currentField),
                         "road_serialized": JSON.stringify(currentRoad),
+                        "holes_serialized": JSON.stringify(currentHoles)
                     },
                     beforeSend: function (request) {
                         request.setRequestHeader("X-CSRFToken", '{{ csrf_token }}');
