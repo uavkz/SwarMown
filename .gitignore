@@ -1,6 +1,6 @@
 .python-version
 __pycache__
-venv/
+venv*/
 media/
 static/
 
