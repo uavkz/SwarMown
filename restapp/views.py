@@ -23,7 +23,7 @@ class FieldViewSet(viewsets.ViewSet):
                 name=self.request.POST['name'],
                 points_serialized=self.request.POST['points_serialized'],
                 road_serialized=self.request.POST['road_serialized'],
-                holes_serialized=self.request.POST.get('holes_serialized', [])
+                holes_serialized=json.dumps([hole for hole in json.loads(self.request.POST.get('holes_serialized', '[]')) if len(hole) >= 3])
             )
         except Exception as e:
             return Response({"status": 500, "error": str(e)})

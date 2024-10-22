@@ -11,7 +11,6 @@ from django.views import View
 from django.views.generic import TemplateView, ListView
 
 from mainapp.models import *
-from mainapp.services_draw import *
 from mainapp.utils import flatten_grid
 from mainapp.service_routing import get_route
 from mainapp.utils_gis import get_elevations_for_points_dict
@@ -70,14 +69,25 @@ class ManageRouteView(TemplateView):
         if serialized:
             drones = [list(context['mission'].drones.all().order_by('id'))[i] for i in serialized[2]]
             grid, waypoints, car_waypoints, initial_position = get_route(
-                car_move=serialized[3], direction=serialized[0], height_diff=None, round_start_zone=None,
-                start=serialized[1], field=field, grid_step=context['mission'].grid_step, feature3=None, feature4=None,
-                road=road, drones=drones
+                car_move=serialized[3],
+                direction=serialized[0],
+                start=serialized[1],
+                field=field,
+                holes=holes,
+                grid_step=context['mission'].grid_step,
+                road=road,
+                drones=drones,
             )
         else:
             grid, waypoints, car_waypoints, initial_position = get_route(
-                car_move, direction, height_diff, round_start_zone, start,
-                field, grid_step, feature3, feature4, road, context['mission'].drones.all().order_by('id')
+                car_move=car_move,
+                direction=direction,
+                start=start,
+                field=field,
+                holes=holes,
+                grid_step=grid_step,
+                road=road,
+                drones=context['mission'].drones.all().order_by('id'),
             )
         context['grid'] = list(flatten_grid(grid))
         context['initial'] = initial_position

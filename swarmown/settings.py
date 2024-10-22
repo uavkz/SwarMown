@@ -11,6 +11,8 @@ https://docs.djangoproject.com/en/3.0/ref/settings/
 """
 
 import os
+from itertools import chain
+from typing import Sequence
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -139,3 +141,59 @@ STATICFILES_DIRS = (
 )
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+
+# MOnkey patch!
+def new_edges(self) -> Sequence:
+    """
+    Returns edges of the polygon.
+
+    Time complexity:
+        ``O(vertices_count)``
+    Memory complexity:
+        ``O(vertices_count)``
+
+    where
+
+        .. code-block:: python
+
+            vertices_count = (len(self.border.vertices)
+                              + sum(len(hole.vertices)\
+for hole in self.holes))
+
+    >>> from gon.base import Contour, Point, Polygon, Segment
+    >>> polygon = Polygon(Contour([Point(0, 0), Point(6, 0), Point(6, 6),
+    ...                            Point(0, 6)]),
+    ...                   [Contour([Point(2, 2), Point(2, 4), Point(4, 4),
+    ...                             Point(4, 2)])])
+    >>> polygon.edges == [Segment(Point(0, 6), Point(0, 0)),
+    ...                   Segment(Point(0, 0), Point(6, 0)),
+    ...                   Segment(Point(6, 0), Point(6, 6)),
+    ...                   Segment(Point(6, 6), Point(0, 6)),
+    ...                   Segment(Point(4, 2), Point(2, 2)),
+    ...                   Segment(Point(2, 2), Point(2, 4)),
+    ...                   Segment(Point(2, 4), Point(4, 4)),
+    ...                   Segment(Point(4, 4), Point(4, 2))]
+    True
+    """
+
+    from gon.base import Point as GonPoint, Contour as GonContour, Polygon as GonPolygon
+    from ground.core.hints import Point as GroundPoint, Contour as GroundContour, Polygon as GroundPolygon
+
+    def ground_point_to_gon_point(ground_point: GroundPoint) -> GonPoint:
+        return GonPoint(ground_point.x, ground_point.y)
+
+    def ground_contour_to_gon_contour(ground_contour: GroundContour) -> GonContour:
+        vertices = [ground_point_to_gon_point(vertex) for vertex in ground_contour.vertices]
+        return GonContour(vertices)
+
+    if isinstance(self.border, GroundContour):
+        self._border = ground_contour_to_gon_contour(self.border)
+
+    flatten = chain.from_iterable
+    return list(chain(self.border.segments,
+                      flatten(hole.segments for hole in self.holes)))
+
+from gon.core.polygon import Polygon
+Polygon.edges = property(new_edges)
+# MOnkey patch!

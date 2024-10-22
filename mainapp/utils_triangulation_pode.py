@@ -3,23 +3,24 @@ from gon.base import Point, Polygon, Contour, EMPTY, Multipolygon, Triangulation
 import matplotlib.pyplot as plt
 
 
+
 # outer_boundary = Contour([Point(0, 0), Point(10, 0), Point(10, 16), Point(0, 10)])
 # hole1 = Contour([Point(2, 2), Point(4, 2), Point(4, 4), Point(2, 4)])
 # hole2 = Contour([Point(6, 6), Point(8, 6), Point(8, 8), Point(6, 8)])
 #
 # polygon_with_holes = Polygon(outer_boundary, [hole1, hole2])
-#
+# #
 # requirements = [
-#     Requirement(0.3, point=Point(1, 1)),  # 50% of the area, no anchor point
-#     Requirement(0.3, point=Point(2, 1)),  # 50% of the area, no anchor point
-#     Requirement(0.3),  # 50% of the area, no anchor point
-#     Requirement(1 - (0.3) * 3),  # 50% of the area, no anchor point
-#     # Requirement(1/6),  # 50% of the area, no anchor point
-#     # Requirement(1/6),  # 50% of the area, no anchor point
-#     # Requirement(1/6),  # 50% of the area, no anchor point
-#     # Requirement(1/6),  # 50% of the area, no anchor point
-#     # Requirement(1/6),  # 50% of the area, no anchor point
-#     # Requirement(1 - (1/6) * 5),  # 50% of the area, no anchor point
+#     # Requirement(0.3, point=Point(1, 1)),  # 50% of the area, no anchor point
+#     # Requirement(0.3, point=Point(2, 1)),  # 50% of the area, no anchor point
+#     # Requirement(0.3),  # 50% of the area, no anchor point
+#     # Requirement(1 - (0.3) * 3),  # 50% of the area, no anchor point
+#     Requirement(1/6),  # 50% of the area, no anchor point
+#     Requirement(1/6),  # 50% of the area, no anchor point
+#     Requirement(1/6),  # 50% of the area, no anchor point
+#     Requirement(1/6),  # 50% of the area, no anchor point
+#     Requirement(1/6),  # 50% of the area, no anchor point
+#     Requirement(1 - (1/6) * 5),  # 50% of the area, no anchor point
 # ]
 
 def remove_overlaps(

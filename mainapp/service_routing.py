@@ -1,33 +1,119 @@
-from itertools import repeat, cycle
+from copy import deepcopy
+from itertools import repeat
+from typing import Union, Optional
+
+from gon.base import Point, Polygon, Contour, EMPTY, Multipolygon, Triangulation
 
 from mainapp.services_draw import get_grid, get_car_waypoints, get_car_waypoints_by_ratio_list
-from mainapp.utils import add_waypoint, calc_vincenty
+from mainapp.utils import add_waypoint, calc_vincenty, transform_to_equidistant
+from mainapp.utils_triangulation_pode import divide_polygon_with_holes
+from pode import Requirement
+
 
 
 def get_route(
-    car_move, direction, height_diff, round_start_zone, start,
-    field, grid_step, feature3, feature4, road, drones,
-    grid=None, pyproj_transformer=None,
+    car_move,
+    direction: Union[str, float, list[Union[str, float]]],
+    start: Union[str, list[str]],
+    field,
+    grid_step,
+    road,
+    drones,
+    grid=None,
+    pyproj_transformer=None,
+    holes: Optional[list[list[list[float]]]] = None,  # Same length as triangulation_requirements
+    triangulation_requirements: Optional[list[Requirement]] = None,
+    subpolygons_traversal_order: Optional[list[int]] = None,  # Same length as triangulation_requirements
 ):
-    if direction == "simple":
-        angle = 45
-    elif direction == "horizontal":
-        angle = 0
-    elif direction == "vertical":
-        angle = 90
-    elif type(direction) in [float, int]:
-        angle = direction
-    else:
-        raise Exception("Not implemented")
-    if grid == None:
-        grid = get_grid(field, grid_step, angle, trans=pyproj_transformer)
-    if type(car_move) == str:
-       car_waypoints = get_car_waypoints(grid, road, how=car_move)
-    elif type(car_move) == list:
-        car_waypoints = get_car_waypoints_by_ratio_list(road, car_move)
-    else:
-        raise Exception("Not implemented")
-    waypoints = get_waypoints(grid, car_waypoints, drones, start)
+
+    if holes:
+        field_transformed = deepcopy(field)
+        transform_to_equidistant(field_transformed)
+        holes_transformed = []
+        for hole in holes:
+            if len(hole) >= 3:
+                hole_transformed = deepcopy(hole)
+                transform_to_equidistant(hole_transformed)
+                holes_transformed.append(hole_transformed)
+        num_subpolygons = len(holes_transformed) + 2
+
+        if not triangulation_requirements:
+            equal_area = 1 / num_subpolygons
+            triangulation_requirements = [
+                Requirement(equal_area) for _ in range(num_subpolygons - 1)
+            ]
+            triangulation_requirements.append(Requirement(1 - equal_area * (num_subpolygons - 1)))
+
+        outer_boundary = Contour([Point(*coord) for coord in field_transformed])
+        holes_gon = [Contour([Point(*coord) for coord in hole]) for hole in holes_transformed]
+        polygon_with_holes = Polygon(outer_boundary, holes_gon)
+
+        subpolygons = divide_polygon_with_holes(polygon_with_holes, triangulation_requirements)
+        if subpolygons_traversal_order:
+            subpolygons_ordered = [subpolygons[i] for i in subpolygons_traversal_order]
+        else:
+            subpolygons_ordered = subpolygons
+
+        grid = []
+        car_waypoints = []
+        waypoints = []
+        for idx, subpolygon in enumerate(subpolygons_ordered):
+            if isinstance(direction, list):
+                sub_direction = direction[idx]
+            else:
+                sub_direction = direction
+            if isinstance(start, list):
+                sub_start = start[idx]
+            else:
+                sub_start = start
+
+            # Process direction as before
+            if sub_direction == "simple":
+                angle = 45
+            elif sub_direction == "horizontal":
+                angle = 0
+            elif sub_direction == "vertical":
+                angle = 90
+            elif isinstance(sub_direction, (float, int)):
+                angle = sub_direction
+            else:
+                raise Exception("Not implemented")
+
+            sub_field = [[p.x, p.y] for p in subpolygon.border.vertices]
+
+            sub_grid = get_grid(sub_field, grid_step, angle, do_transform=False, trans=pyproj_transformer)
+            grid.extend(sub_grid)
+
+            if isinstance(car_move, str):
+                sub_car_waypoints = get_car_waypoints(sub_grid, road, how=car_move)
+            elif isinstance(car_move, list):
+                sub_car_waypoints = get_car_waypoints_by_ratio_list(road, car_move)
+            else:
+                raise Exception("Not implemented")
+            car_waypoints.extend(sub_car_waypoints)
+
+            sub_waypoints = get_waypoints(sub_grid, sub_car_waypoints, drones, sub_start)
+            waypoints.extend(sub_waypoints)
+    else:  # No Holes
+        if direction == "simple":
+            angle = 45
+        elif direction == "horizontal":
+            angle = 0
+        elif direction == "vertical":
+            angle = 90
+        elif isinstance(direction, (float, int)):
+            angle = direction
+        else:
+            raise Exception("Not implemented")
+        if grid is None:
+            grid = get_grid(field, grid_step, angle, trans=pyproj_transformer)
+        if isinstance(car_move, str):
+            car_waypoints = get_car_waypoints(grid, road, how=car_move)
+        elif isinstance(car_move, list):
+            car_waypoints = get_car_waypoints_by_ratio_list(road, car_move)
+        else:
+            raise Exception("Not implemented")
+        waypoints = get_waypoints(grid, car_waypoints, drones, start)
     return grid, waypoints, car_waypoints, car_waypoints[0]
 
 
