@@ -4,7 +4,7 @@ try:
 
     from django.conf import settings
 
-    sys.path.append('C:\\Архив\\Наука - старое\\UAV-Related\\SwarMown\\')
+    sys.path.append('C:\\Архив\\Наука-старое\\UAV-Related\\SwarMown\\')
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "swarmown.settings")
     import django
     django.setup()

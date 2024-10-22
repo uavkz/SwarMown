@@ -53,15 +53,18 @@ class ManageRouteView(TemplateView):
         field = [[y, x] for (x, y) in field]
         road = json.loads(field_obj.road_serialized)
         road = [[y, x] for (x, y) in road]
+        holes = json.loads(field_obj.holes_serialized) # three-dimensional array: [# First hole # [[lat, lon], [lat, lon], ...], # Second hole # [[lat, lon], [lat, lon], ...], ...]
+        holes = [[[y, x] for (x, y) in hole] for hole in holes]
 
         grid_step = context['mission'].grid_step
         number_of_drones = context['mission'].drones.all().count()
         # [x, y, z, is_active]
 
         context['field_flat'] = [coord for point in field for coord in point]
-        context['field'] = field
         context['field_id'] = field_obj.id if field_obj else ""
+        context['field'] = field
         context['road'] = road
+        context['holes'] = holes
         context['grid_step'] = grid_step
         context['number_of_drones'] = number_of_drones
         if serialized:

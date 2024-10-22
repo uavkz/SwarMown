@@ -172,6 +172,7 @@
         var True = true;
         var waypoints;
         var fieldPolygon;
+        var holesPolygons;
         var gridStep;
         var initial;
         var map;
@@ -203,8 +204,10 @@
 
         function initStuff() {
             fieldPolygon = {{ field|safe }};
+            holesPolygons = {{ holes|safe }}; // Three-dimensional array [# First hole # [[lat, lon], [lat, lon], ...], # Second hole # [[lat, lon], [lat, lon], ...], ...]
             waypoints = {{ waypoints|safe }};
             road = {{ road|safe }};
+            
             for (i = 0; i < fieldPolygon.length; i++) {
                 tmp = fieldPolygon[i][0];
                 fieldPolygon[i][0] = fieldPolygon[i][1];
@@ -212,6 +215,15 @@
             }
             fieldPolygon.push(fieldPolygon[0]);
 
+            for (i = 0; i < holesPolygons.length; i++) {
+                for (j = 0; j < holesPolygons[i].length; j++) {
+                    tmp = holesPolygons[i][j][0];
+                    holesPolygons[i][j][0] = holesPolygons[i][j][1];
+                    holesPolygons[i][j][1] = tmp;
+                }
+                holesPolygons[i].push(holesPolygons[i][0]);
+            }
+            
             gridStep = {{ grid_step|safe }};
 
             // prepare circle texture, that will be our brush
@@ -310,7 +322,11 @@
 
             // Draw polygon
             var polyline = L.polyline(fieldPolygon, {color: 'red'}).addTo(map);
-
+            // Draw holes
+            for (let hole of holesPolygons) {
+                var polyline = L.polyline(hole, {color: 'blue'}).addTo(map);
+            }
+            
             // Draw road
             for (let i=0; i < road.length - 1; i++) {
                 let curPoint = road[i];
