@@ -61,7 +61,10 @@ def add_waypoint(waypoints, point, drone, height=10, speed=30, acceleration=0, s
 
 def calc_vincenty(p1, p2, lon_first=False):
     if lon_first:
-        p1 = [p1[1], p1[0]]
+        try:
+            p1 = [p1[1], p1[0]]
+        except:
+            p1 = [p1['lon'], p1['lat']]
         p2 = [p2[1], p2[0]]
     return vincenty(p1, p2)
 
