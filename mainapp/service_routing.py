@@ -219,51 +219,35 @@ def path_crosses_holes(start_point, end_point, hole_polygons):
 def adjust_path_around_holes(start_point, end_point, hole_polygons):
     path = LineString([start_point, end_point])
     for hole in hole_polygons:
-        if path.crosses(hole):
+        if path.crosses(hole) or path.within(hole):
             hole_boundary = hole.exterior
-            intersection = path.intersection(hole_boundary)
-            if intersection.is_empty or not isinstance(intersection, (ShapelyPoint, MultiPoint)):
-                continue
-            if isinstance(intersection, ShapelyPoint):
-                intersection_points = [intersection]
-            elif isinstance(intersection, MultiPoint):
-                intersection_points = list(intersection.geoms)
+            boundary_coords = list(hole_boundary.coords)[:-1]  # Exclude the closing point
+
+            # Find the closest vertex of the hole to the start point
+            distances_start = [ShapelyPoint(coord).distance(ShapelyPoint(start_point)) for coord in boundary_coords]
+            idx_start = distances_start.index(min(distances_start))
+
+            # Find the closest vertex of the hole to the end point
+            distances_end = [ShapelyPoint(coord).distance(ShapelyPoint(end_point)) for coord in boundary_coords]
+            idx_end = distances_end.index(min(distances_end))
+
+            # Generate two possible paths around the hole
+            if idx_start <= idx_end:
+                path1_coords = boundary_coords[idx_start:idx_end+1]
+                path2_coords = boundary_coords[idx_end:] + boundary_coords[:idx_start+1]
             else:
-                continue
-            if len(intersection_points) != 2:
-                continue
+                path1_coords = boundary_coords[idx_start:] + boundary_coords[:idx_end+1]
+                path2_coords = boundary_coords[idx_end:idx_start+1]
 
-            boundary_coords = list(hole_boundary.coords)
-            num_coords = len(boundary_coords) - 1  # Exclude the closing point
+            # Calculate lengths
+            length1 = LineString([start_point] + path1_coords + [end_point]).length
+            length2 = LineString([start_point] + path2_coords + [end_point]).length
 
-            # Find indices of boundary_coords closest to intersection points
-            idx_values = []
-            for pt in intersection_points:
-                distances = [ShapelyPoint(*coord).distance(pt) for coord in boundary_coords]
-                idx = distances.index(min(distances))
-                idx_values.append(idx)
+            # Choose the shorter path
+            hole_path = path1_coords if length1 <= length2 else path2_coords
 
-            idx1, idx2 = idx_values
-
-            if idx1 == idx2:
-                # Both intersection points are closest to the same boundary point
-                # Use the full boundary as the path
-                hole_path = boundary_coords[:]
-            else:
-                if idx1 <= idx2:
-                    path1_coords = boundary_coords[idx1:idx2+1]
-                    path2_coords = boundary_coords[idx2:] + boundary_coords[:idx1+1]
-                else:
-                    path1_coords = boundary_coords[idx1:] + boundary_coords[:idx2+1]
-                    path2_coords = boundary_coords[idx2:idx1+1]
-
-                # Calculate lengths only if paths have at least two points
-                length1 = LineString(path1_coords).length if len(path1_coords) >= 2 else float('inf')
-                length2 = LineString(path2_coords).length if len(path2_coords) >= 2 else float('inf')
-
-                hole_path = path1_coords if length1 <= length2 else path2_coords
-
-            adjusted_path = [start_point] + list(hole_path) + [end_point]
+            # Build the adjusted path
+            adjusted_path = [start_point] + hole_path + [end_point]
             return adjusted_path
     return [start_point, end_point]
 
