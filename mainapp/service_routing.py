@@ -32,26 +32,18 @@ def get_route(
     from gon.base import Point, Polygon, Contour
 
     if holes:
-        field_transformed = deepcopy(field)
-        transform_to_equidistant(field_transformed)
-        holes_transformed = []
-        for hole in holes:
-            if len(hole) >= 3:
-                hole_transformed = deepcopy(hole)
-                transform_to_equidistant(hole_transformed)
-                holes_transformed.append(hole_transformed)
         holes = [hole for hole in holes if len(hole) >= 3]
 
         if not triangulation_requirements:
-            num_subpolygons = len(holes_transformed) - 2
+            num_subpolygons = len(holes) + 1
             equal_area = 1 / num_subpolygons
             triangulation_requirements = [
                 Requirement(equal_area) for _ in range(num_subpolygons - 1)
             ]
             triangulation_requirements.append(Requirement(1 - equal_area * (num_subpolygons - 1)))
 
-        outer_boundary = Contour([Point(*coord) for coord in field_transformed])
-        holes_gon = [Contour([Point(*coord) for coord in hole]) for hole in holes_transformed]
+        outer_boundary = Contour([Point(*coord) for coord in field])
+        holes_gon = [Contour([Point(*coord) for coord in hole]) for hole in holes]
         polygon_with_holes = Polygon(outer_boundary, holes_gon)
 
         subpolygons = divide_polygon_with_holes(polygon_with_holes, triangulation_requirements)
@@ -66,10 +58,6 @@ def get_route(
                 sub_direction = direction[idx]
             else:
                 sub_direction = direction
-            if isinstance(start, list):
-                sub_start = start[idx]
-            else:
-                sub_start = start
 
             # Process direction as before
             if sub_direction == "simple":
@@ -84,6 +72,7 @@ def get_route(
                 raise Exception("Not implemented")
 
             sub_field = [[p.x, p.y] for p in subpolygon.border.vertices]
+            transform_to_equidistant(sub_field)
             sub_grid = get_grid(sub_field, grid_step, angle, do_transform=False, trans=pyproj_transformer)
 
             combined_grid.extend(sub_grid)
