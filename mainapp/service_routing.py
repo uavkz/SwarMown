@@ -23,7 +23,13 @@ def get_route(
     grid=None,
     pyproj_transformer=None,
     holes: Optional[list[list[list[float]]]] = None,  # Same length as triangulation_requirements
+
+    # Either one of those 3 has to be provided
     triangulation_requirements: Optional[list[Requirement]] = None,
+    num_subpolygons: Optional[int] = None,
+    num_subpolygons_rel_to_holes: Optional[int] = None,
+    ###
+
     subpolygons_traversal_order: Optional[list[int]] = None,  # Same length as triangulation_requirements
 ):
     # This prevents really strange namespace/scope issues
@@ -35,7 +41,12 @@ def get_route(
         holes = [hole for hole in holes if len(hole) >= 3]
 
         if not triangulation_requirements:
-            num_subpolygons = len(holes) + 1
+            if num_subpolygons:
+                num_subpolygons = num_subpolygons
+            elif num_subpolygons_rel_to_holes:
+                num_subpolygons = len(holes) + num_subpolygons_rel_to_holes
+            else:
+                raise Exception("Provide either of the three: triangulation_requirements, num_subpolygons, num_subpolygons_rel_to_holes")
             equal_area = 1 / num_subpolygons
             triangulation_requirements = [
                 Requirement(equal_area) for _ in range(num_subpolygons - 1)
