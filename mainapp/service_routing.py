@@ -40,13 +40,11 @@ def get_route(
     if holes:
         holes = [hole for hole in holes if len(hole) >= 3]
 
-        if not triangulation_requirements:
+        if not triangulation_requirements and (num_subpolygons or num_subpolygons_rel_to_holes):
             if num_subpolygons:
                 num_subpolygons = num_subpolygons
             elif num_subpolygons_rel_to_holes:
                 num_subpolygons = len(holes) + num_subpolygons_rel_to_holes
-            else:
-                raise Exception("Provide either of the three: triangulation_requirements, num_subpolygons, num_subpolygons_rel_to_holes")
             equal_area = 1 / num_subpolygons
             triangulation_requirements = [
                 Requirement(equal_area) for _ in range(num_subpolygons - 1)
