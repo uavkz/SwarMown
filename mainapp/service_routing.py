@@ -40,7 +40,7 @@ def get_route(
     if holes:
         holes = [hole for hole in holes if len(hole) >= 3]
 
-        if not triangulation_requirements and (holes):
+        if not triangulation_requirements and holes:
             if num_subpolygons:
                 num_subpolygons = num_subpolygons
             elif num_subpolygons_rel_to_holes:
@@ -164,13 +164,14 @@ def get_waypoints(grid, car_waypoints, drones, start, holes=None):
                 if calc_vincenty(point, next_car_waypoint, lon_first=True) > (drone.max_distance_no_load - total_drone_distance):
                     break
 
-            total_drone_distance += generate_fly_back(drone_waypoints, next_car_waypoint, drone)
-            waypoints.append(drone_waypoints)
+            if drone_waypoints:
+                total_drone_distance += generate_fly_back(drone_waypoints, next_car_waypoint, drone)
+                waypoints.append(drone_waypoints)
             if point is None:
                 break
         if point is None:
             break
-    waypoints = list(filter(lambda x: len(x) > 1, waypoints))
+    waypoints = list(filter(lambda x: len(x) > 2, waypoints))
     return waypoints
 
 
