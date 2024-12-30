@@ -24,7 +24,7 @@ def get_route(
     pyproj_transformer=None,
     holes: Optional[list[list[list[float]]]] = None,  # Same length as triangulation_requirements
 
-    # Either one of those 3 has to be provided
+    # Either one of those 3 has to be provided if holes are present
     triangulation_requirements: Optional[list[Requirement]] = None,
     num_subpolygons: Optional[int] = None,
     num_subpolygons_rel_to_holes: Optional[int] = None,

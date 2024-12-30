@@ -43,6 +43,7 @@ class ManageRouteView(TemplateView):
         feature3 = self.request.GET.get("feature3", False) == "on"
         feature4 = self.request.GET.get("feature4", False) == "on"
 
+        # Format of serialized is: [direction, start, drones, car_move, Optional[list[float] - Requirements for triangulation]
         serialized = self.request.GET.get("serialized", False)
         if serialized:
             serialized = json.loads(serialized.replace("'", '"'))
@@ -68,6 +69,10 @@ class ManageRouteView(TemplateView):
         context['number_of_drones'] = number_of_drones
         if serialized:
             drones = [list(context['mission'].drones.all().order_by('id'))[i] for i in serialized[2]]
+            requirements = None
+            if len(serialized) > 4:
+                from pode import Requirement
+                requirements = [Requirement(r) for r in serialized[4]]
             grid, waypoints, car_waypoints, initial_position = get_route(
                 car_move=serialized[3],
                 direction=serialized[0],
@@ -77,6 +82,7 @@ class ManageRouteView(TemplateView):
                 grid_step=context['mission'].grid_step,
                 road=road,
                 drones=drones,
+                triangulation_requirements=requirements,
             )
         else:
             grid, waypoints, car_waypoints, initial_position = get_route(
