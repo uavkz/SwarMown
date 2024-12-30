@@ -2,10 +2,11 @@ import xlwt
 
 
 def log_excel(
-        name, # For file
-        info, # Dict with fields - populations size, target weights, number of iterations, field, grid_step
-        drones,  # Drones objects
-        iterations, # Iterations - each target, overall, best
+    name, # For file
+    info, # Dict with fields - populations size, target weights, number of iterations, field, grid_step
+    drones,  # Drones objects
+    iterations, # Iterations - each target, overall, best
+    best_reqs=None, # Best requirements for holes triangulation
 ):
     style_table_header = style("table_header")
     style_text = style("text")
@@ -134,7 +135,10 @@ def log_excel(
         sheet_iters.row(i + 1).write(12, iteration['average_number_of_starts'], style_text_medium)
         sheet_iters.row(i + 1).write(13, iteration['best_fit'], style_text_medium)
         sheet_iters.row(i + 1).write(14, iteration['average_fit'], style_text_medium)
-        sheet_iters.row(i + 1).write(15, str(iteration['best_ind']), style_text_medium)
+        if best_reqs:
+            sheet_iters.row(i + 1).write(15, str(iteration['best_ind'] + [[r.area for r in best_reqs]]), style_text_medium)
+        else:
+            sheet_iters.row(i + 1).write(15, str(iteration['best_ind']), style_text_medium)
 
     book.save(f"{name}.xls")
 

@@ -48,8 +48,8 @@ args = parser.parse_args()
 def eval(individual):
     drones = [list(mission.drones.all().order_by('id'))[i] for i in individual[2]]
     grid, waypoints, _, initial = get_route(
-        car_move=individual[3], direction=individual[0], height_diff=None, round_start_zone=None,
-        start=individual[1], field=field, grid_step=mission.grid_step, feature3=None, feature4=None, road=road,
+        car_move=individual[3], direction=individual[0],
+        start=individual[1], field=field, grid_step=mission.grid_step, road=road,
         drones=drones,
         pyproj_transformer=pyproj_transformer,
     )
