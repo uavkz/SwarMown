@@ -1,13 +1,10 @@
-import datetime
-import pickle
+from concurrent.futures import ThreadPoolExecutor
 
 from pyproj import Transformer
 
-from mainapp.services_draw import get_grid
-
 try:
     import os, sys
-    sys.path.append('C:\\Users\\KindYAK\\Desktop\\SwarMown\\')
+    sys.path.append('C:\\Архив\\Наука-старое\\UAV-Related\\SwarMown')
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "swarmown.settings")
 
     import django
@@ -27,7 +24,6 @@ from mainapp.models import Mission
 from mainapp.utils import waypoints_distance, waypoints_flight_time, drone_flight_price, flight_penalty
 from mainapp.utils_excel import log_excel
 from mainapp.service_routing import get_route
-from mainapp.utils import transform_to_equidistant
 
 parser = argparse.ArgumentParser()
 
@@ -45,13 +41,18 @@ parser.add_argument("--mutation_chance", "-mt", help="Mutation chance")
 args = parser.parse_args()
 
 
-def eval(individual):
+def eval_core(individual, triangulation_requirements):
     drones = [list(mission.drones.all().order_by('id'))[i] for i in individual[2]]
     grid, waypoints, _, initial = get_route(
-        car_move=individual[3], direction=individual[0], height_diff=None, round_start_zone=None,
-        start=individual[1], field=field, grid_step=mission.grid_step, feature3=None, feature4=None, road=road,
+        car_move=individual[3],
+        direction=individual[0],
+        start=individual[1],
+        field=field,
+        grid_step=mission.grid_step,
+        road=road,
         drones=drones,
         pyproj_transformer=pyproj_transformer,
+        triangulation_requirements=triangulation_requirements
     )
     distance = 0
     drone_price, salary, penalty = 0, 0, 0
@@ -61,13 +62,19 @@ def eval(individual):
 
     drone_flight_time = defaultdict(int)
     for drone_waypoints in waypoints:
-        new_distance = waypoints_distance(drone_waypoints, lat_f=lambda x: x['lat'], lon_f=lambda x: x['lon'])
-        new_time = waypoints_flight_time(drone_waypoints, float(args.max_working_speed),
-                                         lat_f=lambda x: x['lat'], lon_f=lambda x: x['lon'],
-                                         max_speed_f=lambda x: x['drone']['max_speed'],
-                                         slowdown_ratio_f=lambda x: x['drone']['slowdown_ratio_per_degree'],
-                                         min_slowdown_ratio_f=lambda x: x['drone']['min_slowdown_ratio'],
-                                         spray_on_f=lambda x: x['spray_on'])
+        new_distance = waypoints_distance(
+            drone_waypoints, lat_f=lambda x: x['lat'], lon_f=lambda x: x['lon']
+        )
+        new_time = waypoints_flight_time(
+            drone_waypoints,
+            float(args.max_working_speed),
+            lat_f=lambda x: x['lat'],
+            lon_f=lambda x: x['lon'],
+            max_speed_f=lambda x: x['drone']['max_speed'],
+            slowdown_ratio_f=lambda x: x['drone']['slowdown_ratio_per_degree'],
+            min_slowdown_ratio_f=lambda x: x['drone']['min_slowdown_ratio'],
+            spray_on_f=lambda x: x['spray_on']
+        )
         distance += new_distance
         drone_flight_time[drone_waypoints[0]['drone']['id']] += new_time + (15 / 60)
         drone_price_n = drone_flight_price(drone_waypoints[0]['drone'], new_distance, new_time)
@@ -79,6 +86,9 @@ def eval(individual):
     penalty = flight_penalty(time, float(args.borderline_time), float(args.max_time), salary, drone_price, grid_total, grid_traversed)
     return distance, time, drone_price, salary, penalty, number_of_starts
 
+
+def eval(individual):
+    return eval_core(individual, BEST_REQS)
 
 def custom_mutate(ind):
     direction = ind[0]
@@ -133,6 +143,9 @@ def custom_mutate(ind):
     return ind,
 
 
+# Best requirements for the triangulation of the field with holes
+BEST_REQS = None
+
 MISSION_ID = int(args.mission_id)
 NGEN = int(args.ngen)
 POPULATION_SIZE = int(args.population_size)
@@ -181,6 +194,64 @@ toolbox.register("map", futures.map)
 
 
 def run():
+    global BEST_REQS
+    NUM_RANDOM_INDIVS = 7
+    NUM_RANDOM_REQUIREMENTS = 15
+
+    def generate_random_requirements_sets(n):
+        from pode import Requirement
+
+        sets_ = []
+        for _ in range(n):
+            total = 1.0
+            count = random.randint(1, 5)
+            vals = []
+            for _ in range(count - 1):
+                val = random.uniform(0, total)
+                total -= val
+                vals.append(val)
+            vals.append(total)
+            random.shuffle(vals)
+            sets_.append([Requirement(v) for v in vals])
+        return sets_
+
+    def generate_random_individual():
+        direction = random.uniform(0, 360)
+        start = ["ne", "nw", "se", "sw"][random.randint(0, 3)]
+        drones_ = [random.randint(0, number_of_drones - 1) for _ in range(random.randint(1, number_of_drones * 3))]
+        car_points_ = [random.uniform(0, 1) for _ in range(random.randint(1, 5))]
+        return [direction, start, drones_, car_points_]
+
+    req_sets = generate_random_requirements_sets(NUM_RANDOM_REQUIREMENTS)
+    random_inds = [generate_random_individual() for _ in range(NUM_RANDOM_INDIVS)]
+
+    combos = []
+    for ind in random_inds:
+        for req in req_sets:
+            combos.append((ind, req))
+
+    def pre_eval_worker(arg):
+        indiv, reqs = arg
+        dist, tm, dprice, sal, pen, starts = eval_core(indiv, reqs)
+        return {
+            "dist": dist,
+            "time": tm,
+            "drone_price": dprice,
+            "salary": sal,
+            "penalty": pen,
+            "starts": starts,
+            "req": reqs,
+            "ind": indiv
+        }
+
+    print("Getting best requirements set")
+    with ThreadPoolExecutor(max_workers=8) as executor: # TODO change max_workers
+        results = list(executor.map(pre_eval_worker, combos))
+
+    best_preeval = min(results, key=lambda x: x["drone_price"] + x["salary"] + x["penalty"])
+    BEST_REQS = best_preeval["req"]
+    print("Best requirements set found")
+
     global toolbox
     population = toolbox.population(n=POPULATION_SIZE)
 
@@ -249,6 +320,7 @@ def run():
         },
         drones=mission.drones.all(),
         iterations=iterations,
+        best_reqs=BEST_REQS,
     )
 
 
