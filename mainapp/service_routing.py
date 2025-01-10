@@ -28,6 +28,8 @@ def get_route(
     triangulation_requirements: Optional[list[Requirement]] = None,
     num_subpolygons: Optional[int] = None,
     num_subpolygons_rel_to_holes: Optional[int] = None,
+    ### OR simple_holes_traversal enabled
+    simple_holes_traversal: bool = False,
     ###
 
     subpolygons_traversal_order: Optional[list[int]] = None,  # Same length as triangulation_requirements
@@ -56,12 +58,14 @@ def get_route(
         outer_boundary = Contour([Point(*coord) for coord in field])
         holes_gon = [Contour([Point(*coord) for coord in hole]) for hole in holes]
         polygon_with_holes = Polygon(outer_boundary, holes_gon)
-
-        subpolygons = divide_polygon_with_holes(polygon_with_holes, triangulation_requirements)
-        if subpolygons_traversal_order:
-            subpolygons_ordered = [subpolygons[i] for i in subpolygons_traversal_order]
+        if not simple_holes_traversal:
+            subpolygons = divide_polygon_with_holes(polygon_with_holes, triangulation_requirements)
+            if subpolygons_traversal_order:
+                subpolygons_ordered = [subpolygons[i] for i in subpolygons_traversal_order]
+            else:
+                subpolygons_ordered = subpolygons
         else:
-            subpolygons_ordered = subpolygons
+            subpolygons_ordered = [polygon_with_holes]
 
         combined_grid = []
         for idx, subpolygon in enumerate(subpolygons_ordered):
@@ -85,6 +89,11 @@ def get_route(
             sub_field = [[p.x, p.y] for p in subpolygon.border.vertices]
             transform_to_equidistant(sub_field)
             sub_grid = get_grid(sub_field, grid_step, angle, do_transform=False, trans=pyproj_transformer)
+            if simple_holes_traversal:
+                for sub_i, sub_sub_grid in enumerate(sub_grid):
+                    if not sub_sub_grid:
+                        continue
+                    sub_grid[sub_i] = [point for point in sub_sub_grid if not any(Point(*point) in Polygon(hole) for hole in holes_gon) ]
 
             combined_grid.extend(sub_grid)
         if isinstance(car_move, str):
