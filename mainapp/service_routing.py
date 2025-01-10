@@ -87,7 +87,12 @@ def get_route(
             sub_grid = get_grid(sub_field, grid_step, angle, do_transform=False, trans=pyproj_transformer)
 
             combined_grid.extend(sub_grid)
-        car_waypoints = get_car_waypoints(grid, road, how=car_move)
+        if isinstance(car_move, str):
+            car_waypoints = get_car_waypoints(grid, road, how=car_move)
+        elif isinstance(car_move, list):
+            car_waypoints = get_car_waypoints_by_ratio_list(road, car_move)
+        else:
+            raise Exception("Not implemented")
         waypoints = get_waypoints(
             combined_grid, car_waypoints, drones, start, holes
         )
@@ -171,7 +176,7 @@ def get_waypoints(grid, car_waypoints, drones, start, holes=None):
                 break
         if point is None:
             break
-    waypoints = list(filter(lambda x: len(x) > 2, waypoints))
+    waypoints = list(filter(lambda x: len(x) > 3, waypoints))
     return waypoints
 
 
