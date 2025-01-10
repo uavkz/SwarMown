@@ -1,3 +1,4 @@
+import datetime
 from concurrent.futures import ThreadPoolExecutor
 
 from pyproj import Transformer
@@ -195,16 +196,18 @@ toolbox.register("map", futures.map)
 
 def run():
     global BEST_REQS
-    NUM_RANDOM_INDIVS = 7
-    NUM_RANDOM_REQUIREMENTS = 15
+    # TODO
+    NUM_RANDOM_INDIVS = 10
+    NUM_RANDOM_REQUIREMENTS = 20
 
     def generate_random_requirements_sets(n):
         from pode import Requirement
 
+        holes = json.loads(mission.field.holes_serialized)
         sets_ = []
         for _ in range(n):
             total = 1.0
-            count = random.randint(1, 5)
+            count = random.randint(len(holes) + 1, len(holes) * 2)
             vals = []
             for _ in range(count - 1):
                 val = random.uniform(0, total)
@@ -244,13 +247,13 @@ def run():
             "ind": indiv
         }
 
-    print("Getting best requirements set")
+    print("Getting best requirements set", datetime.datetime.now())
     with ThreadPoolExecutor(max_workers=8) as executor: # TODO change max_workers
         results = list(executor.map(pre_eval_worker, combos))
 
     best_preeval = min(results, key=lambda x: x["drone_price"] + x["salary"] + x["penalty"])
     BEST_REQS = best_preeval["req"]
-    print("Best requirements set found")
+    print("Best requirements set found", datetime.datetime.now())
 
     global toolbox
     population = toolbox.population(n=POPULATION_SIZE)
