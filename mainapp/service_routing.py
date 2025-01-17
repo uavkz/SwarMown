@@ -251,34 +251,51 @@ def adjust_path_around_holes(start_point, end_point, hole_polygons):
     for hole in hole_polygons:
         if path.crosses(hole) or path.within(hole):
             hole_boundary = hole.exterior
-            boundary_coords = list(hole_boundary.coords)[:-1]  # Exclude the closing point
+            boundary_coords = list(hole_boundary.coords)[:-1]
 
-            # Find the closest vertex of the hole to the start point
-            distances_start = [ShapelyPoint(coord).distance(ShapelyPoint(start_point)) for coord in boundary_coords]
+            distances_start = [
+                ShapelyPoint(coord).distance(ShapelyPoint(start_point))
+                for coord in boundary_coords
+            ]
             idx_start = distances_start.index(min(distances_start))
 
-            # Find the closest vertex of the hole to the end point
-            distances_end = [ShapelyPoint(coord).distance(ShapelyPoint(end_point)) for coord in boundary_coords]
+            distances_end = [
+                ShapelyPoint(coord).distance(ShapelyPoint(end_point))
+                for coord in boundary_coords
+            ]
             idx_end = distances_end.index(min(distances_end))
 
-            # Generate two possible paths around the hole
+            # Build ascending and descending sequences between idx_start and idx_end
             if idx_start <= idx_end:
-                path1_coords = boundary_coords[idx_start:idx_end+1]
-                path2_coords = boundary_coords[idx_end:] + boundary_coords[:idx_start+1]
+                ascending = boundary_coords[idx_start : idx_end + 1]
+                descending = boundary_coords[idx_end:] + boundary_coords[: idx_start + 1]
             else:
-                path1_coords = boundary_coords[idx_start:] + boundary_coords[:idx_end+1]
-                path2_coords = boundary_coords[idx_end:idx_start+1]
+                ascending = boundary_coords[idx_start:] + boundary_coords[: idx_end + 1]
+                descending = boundary_coords[idx_end : idx_start + 1]
 
-            # Calculate lengths
-            length1 = LineString([start_point] + path1_coords + [end_point]).length
-            length2 = LineString([start_point] + path2_coords + [end_point]).length
+            # We'll generate sub-routes for each sequence (vertex by vertex)
+            def crosses_this_hole(coords, single_hole):
+                ls = LineString(coords)
+                return ls.crosses(single_hole) or ls.within(single_hole)
 
-            # Choose the shorter path
-            hole_path = path1_coords if length1 <= length2 else path2_coords
+            candidate_paths = []
+            for seq in (ascending, descending):
+                # For each possible prefix of seq (1..all vertices)
+                # we try to route: start -> prefix -> end
+                for i in range(1, len(seq) + 1):
+                    candidate = [start_point] + seq[:i] + [end_point]
+                    if not crosses_this_hole(candidate, hole):
+                        length = LineString(candidate).length
+                        candidate_paths.append((length, candidate))
 
-            # Build the adjusted path
-            adjusted_path = [start_point] + hole_path + [end_point]
-            return adjusted_path
+            if not candidate_paths:
+                # Fallback: everything crosses => just do the direct line
+                return [start_point, end_point]
+
+            # Pick the shortest among the non-crossing candidates
+            _, best_candidate = min(candidate_paths, key=lambda x: x[0])
+            return best_candidate
+
     return [start_point, end_point]
 
 
