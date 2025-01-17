@@ -94,7 +94,8 @@ class ManageRouteView(TemplateView):
                 grid_step=grid_step,
                 road=road,
                 drones=context['mission'].drones.all().order_by('id'),
-                num_subpolygons=3, # TODO
+                # simple_holes_traversal=True,
+                num_subpolygons_rel_to_holes=2,
             )
         context['grid'] = list(flatten_grid(grid))
         context['initial'] = initial_position
