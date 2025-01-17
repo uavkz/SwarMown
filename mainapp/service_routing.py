@@ -53,7 +53,7 @@ def get_route(
             triangulation_requirements = [
                 Requirement(equal_area) for _ in range(num_subpolygons - 1)
             ]
-            triangulation_requirements.append(Requirement(1 - equal_area * (num_subpolygons - 1)))
+            triangulation_requirements.append(Requirement(1 - sum(equal_area for _ in range(num_subpolygons - 1))))
 
         outer_boundary = Contour([Point(*coord) for coord in field])
         holes_gon = [Contour([Point(*coord) for coord in hole]) for hole in holes]
@@ -151,7 +151,7 @@ def get_waypoints(grid, car_waypoints, drones, start, holes=None):
                 if total_drone_distance == 0:
                     if calc_vincenty(point, car_waypoint, lon_first=True) > (drone.max_distance_no_load - total_drone_distance):
                         continue
-                    total_drone_distance += generate_fly_to(drone_waypoints, car_waypoint, last_point or point, drone)
+                    total_drone_distance += generate_fly_to(drone_waypoints, car_waypoint, last_point or point, drone, hole_polygons)
 
                 # If there's an untraversed point from previous drone - traverse it
                 if last_point and first_run:
@@ -179,7 +179,7 @@ def get_waypoints(grid, car_waypoints, drones, start, holes=None):
                     break
 
             if drone_waypoints:
-                total_drone_distance += generate_fly_back(drone_waypoints, next_car_waypoint, drone)
+                total_drone_distance += generate_fly_back(drone_waypoints, next_car_waypoint, drone, hole_polygons)
                 waypoints.append(drone_waypoints)
             if point is None:
                 break
@@ -189,17 +189,22 @@ def get_waypoints(grid, car_waypoints, drones, start, holes=None):
     return waypoints
 
 
-def generate_fly_to(drone_waypoints, drones_init, coord_to, drone):
+def generate_fly_to(drone_waypoints, drones_init, coord_to, drone, hole_polygons=None):
+    if hole_polygons and path_crosses_holes(drones_init, coord_to, hole_polygons):
+        adjusted_path = adjust_path_around_holes(drones_init, coord_to, hole_polygons)
+        return add_adjusted_path(drone_waypoints, adjusted_path, drone)
     add_waypoint(drone_waypoints, drones_init, drone)
-    # print("!!! TO", calc_vincenty(drones_init, coord_to, lon_first=True))
     return calc_vincenty(drones_init, coord_to, lon_first=True)
 
 
-def generate_fly_back(drone_waypoints, drones_init, drone):
+def generate_fly_back(drone_waypoints, drones_init, drone, hole_polygons=None):
+    if hole_polygons and drone_waypoints:
+        start_point = [drone_waypoints[-1]['lon'], drone_waypoints[-1]['lat']]
+        if path_crosses_holes(start_point, drones_init, hole_polygons):
+            adjusted_path = adjust_path_around_holes(start_point, drones_init, hole_polygons)
+            return add_adjusted_path(drone_waypoints, adjusted_path, drone)
     add_waypoint(drone_waypoints, drones_init, drone)
-
     try:
-        # print("!!! BACK", calc_vincenty(drones_init, [drone_waypoints[-2]['lon'], drone_waypoints[-2]['lat']], lon_first=True))
         return calc_vincenty(drones_init, [drone_waypoints[-2]['lon'], drone_waypoints[-2]['lat']], lon_first=True)
     except:
         return 0
