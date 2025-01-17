@@ -89,11 +89,10 @@ def get_route(
             sub_field = [[p.x, p.y] for p in subpolygon.border.vertices]
             transform_to_equidistant(sub_field)
             sub_grid = get_grid(sub_field, grid_step, angle, do_transform=False, trans=pyproj_transformer)
-            if simple_holes_traversal:
-                for sub_i, sub_sub_grid in enumerate(sub_grid):
-                    if not sub_sub_grid:
-                        continue
-                    sub_grid[sub_i] = [point for point in sub_sub_grid if not any(Point(*point) in Polygon(hole) for hole in holes_gon) ]
+            for sub_i, sub_sub_grid in enumerate(sub_grid):
+                if not sub_sub_grid:
+                    continue
+                sub_grid[sub_i] = [point for point in sub_sub_grid if not any(Point(*point) in Polygon(hole) for hole in holes_gon) ]
 
             combined_grid.extend(sub_grid)
         if isinstance(car_move, str):
