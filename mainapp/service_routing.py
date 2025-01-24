@@ -241,7 +241,7 @@ def path_crosses_holes(start_point, end_point, hole_polygons):
         return False
     path = LineString([start_point, end_point])
     for hole in hole_polygons:
-        if path.intersects(hole):
+        if path.within(hole) or path.crosses(hole):
             return True
     return False
 
