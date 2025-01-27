@@ -252,6 +252,7 @@ def run():
         results = list(executor.map(pre_eval_worker, combos))
 
     best_preeval = min(results, key=lambda x: x["drone_price"] + x["salary"] + x["penalty"])
+    # TODO: Improve - based on max + avg per every set of requirmenets grouped
     BEST_REQS = best_preeval["req"]
     print("Best requirements set found", datetime.datetime.now())
 
