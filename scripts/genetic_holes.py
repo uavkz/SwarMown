@@ -198,7 +198,7 @@ def run():
     global BEST_REQS
     # TODO
     NUM_RANDOM_INDIVS = 10
-    NUM_RANDOM_REQUIREMENTS = 20
+    NUM_RANDOM_REQUIREMENTS = 30
 
     def generate_random_requirements_sets(n):
         from pode import Requirement

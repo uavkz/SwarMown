@@ -16,9 +16,9 @@ import os
 from mainapp.models import Mission
 
 N_CORES = 8
-for mission in Mission.objects.filter(id__in=[24]):
+for mission in Mission.objects.filter(id__in=[29, 30, 31, 32]):
     mission_id = mission.id
-    ngen = 3
+    ngen = 25
     population_size = 50
     max_time = 8
     borderline_time = 2

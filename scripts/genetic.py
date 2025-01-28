@@ -52,6 +52,7 @@ def eval(individual):
         start=individual[1], field=field, grid_step=mission.grid_step, road=road,
         drones=drones,
         pyproj_transformer=pyproj_transformer,
+        simple_holes_traversal=True,
     )
     distance = 0
     drone_price, salary, penalty = 0, 0, 0
