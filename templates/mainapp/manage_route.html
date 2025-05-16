@@ -329,19 +329,13 @@
             
             // Draw road
             for (let i = 0; i < road.length - 1; i++) {
-                let curPoint = road[i];
-                while (Math.hypot(
-                    curPoint[0] - road[i + 1][0],
-                    curPoint[1] - road[i + 1][1]
-                ) > 0.0015) {
-                    let dx = road[i + 1][0] - curPoint[0];
-                    let dy = road[i + 1][1] - curPoint[1];
-                    let dist = Math.hypot(dx, dy);
-                    dx /= dist;
-                    dy /= dist;
-                    curPoint[0] += dx * 0.001;
-                    curPoint[1] += dy * 0.001;
-                    L.circle([curPoint[1], curPoint[0]], {
+                let cur = road[i].slice();
+                const next = road[i + 1];
+                while (Math.hypot(cur[0] - next[0], cur[1] - next[1]) > 0.0015) {
+                    const dist = Math.hypot(next[0] - cur[0], next[1] - cur[1]);
+                    cur[0] += (next[0] - cur[0]) / dist * 0.001;
+                    cur[1] += (next[1] - cur[1]) / dist * 0.001;
+                    L.circle([cur[1], cur[0]], {
                         color: '#FFDC00',
                         fillOpacity: 0,
                         weight: 3,
