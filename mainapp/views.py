@@ -175,7 +175,7 @@ class ManageRouteView(TemplateView):
                         {
                             "lat": waypoint["lat"],
                             "lon": waypoint["lon"],
-                            "height": height_absolute + float(request.GET.get("height", 450.0)),
+                            "height": float(height_absolute) + float(request.GET.get("height", 450.0)),
                             "height_global": height_absolute,
                             "drone_id": waypoint["drone"]["id"],
                             "drone_name": waypoint["drone"]["name"],
