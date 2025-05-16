@@ -73,6 +73,9 @@ class ManageRouteView(TemplateView):
             if len(serialized) > 4:
                 from pode import Requirement
                 requirements = [Requirement(r) for r in serialized[4]]
+                simple_holes_traversal = False
+            else:
+                simple_holes_traversal = True
             grid, waypoints, car_waypoints, initial_position = get_route(
                 car_move=serialized[3],
                 direction=serialized[0],
@@ -83,6 +86,7 @@ class ManageRouteView(TemplateView):
                 road=road,
                 drones=drones,
                 triangulation_requirements=requirements,
+                simple_holes_traversal=simple_holes_traversal,
             )
         else:
             grid, waypoints, car_waypoints, initial_position = get_route(
