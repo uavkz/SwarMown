@@ -104,7 +104,8 @@ def waypoints_distance(waypoints, lat_f=lambda x: x.lat, lon_f=lambda x: x.lon):
     prev_waypoint = None
     for waypoint in waypoints:
         if prev_waypoint:
-            total_distance += calc_vincenty([lat_f(waypoint), lon_f(waypoint)], [lat_f(prev_waypoint), lon_f(prev_waypoint)]) * 1000
+            total_distance += calc_vincenty([lat_f(waypoint), lon_f(waypoint)],
+                                            [lat_f(prev_waypoint), lon_f(prev_waypoint)]) * 1000
         prev_waypoint = waypoint
     return total_distance
 
@@ -140,10 +141,9 @@ def add_waypoint(waypoints, point, drone, height=10, speed=30, acceleration=0, s
     )
 
 
-
 def remove_overlaps(
-    original_polygon: Polygon,
-    partitions: list[Polygon],
+        original_polygon: Polygon,
+        partitions: list[Polygon],
 ) -> list[Polygon]:
     """
     Removes overlapping areas from partitions to ensure that:
@@ -180,9 +180,9 @@ def remove_overlaps(
 
 
 def divide_polygon_with_holes(
-    polygon_with_holes: Polygon,
-    requirements: list[Requirement],
-    verbose: bool = False,
+        polygon_with_holes: Polygon,
+        requirements: list[Requirement],
+        verbose: bool = False,
 ) -> list[Polygon]:
     convex_divisor = Triangulation.constrained_delaunay
 
@@ -209,7 +209,6 @@ def divide_polygon_with_holes(
             print(f"Original polygon area: {float(original_area)}")
             print(f"Total area of partitions: {float(total_parts_area)}")
             print(f"Difference in area: {float(area_difference)}")
-
 
     cleaned_parts = remove_overlaps(polygon_with_holes, parts)
     if verbose:
@@ -354,26 +353,26 @@ def get_car_waypoints_by_ratio_list(road, ratio_list):
 
 
 def get_route(
-    car_move,
-    direction: Union[str, float, list[Union[str, float]]],
-    start: Union[str, list[str]],
-    field,
-    grid_step,
-    road,
-    drones,
-    grid=None,
-    pyproj_transformer=None,
-    holes: Optional[list[list[list[float]]]] = None,  # Same length as triangulation_requirements
+        car_move,
+        direction: Union[str, float, list[Union[str, float]]],
+        start: Union[str, list[str]],
+        field,
+        grid_step,
+        road,
+        drones,
+        grid=None,
+        pyproj_transformer=None,
+        holes: Optional[list[list[list[float]]]] = None,  # Same length as triangulation_requirements
 
-    # Either one of those 3 has to be provided if holes are present
-    triangulation_requirements: Optional[list[Requirement]] = None,
-    num_subpolygons: Optional[int] = None,
-    num_subpolygons_rel_to_holes: Optional[int] = None,
-    ### OR simple_holes_traversal enabled
-    simple_holes_traversal: bool = False,
-    ###
+        # Either one of those 3 has to be provided if holes are present
+        triangulation_requirements: Optional[list[Requirement]] = None,
+        num_subpolygons: Optional[int] = None,
+        num_subpolygons_rel_to_holes: Optional[int] = None,
+        ### OR simple_holes_traversal enabled
+        simple_holes_traversal: bool = False,
+        ###
 
-    subpolygons_traversal_order: Optional[list[int]] = None,  # Same length as triangulation_requirements
+        subpolygons_traversal_order: Optional[list[int]] = None,  # Same length as triangulation_requirements
 ):
     # This prevents really strange namespace/scope issues
     # Same issue which is partially addressed by monkey patch in settings.py
@@ -433,7 +432,8 @@ def get_route(
             for sub_i, sub_sub_grid in enumerate(sub_grid):
                 if not sub_sub_grid:
                     continue
-                sub_grid[sub_i] = [point for point in sub_sub_grid if not any(Point(*point) in Polygon(hole) for hole in holes_gon) ]
+                sub_grid[sub_i] = [point for point in sub_sub_grid if
+                                   not any(Point(*point) in Polygon(hole) for hole in holes_gon)]
 
             combined_grid.extend(sub_grid)
         if isinstance(car_move, str):
@@ -489,9 +489,11 @@ def get_waypoints(grid, car_waypoints, drones, start, holes=None):
 
                 # Generate fly_to, if it's the first point to traverse by a drone
                 if total_drone_distance == 0:
-                    if calc_vincenty(point, car_waypoint, lon_first=True) > (drone.max_distance_no_load - total_drone_distance):
+                    if calc_vincenty(point, car_waypoint, lon_first=True) > (
+                            drone.max_distance_no_load - total_drone_distance):
                         continue
-                    total_drone_distance += generate_fly_to(drone_waypoints, car_waypoint, last_point or point, drone, hole_polygons)
+                    total_drone_distance += generate_fly_to(drone_waypoints, car_waypoint, last_point or point, drone,
+                                                            hole_polygons)
 
                 # If there's an untraversed point from previous drone - traverse it
                 if last_point and first_run:
@@ -515,7 +517,8 @@ def get_waypoints(grid, car_waypoints, drones, start, holes=None):
                 last_point = point
 
                 # If you will not be able to return - break
-                if calc_vincenty(point, next_car_waypoint, lon_first=True) > (drone.max_distance_no_load - total_drone_distance):
+                if calc_vincenty(point, next_car_waypoint, lon_first=True) > (
+                        drone.max_distance_no_load - total_drone_distance):
                     break
 
             if drone_waypoints:
@@ -608,11 +611,11 @@ def single_segment_adjust(start_pt, end_pt, hole):
     idx_end = distances_end.index(min(distances_end))
 
     if idx_start <= idx_end:
-        ascending = boundary_coords[idx_start : idx_end + 1]
+        ascending = boundary_coords[idx_start: idx_end + 1]
         descending = boundary_coords[idx_end:] + boundary_coords[: idx_start + 1]
     else:
         ascending = boundary_coords[idx_start:] + boundary_coords[: idx_end + 1]
-        descending = boundary_coords[idx_end : idx_start + 1]
+        descending = boundary_coords[idx_end: idx_start + 1]
 
     def crosses_or_within(seg_coords):
         s = LineString(seg_coords)
@@ -674,7 +677,6 @@ def add_adjusted_path(drone_waypoints, adjusted_path, drone):
     return total_distance
 
 
-
 parser = argparse.ArgumentParser()
 
 parser.add_argument("--mission_id", "-m", help="Mission id")
@@ -730,12 +732,14 @@ def eval_core(individual, triangulation_requirements):
 
     time = max(drone_flight_time.values())
     salary = mission.hourly_price * time * len(drone_flight_time) + mission.start_price * number_of_starts
-    penalty = flight_penalty(time, float(args.borderline_time), float(args.max_time), salary, drone_price, grid_total, grid_traversed)
+    penalty = flight_penalty(time, float(args.borderline_time), float(args.max_time), salary, drone_price, grid_total,
+                             grid_traversed)
     return distance, time, drone_price, salary, penalty, number_of_starts
 
 
 def eval(individual):
     return eval_core(individual, BEST_REQS)
+
 
 def custom_mutate(ind):
     direction = ind[0]
@@ -757,13 +761,13 @@ def custom_mutate(ind):
         start = ["ne", "nw", "se", "sw"][random.randint(0, 3)]
 
     if random.random() <= MUTATION_CHANCE:
-        if random.random() < 0.5: # Insert random
+        if random.random() < 0.5:  # Insert random
             drones.insert(random.randint(0, len(drones) - 1), random.randint(0, number_of_drones - 1))
 
-        if random.random() < 0.5 and len(drones) > 1: # Delete random
+        if random.random() < 0.5 and len(drones) > 1:  # Delete random
             del drones[random.randint(0, len(drones) - 1)]
 
-        if random.random() < 0.5: # Shuffle random
+        if random.random() < 0.5:  # Shuffle random
             random.shuffle(drones)
 
     if random.random() <= MUTATION_CHANCE:
@@ -798,7 +802,7 @@ NGEN = int(args.ngen)
 POPULATION_SIZE = int(args.population_size)
 MUTATION_CHANCE = float(args.mutation_chance)
 # Distance, Time, Price, NumberOfStarts
-TARGET_WEIGHTS = (-1.0, )
+TARGET_WEIGHTS = (-1.0,)
 
 MAX_DRONES_ON_CAR = 5
 
@@ -820,12 +824,12 @@ toolbox = base.Toolbox()
 creator.create("FitnessMax", base.Fitness, weights=TARGET_WEIGHTS)
 creator.create("Individual", list, fitness=creator.FitnessMax)
 
-toolbox.register("attr_direction", random.uniform, 0, 360) # 0
-toolbox.register("attr_start", lambda: ["ne", "nw", "se", "sw"][random.randint(0, 3)]) # 1
+toolbox.register("attr_direction", random.uniform, 0, 360)  # 0
+toolbox.register("attr_start", lambda: ["ne", "nw", "se", "sw"][random.randint(0, 3)])  # 1
 toolbox.register("attr_drones", lambda: [random.randint(0, number_of_drones - 1) for _ in
-                                         range(random.randint(1, number_of_drones * 3))]) # 2
+                                         range(random.randint(1, number_of_drones * 3))])  # 2
 toolbox.register("attr_car_points",
-                 lambda: [random.uniform(0, 1) for _ in range(random.randint(1, 5))]) # 3
+                 lambda: [random.uniform(0, 1) for _ in range(random.randint(1, 5))])  # 3
 
 toolbox.register("individual", tools.initCycle, creator.Individual,
                  (toolbox.attr_direction, toolbox.attr_start, toolbox.attr_drones, toolbox.attr_car_points)
@@ -894,7 +898,7 @@ def run():
         }
 
     print("Getting best requirements set", datetime.datetime.now())
-    with ThreadPoolExecutor(max_workers=8) as executor: # TODO change max_workers
+    with ThreadPoolExecutor(max_workers=8) as executor:  # TODO change max_workers
         results = list(executor.map(pre_eval_worker, combos))
 
     best_preeval = min(results, key=lambda x: x["drone_price"] + x["salary"] + x["penalty"])
@@ -907,12 +911,12 @@ def run():
 
     iterations = []
     for gen in range(NGEN):
-        print(f"{gen+1}/{NGEN}")
+        print(f"{gen + 1}/{NGEN}")
         offspring = algorithms.varAnd(population, toolbox, cxpb=0.5, mutpb=1)
         fits = toolbox.map(toolbox.evaluate, offspring)
         fitness_params = []
         for (distance, time, drone_price, salary, penalty, number_of_starts), ind in zip(fits, offspring):
-            ind.fitness.values = (drone_price + salary + penalty, )
+            ind.fitness.values = (drone_price + salary + penalty,)
             ind[2] = ind[2][:number_of_starts]
             ind[3] = ind[3][:number_of_starts]
             fitness_params.append(
@@ -945,7 +949,8 @@ def run():
                 "best_penalty": best_solution['penalty'],
                 "average_penalty": sum((ind['penalty'] for ind in fitness_params)) / len(fitness_params),
                 "best_number_of_starts": best_solution['number_of_starts'],
-                "average_number_of_starts": sum((ind['number_of_starts'] for ind in fitness_params)) / len(fitness_params),
+                "average_number_of_starts": sum((ind['number_of_starts'] for ind in fitness_params)) / len(
+                    fitness_params),
 
                 "best_fit": max(fitnesses),
                 "average_fit": sum(fitnesses) / len(fitnesses)
