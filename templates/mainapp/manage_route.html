@@ -427,20 +427,86 @@
             });
         }
 
+        function fitBoundsWithFixedPadding(m, bounds, padPx) {
+            const size = m.getSize();
+            const innerW = Math.max(1, size.x - 2 * padPx);
+            const innerH = Math.max(1, size.y - 2 * padPx);
+            const viewR = innerW / innerH;
+
+            const crs = m.options.crs;
+            const sw = crs.project(bounds.getSouthWest());
+            const ne = crs.project(bounds.getNorthEast());
+
+            let w = Math.abs(ne.x - sw.x);
+            let h = Math.abs(ne.y - sw.y);
+            if (w === 0 || h === 0) {
+                m.fitBounds(bounds, {padding: [padPx, padPx], animate: false, maxZoom: 22});
+                return;
+            }
+
+            let minX = Math.min(sw.x, ne.x), maxX = Math.max(sw.x, ne.x);
+            let minY = Math.min(sw.y, ne.y), maxY = Math.max(sw.y, ne.y);
+
+            const boxR = w / h;
+            if (boxR > viewR) {
+                const h2 = w / viewR, d = (h2 - h) / 2;
+                minY -= d;
+                maxY += d;
+            } else {
+                const w2 = h * viewR, d = (w2 - w) / 2;
+                minX -= d;
+                maxX += d;
+            }
+
+            const padded = L.latLngBounds(
+                crs.unproject(L.point(minX, minY)),
+                crs.unproject(L.point(maxX, maxY))
+            );
+            const z = m.getBoundsZoom(padded, false, [padPx, padPx]);
+            m.setView(padded.getCenter(), z, {animate: false});
+        }
+
+        function boundsRatio(bounds, crs) {
+            const sw = crs.project(bounds.getSouthWest());
+            const ne = crs.project(bounds.getNorthEast());
+            const w = Math.abs(ne.x - sw.x);
+            const h = Math.abs(ne.y - sw.y);
+            return (w > 0 && h > 0) ? (w / h) : 1;
+        }
+
+        function pickBoxSize(bounds, padPx, maxW, maxH, crs) {
+            const r = boundsRatio(bounds, crs);
+            const iwMax = Math.max(1, maxW - 2 * padPx);
+            const ihMax = Math.max(1, maxH - 2 * padPx);
+            let iw, ih;
+            if (iwMax / ihMax >= r) {
+                ih = ihMax;
+                iw = ih * r;
+            } else {
+                iw = iwMax;
+                ih = iw / r;
+            }
+            return {W: Math.round(iw + 2 * padPx), H: Math.round(ih + 2 * padPx)};
+        }
+
         async function exportRoutes() {
             const rect = document.getElementById('map').getBoundingClientRect();
-            const W = Math.round(rect.width), H = Math.round(rect.height);
-            const pad = Math.round(Math.min(W, H) * 0.08);
+            const maxW = Math.round(rect.width), maxH = Math.round(rect.height);
+            const PAD_PX = 20;
 
-            const tileUrl = 'https://api.mapbox.com/styles/v1/kindyak/{id}/tiles/{z}/{x}/{y}?access_token={accessToken}';
+            const tileUrl = 'https://api.mapbox.com/styles/v1/kindyak/{id}/tiles/256/{z}/{x}/{y}?access_token={accessToken}';
             const tileOpts = {
-                maxZoom: baseTiles.options.maxZoom,
                 id: baseTiles.options.id,
-                tileSize: baseTiles.options.tileSize,
-                zoomOffset: baseTiles.options.zoomOffset,
+                tileSize: 256,
+                zoomOffset: 0,
+                maxZoom: 20,
                 accessToken: baseTiles.options.accessToken,
-                crossOrigin: 'anonymous'
+                crossOrigin: 'anonymous',
+                detectRetina: false
             };
+
+            const coreBounds = L.latLngBounds(fieldPolygon);
+            const {W, H} = pickBoxSize(coreBounds, PAD_PX, maxW, maxH, map.options.crs);
 
             for (let i = 0; i < waypoints.length; i++) {
                 const box = document.createElement('div');
@@ -459,7 +525,9 @@
                     attributionControl: false,
                     fadeAnimation: false,
                     zoomAnimation: false,
-                    markerZoomAnimation: false
+                    markerZoomAnimation: false,
+                    zoomSnap: 1,
+                    zoomDelta: 1
                 });
 
                 const tiles = L.tileLayer(tileUrl, tileOpts).addTo(m);
@@ -470,16 +538,33 @@
                 }
                 const route = L.polyline(waypoints[i], {color: colorPallete[i], weight: 3, renderer}).addTo(m);
 
-                const bounds = route.getBounds().extend(field.getBounds());
-                m.fitBounds(bounds, {padding: [pad, pad], animate: false});
+                for (let j = 0; j < road.length - 1; j++) {
+                    let cur = road[j].slice();
+                    const next = road[j + 1];
+                    while (Math.hypot(cur[0] - next[0], cur[1] - next[1]) > 0.0015) {
+                        const dist = Math.hypot(next[0] - cur[0], next[1] - cur[1]);
+                        cur[0] += (next[0] - cur[0]) / dist * 0.001;
+                        cur[1] += (next[1] - cur[1]) / dist * 0.001;
+                        L.circle([cur[1], cur[0]], {
+                            color: '#FFDC00',
+                            fillOpacity: 0,
+                            weight: 3,
+                            radius: 10,
+                            renderer
+                        }).addTo(m);
+                    }
+                }
 
-                await new Promise(res => tiles.once('load', res));           // дождались фона
+                m.fitBounds(coreBounds, {padding: [PAD_PX, PAD_PX], animate: false, maxZoom: tileOpts.maxZoom});
+                m.setZoom(Math.floor(m.getZoom()), {animate: false});
+
+                await new Promise(res => tiles.once('load', res));
                 route.redraw();
                 field.redraw();
-                await new Promise(r => requestAnimationFrame(() => r()));    // кадр на дорисовку
+                await new Promise(r => requestAnimationFrame(r));
 
                 const canvas = await leafletToCanvas(m);
-                await saveCanvasAsPng(canvas, `route_${String(i + 1).padStart(2, '0')}.png`);
+                await saveCanvasAsPng(canvas, `${i + 1}.png`);
 
                 m.remove();
                 box.remove();
