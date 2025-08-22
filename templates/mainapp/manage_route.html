@@ -7,6 +7,8 @@
     <script src="{% static 'js/leaflet.js' %}"></script>
     <script src="{% static 'js/pixi.min.js' %}"></script>
     <script src="{% static 'js/L.PixiOverlay.min.js' %}"></script>
+    <script src="https://unpkg.com/leaflet-image/leaflet-image.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dom-to-image/2.6.0/dom-to-image.min.js"></script>
 {% endblock %}
 
 {% block title %}
@@ -129,6 +131,10 @@
                 <button id="getJson" class="btn btn-primary" style="margin-top: 0" name="getJson">Скачать как Json (MavLink)</button>
             </div>
 
+            <div class="col" style="text-align: left; max-width: 220px; padding-top: 10px;">
+                <button id="exportRoutes" class="btn btn-secondary" style="margin-top:0">Экспорт PNG по маршрутам</button>
+            </div>
+
             <div class="col"></div>
         </div>
     </form>
@@ -184,6 +190,9 @@
         var reverseProject;
         var stage;
         var mission_id = {{ mission.id }};
+        var baseTiles;
+        var routeLayers = [];
+        var canvasRenderer;
 
         function getElevation(lat, lng) {
             const accessToken = 'pk.eyJ1Ijoia2luZHlhayIsImEiOiJja2F0cml2eTcwNDZhMnJvOXI4N2Y4MjRjIn0.f7FSJnib2jKKvtJe4ql-Bg';
@@ -234,14 +243,16 @@
 
             initial = {{ initial|safe }};
             initial = [initial[1], initial[0]];
-            map = L.map('map').setView(initial, 13);
-            L.tileLayer('https://api.mapbox.com/styles/v1/kindyak/{id}/tiles/{z}/{x}/{y}?access_token={accessToken}', {
+            canvasRenderer = L.canvas({ padding: 0.5 });
+            map = L.map('map', { preferCanvas: true, renderer: canvasRenderer }).setView(initial, 13);
+            baseTiles = L.tileLayer('https://api.mapbox.com/styles/v1/kindyak/{id}/tiles/{z}/{x}/{y}?access_token={accessToken}', {
                 attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, <a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
                 maxZoom: 18,
                 id: 'ckzh2v0mz00dv14tafevvqzgs',
                 tileSize: 512,
                 zoomOffset: -1,
-                accessToken: 'pk.eyJ1Ijoia2luZHlhayIsImEiOiJja2F0cml2eTcwNDZhMnJvOXI4N2Y4MjRjIn0.f7FSJnib2jKKvtJe4ql-Bg'
+                accessToken: 'pk.eyJ1Ijoia2luZHlhayIsImEiOiJja2F0cml2eTcwNDZhMnJvOXI4N2Y4MjRjIn0.f7FSJnib2jKKvtJe4ql-Bg',
+                crossOrigin: 'anonymous'
             }).addTo(map);
 
             map.on('click', function(e) {
@@ -345,19 +356,139 @@
             }
 
             // Draw waypoints TODO
-            i = 0;
-            for(let drone_waypoints of waypoints){
-                L.polyline(drone_waypoints, {
+            routeLayers = [];
+            for (let i = 0; i < waypoints.length; i++) {
+                routeLayers.push(L.polyline(waypoints[i], {
                     color: colorPallete[i],
-                    weight: 2.5,
-                    smoothFactor: 1
-                    }).addTo(map);
-                i += 1;
+                    weight: 3,
+                    smoothFactor: 1,
+                    renderer: canvasRenderer,
+                    interactive: false
+                }).addTo(map));
             }
 
             return stage;
         }
 
         initStuff();
+
+        function waitTiles(layer) {
+            return new Promise(resolve => {
+                if (layer._tiles && Object.values(layer._tiles).every(t => t.loaded)) resolve();
+                else layer.once('load', resolve);
+            });
+        }
+
+        function hideAllExcept(keep) {
+            const hidden = [];
+            map.eachLayer(l => {
+                if (l === baseTiles) return;
+                if (l === keep) return;
+                hidden.push(l);
+                map.removeLayer(l);
+            });
+            return hidden;
+        }
+
+        function restoreLayers(list) {
+            for (const l of list) map.addLayer(l);
+        }
+
+        function savePng(filename) {
+            const node = document.getElementById('map');
+            return domtoimage.toBlob(node, {cacheBust: true, quality: 1, useCORS: true})
+                .then(blob => {
+                    const a = document.createElement('a');
+                    a.href = URL.createObjectURL(blob);
+                    a.download = filename;
+                    a.click();
+                    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+                });
+        }
+
+        function saveCanvasAsPng(canvas, filename) {
+            return new Promise((resolve) => {
+                canvas.toBlob(function (blob) {
+                    const a = document.createElement('a');
+                    a.href = URL.createObjectURL(blob);
+                    a.download = filename;
+                    a.click();
+                    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+                    resolve();
+                });
+            });
+        }
+
+        function leafletToCanvas(m) {
+            return new Promise((resolve, reject) => {
+                leafletImage(m, function (err, canvas) {
+                    if (err) reject(err); else resolve(canvas);
+                });
+            });
+        }
+
+        async function exportRoutes() {
+            const rect = document.getElementById('map').getBoundingClientRect();
+            const W = Math.round(rect.width), H = Math.round(rect.height);
+            const pad = Math.round(Math.min(W, H) * 0.08);
+
+            const tileUrl = 'https://api.mapbox.com/styles/v1/kindyak/{id}/tiles/{z}/{x}/{y}?access_token={accessToken}';
+            const tileOpts = {
+                maxZoom: baseTiles.options.maxZoom,
+                id: baseTiles.options.id,
+                tileSize: baseTiles.options.tileSize,
+                zoomOffset: baseTiles.options.zoomOffset,
+                accessToken: baseTiles.options.accessToken,
+                crossOrigin: 'anonymous'
+            };
+
+            for (let i = 0; i < waypoints.length; i++) {
+                const box = document.createElement('div');
+                box.style.position = 'fixed';
+                box.style.left = '-10000px';
+                box.style.top = '-10000px';
+                box.style.width = W + 'px';
+                box.style.height = H + 'px';
+                document.body.appendChild(box);
+
+                const renderer = L.canvas({padding: 0.5});
+                const m = L.map(box, {
+                    preferCanvas: true,
+                    renderer,
+                    zoomControl: false,
+                    attributionControl: false,
+                    fadeAnimation: false,
+                    zoomAnimation: false,
+                    markerZoomAnimation: false
+                });
+
+                const tiles = L.tileLayer(tileUrl, tileOpts).addTo(m);
+
+                const field = L.polyline(fieldPolygon, {color: 'red', weight: 2, renderer}).addTo(m);
+                for (const hole of (holesPolygons || [])) {
+                    L.polyline(hole, {color: 'blue', weight: 2, renderer}).addTo(m);
+                }
+                const route = L.polyline(waypoints[i], {color: colorPallete[i], weight: 3, renderer}).addTo(m);
+
+                const bounds = route.getBounds().extend(field.getBounds());
+                m.fitBounds(bounds, {padding: [pad, pad], animate: false});
+
+                await new Promise(res => tiles.once('load', res));           // дождались фона
+                route.redraw();
+                field.redraw();
+                await new Promise(r => requestAnimationFrame(() => r()));    // кадр на дорисовку
+
+                const canvas = await leafletToCanvas(m);
+                await saveCanvasAsPng(canvas, `route_${String(i + 1).padStart(2, '0')}.png`);
+
+                m.remove();
+                box.remove();
+            }
+        }
+
+        document.getElementById('exportRoutes').addEventListener('click', async (e) => {
+            e.preventDefault();
+            await exportRoutes();
+        });
     </script>
 {% endblock %}
