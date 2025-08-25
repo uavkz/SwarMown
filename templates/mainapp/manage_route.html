@@ -132,7 +132,7 @@
             </div>
 
             <div class="col" style="text-align: left; max-width: 220px; padding-top: 10px;">
-                <button id="exportRoutes" class="btn btn-secondary" style="margin-top:0">Экспорт PNG по маршрутам</button>
+                <button id="exportRoutes" type="button" class="btn btn-secondary" style="margin-top:0">Экспорт PNG по маршрутам</button>
             </div>
 
             <div class="col"></div>
@@ -489,32 +489,48 @@
             return {W: Math.round(iw + 2 * padPx), H: Math.round(ih + 2 * padPx)};
         }
 
+        async function saveScaled(canvas, fname, targetW, targetH) {
+            if (canvas.width === targetW && canvas.height === targetH) return saveCanvasAsPng(canvas, fname);
+            const c2 = document.createElement('canvas');
+            c2.width = targetW;
+            c2.height = targetH;
+            const ctx = c2.getContext('2d');
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
+            ctx.drawImage(canvas, 0, 0, targetW, targetH);
+            await saveCanvasAsPng(c2, fname);
+        }
+
         async function exportRoutes() {
+            const PAD_PX = 50;
+            const DESIRED_SCALE = 3;
+            const MAX_PIXELS = 28e6;
+
             const rect = document.getElementById('map').getBoundingClientRect();
             const maxW = Math.round(rect.width), maxH = Math.round(rect.height);
-            const PAD_PX = 20;
 
-            const tileUrl = 'https://api.mapbox.com/styles/v1/kindyak/{id}/tiles/256/{z}/{x}/{y}?access_token={accessToken}';
             const tileOpts = {
                 id: baseTiles.options.id,
-                tileSize: 256,
-                zoomOffset: 0,
-                maxZoom: 20,
+                tileSize: 512,
+                zoomOffset: -1,
+                maxZoom: 22,
                 accessToken: baseTiles.options.accessToken,
-                crossOrigin: 'anonymous',
-                detectRetina: false
+                crossOrigin: 'anonymous'
             };
 
             const coreBounds = L.latLngBounds(fieldPolygon);
             const {W, H} = pickBoxSize(coreBounds, PAD_PX, maxW, maxH, map.options.crs);
+
+            const capScale = Math.max(1, Math.floor(Math.sqrt(MAX_PIXELS / Math.max(1, W * H))));
+            const S = Math.min(DESIRED_SCALE, capScale);
 
             for (let i = 0; i < waypoints.length; i++) {
                 const box = document.createElement('div');
                 box.style.position = 'fixed';
                 box.style.left = '-10000px';
                 box.style.top = '-10000px';
-                box.style.width = W + 'px';
-                box.style.height = H + 'px';
+                box.style.width = (W * S) + 'px';
+                box.style.height = (H * S) + 'px';
                 document.body.appendChild(box);
 
                 const renderer = L.canvas({padding: 0.5});
@@ -530,49 +546,84 @@
                     zoomDelta: 1
                 });
 
-                const tiles = L.tileLayer(tileUrl, tileOpts).addTo(m);
+                try {
+                    const tileUrl = 'https://api.mapbox.com/styles/v1/kindyak/{id}/tiles/512/{z}/{x}/{y}?access_token={accessToken}';
+                    const tiles = L.tileLayer(tileUrl, tileOpts).addTo(m);
 
-                const field = L.polyline(fieldPolygon, {color: 'red', weight: 2, renderer}).addTo(m);
-                for (const hole of (holesPolygons || [])) {
-                    L.polyline(hole, {color: 'blue', weight: 2, renderer}).addTo(m);
-                }
-                const route = L.polyline(waypoints[i], {color: colorPallete[i], weight: 3, renderer}).addTo(m);
-
-                for (let j = 0; j < road.length - 1; j++) {
-                    let cur = road[j].slice();
-                    const next = road[j + 1];
-                    while (Math.hypot(cur[0] - next[0], cur[1] - next[1]) > 0.0015) {
-                        const dist = Math.hypot(next[0] - cur[0], next[1] - cur[1]);
-                        cur[0] += (next[0] - cur[0]) / dist * 0.001;
-                        cur[1] += (next[1] - cur[1]) / dist * 0.001;
-                        L.circle([cur[1], cur[0]], {
-                            color: '#FFDC00',
-                            fillOpacity: 0,
-                            weight: 3,
-                            radius: 10,
-                            renderer
-                        }).addTo(m);
+                    const field = L.polyline(fieldPolygon, {color: 'red', weight: 2 * S, renderer}).addTo(m);
+                    for (const hole of (holesPolygons || [])) {
+                        L.polyline(hole, {color: 'blue', weight: 2 * S, renderer}).addTo(m);
                     }
+                    const route = L.polyline(waypoints[i], {color: colorPallete[i], weight: 3 * S, renderer}).addTo(m);
+
+                    const step = 0.001 / S;
+                    const thr = step * 1.5;
+                    for (let j = 0; j < road.length - 1; j++) {
+                        let cur = road[j].slice();
+                        const next = road[j + 1];
+                        while (Math.hypot(cur[0] - next[0], cur[1] - next[1]) > thr) {
+                            const dist = Math.hypot(next[0] - cur[0], next[1] - cur[1]);
+                            cur[0] += (next[0] - cur[0]) / dist * step;
+                            cur[1] += (next[1] - cur[1]) / dist * step;
+                            L.circle([cur[1], cur[0]], {
+                                color: '#FFDC00',
+                                fillOpacity: 0,
+                                weight: 3 * S,
+                                radius: 10 * S,
+                                renderer
+                            }).addTo(m);
+                        }
+                    }
+
+                    m.fitBounds(coreBounds, {padding: [PAD_PX, PAD_PX], animate: false, maxZoom: tileOpts.maxZoom});
+                    m.setZoom(Math.floor(m.getZoom()), {animate: false});
+
+                    await new Promise(res => tiles.once('load', res));
+                    route.redraw();
+                    field.redraw();
+                    await new Promise(r => requestAnimationFrame(r));
+
+                    const canvas = await leafletToCanvas(m);
+
+                    const blob = await new Promise((res, rej) => {
+                        try {
+                            canvas.toBlob(b => b ? res(b) : rej(new Error('toBlob failed')), 'image/png');
+                        } catch (e) {
+                            rej(e);
+                        }
+                    }).catch(() => null);
+
+                    if (blob) {
+                        const a = document.createElement('a');
+                        a.download = `${i + 1}.png`;
+                        a.href = URL.createObjectURL(blob);
+                        document.body.appendChild(a);
+                        a.click();
+                        setTimeout(() => {
+                            URL.revokeObjectURL(a.href);
+                            a.remove();
+                        }, 1000);
+                    } else {
+                        const a = document.createElement('a');
+                        a.download = `${i + 1}.png`;
+                        a.href = canvas.toDataURL('image/png');
+                        document.body.appendChild(a);
+                        a.click();
+                        a.remove();
+                    }
+                } catch (e) {
+                    console.error('Export failed:', e);
+                    alert('Экспорт маршрута не удался. Проверь консоль.');
+                } finally {
+                    m.remove();
+                    box.remove();
                 }
-
-                m.fitBounds(coreBounds, {padding: [PAD_PX, PAD_PX], animate: false, maxZoom: tileOpts.maxZoom});
-                m.setZoom(Math.floor(m.getZoom()), {animate: false});
-
-                await new Promise(res => tiles.once('load', res));
-                route.redraw();
-                field.redraw();
-                await new Promise(r => requestAnimationFrame(r));
-
-                const canvas = await leafletToCanvas(m);
-                await saveCanvasAsPng(canvas, `${i + 1}.png`);
-
-                m.remove();
-                box.remove();
             }
         }
 
         document.getElementById('exportRoutes').addEventListener('click', async (e) => {
             e.preventDefault();
+            e.stopPropagation();
             await exportRoutes();
         });
     </script>
