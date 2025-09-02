@@ -164,11 +164,11 @@
         }
 
         var colorPallete = [
-            "#001f3f", "#0074D9", "#7FDBFF", "#39CCCC",
-            "#3D9970", "#2ECC40", "#01FF70", "#FFDC00",
-            "#FF851B", "#FF4136", "#85144b", "#F012BE",
-            "#B10DC9", "#111111", "#AAAAAA", "#DDDDDD"
-        ]
+            "#0072B2", "#D55E00", "#009E73", "#CC79A7",
+            "#E69F00", "#56B4E9", "#F0E442", "#000000",
+            "#FF4136", "#3D9970", "#7FDBFF", "#85144B",
+            "#FF851B", "#1F77B4", "#2CA02C", "#9467BD"
+        ];
         shuffle(colorPallete);
         for(let i = 0; i < 10; i++){
             colorPallete.concat(colorPallete);
@@ -215,6 +215,8 @@
             fieldPolygon = {{ field|safe }};
             holesPolygons = {{ holes|safe }}; // Three-dimensional array [# First hole # [[lat, lon], [lat, lon], ...], # Second hole # [[lat, lon], [lat, lon], ...], ...]
             waypoints = {{ waypoints|safe }};
+            {#waypoints = waypoints.slice(1); // TODO, remove first#}
+            {#waypoints = waypoints.slice(0, -1); // TODO, remvoe last#}
             road = {{ road|safe }};
             
             for (i = 0; i < fieldPolygon.length; i++) {
@@ -359,7 +361,7 @@
             routeLayers = [];
             for (let i = 0; i < waypoints.length; i++) {
                 routeLayers.push(L.polyline(waypoints[i], {
-                    color: colorPallete[i],
+                    color: colorPallete[i % colorPallete.length],
                     weight: 3,
                     smoothFactor: 1,
                     renderer: canvasRenderer,
@@ -524,6 +526,7 @@
             const capScale = Math.max(1, Math.floor(Math.sqrt(MAX_PIXELS / Math.max(1, W * H))));
             const S = Math.min(DESIRED_SCALE, capScale);
 
+            // per-route exports with start/end markers
             for (let i = 0; i < waypoints.length; i++) {
                 const box = document.createElement('div');
                 box.style.position = 'fixed';
@@ -554,7 +557,32 @@
                     for (const hole of (holesPolygons || [])) {
                         L.polyline(hole, {color: 'blue', weight: 2 * S, renderer}).addTo(m);
                     }
-                    const route = L.polyline(waypoints[i], {color: colorPallete[i], weight: 3 * S, renderer}).addTo(m);
+
+                    const route = L.polyline(waypoints[i], {
+                        color: colorPallete[i % colorPallete.length],
+                        weight: 3 * S,
+                        renderer
+                    }).addTo(m);
+
+                    const pts = waypoints[i] || [];
+                    if (pts.length > 0) {
+                        L.circle(pts[0], {
+                            color: '#00AA00',
+                            fillColor: '#00AA00',
+                            fillOpacity: 1,
+                            weight: 0,
+                            radius: 16 * S,
+                            renderer
+                        }).addTo(m);
+                        L.circle(pts[pts.length - 1], {
+                            color: '#FF0000',
+                            fillColor: '#FF0000',
+                            fillOpacity: 1,
+                            weight: 0,
+                            radius: 16 * S,
+                            renderer
+                        }).addTo(m);
+                    }
 
                     const step = 0.001 / S;
                     const thr = step * 1.5;
@@ -614,6 +642,105 @@
                 } catch (e) {
                     console.error('Export failed:', e);
                     alert('Экспорт маршрута не удался. Проверь консоль.');
+                } finally {
+                    m.remove();
+                    box.remove();
+                }
+            }
+
+            // single combined export without start/end markers
+            {
+                const box = document.createElement('div');
+                box.style.position = 'fixed';
+                box.style.left = '-10000px';
+                box.style.top = '-10000px';
+                box.style.width = (W * S) + 'px';
+                box.style.height = (H * S) + 'px';
+                document.body.appendChild(box);
+
+                const renderer = L.canvas({padding: 0.5});
+                const m = L.map(box, {
+                    preferCanvas: true,
+                    renderer,
+                    zoomControl: false,
+                    attributionControl: false,
+                    fadeAnimation: false,
+                    zoomAnimation: false,
+                    markerZoomAnimation: false,
+                    zoomSnap: 1,
+                    zoomDelta: 1
+                });
+
+                try {
+                    const tileUrl = 'https://api.mapbox.com/styles/v1/kindyak/{id}/tiles/512/{z}/{x}/{y}?access_token={accessToken}';
+                    const tiles = L.tileLayer(tileUrl, tileOpts).addTo(m);
+
+                    const field = L.polyline(fieldPolygon, {color: 'red', weight: 2 * S, renderer}).addTo(m);
+                    for (const hole of (holesPolygons || [])) {
+                        L.polyline(hole, {color: 'blue', weight: 2 * S, renderer}).addTo(m);
+                    }
+
+                    for (let i = 0; i < waypoints.length; i++) {
+                        L.polyline(waypoints[i], {
+                            color: colorPallete[i % colorPallete.length],
+                            weight: 3 * S,
+                            renderer
+                        }).addTo(m);
+                    }
+
+                    const step = 0.001 / S;
+                    const thr = step * 1.5;
+                    for (let j = 0; j < road.length - 1; j++) {
+                        let cur = road[j].slice();
+                        const next = road[j + 1];
+                        while (Math.hypot(cur[0] - next[0], cur[1] - next[1]) > thr) {
+                            const dist = Math.hypot(next[0] - cur[0], next[1] - cur[1]);
+                            cur[0] += (next[0] - cur[0]) / dist * step;
+                            cur[1] += (next[1] - cur[1]) / dist * step;
+                            L.circle([cur[1], cur[0]], {
+                                color: '#FFDC00',
+                                fillOpacity: 0,
+                                weight: 3 * S,
+                                radius: 10 * S,
+                                renderer
+                            }).addTo(m);
+                        }
+                    }
+
+                    m.fitBounds(coreBounds, {padding: [PAD_PX, PAD_PX], animate: false, maxZoom: tileOpts.maxZoom});
+                    m.setZoom(Math.floor(m.getZoom()), {animate: false});
+
+                    await new Promise(res => tiles.once('load', res));
+                    field.redraw();
+                    await new Promise(r => requestAnimationFrame(r));
+
+                    const canvas = await leafletToCanvas(m);
+                    const blob = await new Promise((res, rej) => {
+                        try {
+                            canvas.toBlob(b => b ? res(b) : rej(new Error('toBlob failed')), 'image/png');
+                        } catch (e) {
+                            rej(e);
+                        }
+                    }).catch(() => null);
+
+                    if (blob) {
+                        const a = document.createElement('a');
+                        a.download = `all.png`;
+                        a.href = URL.createObjectURL(blob);
+                        document.body.appendChild(a);
+                        a.click();
+                        setTimeout(() => {
+                            URL.revokeObjectURL(a.href);
+                            a.remove();
+                        }, 1000);
+                    } else {
+                        const a = document.createElement('a');
+                        a.download = `all.png`;
+                        a.href = canvas.toDataURL('image/png');
+                        document.body.appendChild(a);
+                        a.click();
+                        a.remove();
+                    }
                 } finally {
                     m.remove();
                     box.remove();
