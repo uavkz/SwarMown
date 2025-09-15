@@ -215,7 +215,7 @@
             fieldPolygon = {{ field|safe }};
             holesPolygons = {{ holes|safe }}; // Three-dimensional array [# First hole # [[lat, lon], [lat, lon], ...], # Second hole # [[lat, lon], [lat, lon], ...], ...]
             waypoints = {{ waypoints|safe }};
-            {#waypoints = waypoints.slice(1); // TODO, remove first#}
+            waypoints = waypoints.slice(1); // TODO, remove first
             {#waypoints = waypoints.slice(0, -1); // TODO, remvoe last#}
             road = {{ road|safe }};
             
