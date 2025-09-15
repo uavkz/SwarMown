@@ -1,0 +1,10 @@
+services:
+  web:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - djapp_db:/data
+    restart: unless-stopped
+volumes:
+  djapp_db:
