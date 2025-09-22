@@ -1,6 +1,8 @@
 import asyncio
 import csv
 import json
+import os
+import sys
 import zipfile
 from io import BytesIO
 
@@ -15,6 +17,15 @@ from mainapp.utils import flatten_grid
 from mainapp.service_routing import get_route
 from mainapp.utils_gis import get_elevations_for_points_dict
 from mainapp.utils_mavlink import create_plan_file
+
+
+import time
+import subprocess
+import urllib.parse
+from django.conf import settings
+from django.http import FileResponse
+from django.utils.text import slugify
+
 
 
 class Index(View):
@@ -33,6 +44,77 @@ def get_all_points(context):
 
 class ManageRouteView(TemplateView):
     template_name = "mainapp/manage_route.html"
+
+    def _pick_python(self):
+        candidates = []
+        env_py = os.environ.get("GA_PYTHON")
+        if env_py:
+            candidates.append(env_py)
+        try:
+            candidates.append(sys.executable)
+        except Exception:
+            pass
+        candidates.append(os.path.join(settings.BASE_DIR, "venv39", "Scripts", "python.exe"))
+        candidates.append("python")
+
+        for p in candidates:
+            try:
+                subprocess.run([p, "-c", "import scoop"], check=True,
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                return p
+            except Exception:
+                continue
+        return candidates[0]
+
+    def _optimize_now(self, mission):
+        holes_raw = mission.field.holes_serialized or "[]"
+        has_holes = bool(json.loads(holes_raw))
+        script_rel = os.path.join("scripts", "genetic_holes.py" if has_holes else "genetic.py")
+
+        ncores = int(self.request.GET.get("cores", 8) or 8)
+        ngen = int(self.request.GET.get("ngen", 3) or 5)
+        population_size = int(self.request.GET.get("population_size", 30) or 30)
+        max_time = float(self.request.GET.get("max_time", 8) or 8)
+        borderline_time = float(self.request.GET.get("borderline_time", 2) or 2)
+        max_working_speed = float(self.request.GET.get("max_working_speed", 7) or 7)
+        mutation_chance = float(self.request.GET.get("mutation_chance", 0.1) or 0.1)
+
+        out_dir = os.path.join(settings.MEDIA_ROOT, "opt_results")
+        os.makedirs(out_dir, exist_ok=True)
+        base = f"ga_{slugify(mission.name) or 'mission'}_{mission.id}_{int(time.time())}"
+        filename_no_ext = os.path.join(out_dir, base)
+
+        python_bin = self._pick_python()
+        cmd = [
+            python_bin, "-m", "scoop", "-n", str(ncores),
+            script_rel,
+            "--mission_id", str(mission.id),
+            "--ngen", str(ngen),
+            "--population_size", str(population_size),
+            "--filename", filename_no_ext,
+            "--max-time", str(max_time),
+            "--borderline_time", str(borderline_time),
+            "--max_working_speed", str(max_working_speed),
+            "--mutation_chance", str(mutation_chance),
+        ]
+
+        proc = subprocess.run(cmd, cwd=settings.BASE_DIR, capture_output=True, text=True)
+        if proc.returncode != 0:
+            return HttpResponse(
+                f"Optimization failed:\n\nSTDOUT:\n{proc.stdout}\n\nSTDERR:\n{proc.stderr}",
+                status=500,
+            )
+
+        json_path = f"{filename_no_ext}.json"
+        xls_path = f"{filename_no_ext}.xls"
+        if not os.path.exists(json_path) or not os.path.exists(xls_path):
+            return HttpResponse("Optimization finished but outputs are missing.", status=500)
+
+        with open(json_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        serialized = json.dumps(data.get("serialized", []), ensure_ascii=False)
+        return serialized, base
 
     def handle(self, context):
         car_move = self.request.GET.get("carMove", "no")
@@ -111,6 +193,31 @@ class ManageRouteView(TemplateView):
         context['pickup_waypoints'] = car_waypoints
 
     def get(self, request, *args, **kwargs):
+        if "optimize" in request.GET:
+            context = self.get_context_data(**kwargs)
+            mission = context["mission"]
+            res = self._optimize_now(mission)
+            if isinstance(res, HttpResponse):
+                return res
+            serialized, base = res
+            q = {
+                "serialized": serialized,
+                "excel": base,
+                "carMove": request.GET.get("carMove", "no"),
+                "direction": request.GET.get("direction", "simple"),
+                "start": request.GET.get("start", "ne"),
+            }
+            qs = "&".join(f"{k}={urllib.parse.quote(str(v))}" for k, v in q.items())
+            return HttpResponseRedirect(f"{request.path}?{qs}")
+
+        if "downloadExcel" in self.request.GET:
+            base = self.request.GET.get("excel", "")
+            if not base or any(c in base for c in ("/", "\\", "..")):
+                return HttpResponse(status=400)
+            path = os.path.join(settings.MEDIA_ROOT, "opt_results", base + ".xls")
+            if not os.path.exists(path):
+                return HttpResponse(status=404)
+            return FileResponse(open(path, "rb"), as_attachment=True, filename=f"{base}.xls")
         if "submitSave" in self.request.GET:
             context = self.get_context_data(**kwargs)
             i = 0
