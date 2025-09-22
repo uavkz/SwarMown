@@ -113,6 +113,26 @@
 
             <div class="col"></div>
         </div>
+
+        <div class="row" style="margin-top: 10px;">
+            <div class="col"></div>
+            <div class="col"></div>
+            <div class="col" style="text-align: left;">
+                <button id="optimize" class="btn btn-danger" style="margin-top: 10px;" name="optimize">Оптимизировать
+                </button>
+            </div>
+
+            {% if request.GET.excel %}
+                <div class="col" style="text-align: left;">
+                    <a class="btn btn-success" style="margin-top: 10px;"
+                       href="?downloadExcel=1&excel={{ request.GET.excel|urlencode }}&serialized={{ request.GET.serialized|urlencode }}&carMove={{ request.GET.carMove|urlencode }}&direction={{ request.GET.direction|urlencode }}&start={{ request.GET.start|urlencode }}">Скачать
+                        Excel</a>
+                </div>
+            {% endif %}
+            <div class="col"></div>
+            <div class="col"></div>
+        </div>
+
         <div class="row" style="margin-top: 10px;">
             <div class="col"></div>
 

@@ -251,6 +251,13 @@ def run():
         drones=mission.drones.all(),
         iterations=iterations,
     )
+    try:
+        best = iterations[-1]["best_ind"]
+        serialized = [best[0], best[1], list(best[2]), list(best[3])]
+        with open(f"{args.filename}.json", "w", encoding="utf-8") as f:
+            json.dump({"serialized": serialized}, f)
+    except Exception:
+        pass
 
 
 if __name__ == "__main__":
