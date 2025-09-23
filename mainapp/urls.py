@@ -12,5 +12,7 @@ urlpatterns = [
     path('add-mission/', MissionsCreateView.as_view(), name="add_mission"),
     path('list-mission/', MissionsListView.as_view(), name="list_mission"),
 
+    path("import-kml/", import_kml_fields, name="fields_import_kml"),
+
     path('manage-route/<int:mission_id>/', ManageRouteView.as_view(), name="manage_route"),
 ]

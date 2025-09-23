@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block head %}
+<link rel="stylesheet" href="{% static 'css/leaflet.css' %}"/>
+<script src="{% static 'js/leaflet.js' %}"></script>
+<script src="{% static 'js/jquery.min.js' %}"></script>
+{% endblock %}
+
+{% block title %}Импорт из KML{% endblock %}
+
+{% block content %}
+{% if not polygons_json %}
+<form method="post" enctype="multipart/form-data" class="mb-4">
+  {% csrf_token %}
+  <div class="row align-items-end">
+    <div class="col-md-6">
+      <label class="form-label">KML файл</label>
+      <input type="file" name="kml" accept=".kml,application/vnd.google-earth.kml+xml" class="form-control">
+    </div>
+    <div class="col-md-3">
+      <button type="submit" class="btn btn-primary">Загрузить</button>
+    </div>
+  </div>
+</form>
+{% else %}
+<div class="row mb-3">
+  <div class="col"></div>
+  <div class="col form-group">
+    <label for="fieldName">Название поля</label>
+    <input id="fieldName" class="form-control">
+  </div>
+  <div class="col d-flex gap-2" style="margin-top:32px;">
+    <button id="saveField" class="btn btn-primary">Сохранить и далее</button>
+    <button id="skipField" class="btn btn-secondary">Пропустить</button>
+    <button id="clearRoad" class="btn btn-outline-danger">Очистить дорогу</button>
+  </div>
+  <div class="col text-end" style="margin-top:32px;">
+    <span id="progress" class="badge bg-info"></span>
+  </div>
+</div>
+<div id="map" style="height: 80vh;"></div>
+{% endif %}
+{% endblock %}
+
+{% block foot %}
+{% if polygons_json %}
+<script>
+  const polygons = JSON.parse('{{ polygons_json|escapejs }}');
+  let idx = 0;
+  let currentField = [];
+  let currentRoad = [];
+  let roadLayerGroup = null;
+  let polygonLayer = null;
+
+  const map = L.map('map').setView([43.22, 76.85], 10);
+  L.tileLayer('https://api.mapbox.com/styles/v1/kindyak/{id}/tiles/{z}/{x}/{y}?access_token={accessToken}', {
+      attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, <a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
+      maxZoom: 18,
+      id: 'ckzh2v0mz00dv14tafevvqzgs',
+      tileSize: 512,
+      zoomOffset: -1,
+      accessToken: 'pk.eyJ1Ijoia2luZHlhayIsImEiOiJja2F0cml2eTcwNDZhMnJvOXI4N2Y4MjRjIn0.f7FSJnib2jKKvtJe4ql-Bg'
+  }).addTo(map);
+
+  function fitAndDrawPolygon(points) {
+    if (polygonLayer) {
+      map.removeLayer(polygonLayer);
+    }
+    polygonLayer = L.polygon(points, {color: '#2a7', fillOpacity: 0.2}).addTo(map);
+    map.fitBounds(polygonLayer.getBounds(), {padding: [20, 20]});
+  }
+
+  function refreshRoadLayer() {
+    if (roadLayerGroup) {
+      map.removeLayer(roadLayerGroup);
+    }
+    roadLayerGroup = L.layerGroup().addTo(map);
+    currentRoad.forEach(p => {
+      L.circle(L.latLng(p[0], p[1]), {radius: 80, fillOpacity: 0.8}).addTo(roadLayerGroup);
+    });
+  }
+
+  function loadPolygon(i) {
+    const item = polygons[i];
+    currentField = item.points;
+    currentRoad = [];
+    $('#fieldName').val(item.name || `Поле ${i + 1}`);
+    $('#progress').text(`${i + 1} / ${polygons.length}`);
+    fitAndDrawPolygon(currentField);
+    refreshRoadLayer();
+  }
+
+  map.on('click', function (e) {
+    currentRoad.push([e.latlng.lat, e.latlng.lng]);
+    refreshRoadLayer();
+  });
+
+  $('#clearRoad').click(function () {
+    currentRoad = [];
+    refreshRoadLayer();
+  });
+
+  function nextPolygon() {
+    idx += 1;
+    if (idx >= polygons.length) {
+      alert('Готово');
+      window.location.reload();
+      return;
+    }
+    loadPolygon(idx);
+  }
+
+  $('#skipField').click(function () {
+    nextPolygon();
+  });
+
+  $('#saveField').click(function () {
+    if (!$('#fieldName').val()) {
+      alert('Введите название');
+      return;
+    }
+    if (currentRoad.length === 0) {
+      alert('Укажите дорогу, либо нажмите "Пропустить"');
+      return;
+    }
+    $.ajax({
+      url: '/api/field/',
+      method: 'POST',
+      data: {
+        name: $('#fieldName').val(),
+        points_serialized: JSON.stringify(currentField),
+        road_serialized: JSON.stringify(currentRoad),
+        holes_serialized: JSON.stringify([])
+      },
+      beforeSend: function (request) {
+        request.setRequestHeader('X-CSRFToken', '{{ csrf_token }}');
+      },
+      success: function (result) {
+        if (result.status !== 200) {
+          alert('Ошибка: ' + result.error);
+          return;
+        }
+        nextPolygon();
+      },
+      error: function () {
+        alert('Сеть недоступна? Повторите попытку.');
+      }
+    });
+  });
+
+  loadPolygon(idx);
+</script>
+{% endif %}
+{% endblock %}
