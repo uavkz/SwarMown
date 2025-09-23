@@ -8,9 +8,13 @@ from io import BytesIO
 
 from django.http import HttpResponseRedirect
 from django.http import HttpResponse
+from django.shortcuts import render
 from django.urls import reverse_lazy
 from django.views import View
+from django.views.decorators.http import require_http_methods
 from django.views.generic import TemplateView, ListView
+
+import xml.etree.ElementTree as ET
 
 from mainapp.models import *
 from mainapp.utils import flatten_grid
@@ -350,3 +354,42 @@ class MissionsCreateView(TemplateView):
 class MissionsListView(ListView):
     template_name = "mainapp/list_mission.html"
     queryset = Mission.objects.all().order_by('-id')
+
+
+def _extract_polygons_from_kml(uploaded_file):
+    ns = {"kml": "http://www.opengis.net/kml/2.2"}
+    tree = ET.parse(uploaded_file)
+    root = tree.getroot()
+    items = []
+    for pm in root.findall(".//kml:Placemark", ns):
+        name = (pm.findtext("kml:name", default="", namespaces=ns) or "").strip()
+        poly = pm.find(".//kml:Polygon", ns)
+        if poly is None:
+            continue
+        coords_el = poly.find(".//kml:outerBoundaryIs/kml:LinearRing/kml:coordinates", ns)
+        if coords_el is None or not (coords_el.text or "").strip():
+            continue
+        pts = []
+        for token in (coords_el.text or "").strip().split():
+            parts = token.split(",")
+            if len(parts) >= 2:
+                lon = float(parts[0])
+                lat = float(parts[1])
+                pts.append([lat, lon])
+        if len(pts) >= 3 and pts[0] == pts[-1]:
+            pts = pts[:-1]
+        if len(pts) >= 3:
+            items.append({"name": name or f"Поле {len(items) + 1}", "points": pts})
+    return items
+
+
+@require_http_methods(["GET", "POST"])
+def import_kml_fields(request):
+    if request.method == "POST" and request.FILES.get("kml"):
+        polygons = _extract_polygons_from_kml(request.FILES["kml"])
+        return render(
+            request,
+            "mainapp/field_kml_import.html",
+            {"polygons_json": json.dumps(polygons, ensure_ascii=False)},
+        )
+    return render(request, "mainapp/field_kml_import.html")
