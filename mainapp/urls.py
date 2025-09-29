@@ -1,4 +1,5 @@
 from django.urls import path
+from django.contrib.auth import views as auth_views
 
 from .views import *
 
@@ -15,4 +16,7 @@ urlpatterns = [
     path("import-kml/", import_kml_fields, name="fields_import_kml"),
 
     path('manage-route/<int:mission_id>/', ManageRouteView.as_view(), name="manage_route"),
+
+    path("login/", auth_views.LoginView.as_view(template_name="auth/login.html"), name="login"),
+    path("logout/", auth_views.LogoutView.as_view(), name="logout"),
 ]

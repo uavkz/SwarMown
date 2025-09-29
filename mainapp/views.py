@@ -34,7 +34,10 @@ from django.utils.text import slugify
 
 class Index(View):
     def get(self, request, **kwargs):
-        return HttpResponseRedirect(reverse_lazy('mainapp:list_mission'))
+        if request.user.is_authenticated:
+            return HttpResponseRedirect(reverse_lazy('mainapp:list_mission'))
+        else:
+            return HttpResponseRedirect(reverse_lazy('mainapp:login'))
 
 
 def get_all_points(context):
