@@ -68,6 +68,15 @@
                     </div>
                 </li>
             </ul>
+            <ul class="navbar-nav ml-auto">
+                {% if user.is_authenticated %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'mainapp:logout' %}">Выйти</a>
+                    </li>
+                {% else %}
+                    <li class="nav-item"><a class="nav-link" href="{% url 'mainapp:login' %}?next={{ request.path|default:'/' }}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}{% if not request.GET %}{% endif %}{% if not request.GET %}{% endif %}{% if not request.GET %}{% endif %}{% if not request.GET %}{% endif %}{% if not request.GET %}{% endif %}{% if not request.GET %}{% endif %}{% if not request.GET %}{% endif %}">Войти</a></li>
+                {% endif %}
+            </ul>
         </div>
     </nav>
     {% block content %}{% endblock %}
