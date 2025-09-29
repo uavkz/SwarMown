@@ -3,14 +3,14 @@ from .models import *
 
 
 class FieldAdmin(admin.ModelAdmin):
-    list_display = ('name', )
-    list_filter = ()
+    list_display = ('name', 'owner', )
+    list_filter = ('owner', )
     search_fields = ('name', )
 
 
 class MissionAdmin(admin.ModelAdmin):
-    list_display = ('name', 'status', 'current_waypoints_status', 'type', 'field', 'start_price', 'hourly_price', 'grid_step', 'datetime')
-    list_filter = ('status', 'type', 'current_waypoints_status', )
+    list_display = ('name', 'owner', 'status', 'current_waypoints_status', 'type', 'field', 'start_price', 'hourly_price', 'grid_step', 'datetime')
+    list_filter = ('status', 'type', 'current_waypoints_status', 'owner', 'field', )
     search_fields = ('name', )
 
 

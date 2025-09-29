@@ -1,14 +1,30 @@
+from django.contrib.auth.models import User
 from django.db import models
 
 from mainapp.utils import waypoints_distance, waypoints_flight_time
+from swarmown import settings
 
 
 class Field(models.Model):
     class Meta:
         verbose_name = "Поле"
         verbose_name_plural = "Поля"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["owner", "name"], name="unique_field_name_per_owner"
+            )
+        ]
 
-    name = models.CharField(max_length=251, unique=True)
+    name = models.CharField(max_length=251)
+    owner = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="fields",
+        null=True,
+        blank=True,
+        verbose_name="Владелец",
+    )
+
     points_serialized = models.TextField() # Json Serialized [[lat, lon], [lat, lon], ...]
     road_serialized = models.TextField(default=[]) # Json Serialized [[lat, lon], [lat, lon], ...]
     holes_serialized = models.TextField(default=[], verbose_name="Препятствия (Serialized)") # Json Serialized [# First hole # [[lat, lon], [lat, lon], ...], # Second hole # [[lat, lon], [lat, lon], ...], ...]
@@ -42,6 +58,11 @@ class Mission(models.Model):
     class Meta:
         verbose_name = "Миссия"
         verbose_name_plural = "Миссии"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["owner", "name"], name="unique_mission_name_per_owner"
+            )
+        ]
 
     STATUSES = (
         (-2, "Критическая ошибка"),
@@ -64,7 +85,16 @@ class Mission(models.Model):
         (3, "Детальная съемка"),
     )
 
-    name = models.CharField(max_length=250, verbose_name="Название", unique=True)
+    name = models.CharField(max_length=250, verbose_name="Название")
+    owner = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="missions",
+        null=True,
+        blank=True,
+        verbose_name="Владелец",
+    )
+
     description = models.TextField(null=True, blank=True, verbose_name="Описание")
     datetime = models.DateTimeField(auto_now_add=True, verbose_name="Время создания")
 
