@@ -1,6 +1,7 @@
 import json
 
 from django.core import serializers
+from django.shortcuts import get_object_or_404
 from rest_framework import viewsets
 from rest_framework.response import Response
 
@@ -10,16 +11,19 @@ from mainapp.models import *
 # Create your views here.
 class FieldViewSet(viewsets.ViewSet):
     def create(self, request):
+        if not request.user.is_authenticated:
+            return Response({"status": 403, "error": "Требуется авторизация"}, status=403)
         if "name" not in request.POST or not request.POST['name']:
             return Response({"status": 500, "error": "Пожалуйста введите имя"})
         if "points_serialized" not in request.POST or not request.POST['points_serialized']:
             return Response({"status": 500, "error": "Пожалуйста выберите точки"})
         if "road_serialized" not in request.POST or not request.POST['road_serialized']:
             return Response({"status": 500, "error": "Пожалуйста выберите дорогу"})
-        if Field.objects.filter(name=self.request.POST['name']).exists():
+        if Field.objects.filter(owner=request.user, name=request.POST['name']).exists():
             return Response({"status": 500, "error": "Поле с таким именем уже существует"})
         try:
             Field.objects.create(
+                owner=request.user,
                 name=self.request.POST['name'],
                 points_serialized=self.request.POST['points_serialized'],
                 road_serialized=self.request.POST['road_serialized'],
@@ -32,7 +36,8 @@ class FieldViewSet(viewsets.ViewSet):
 
 class WaypointsViewSet(viewsets.ViewSet):
     def list(self, request):
-        mission = Mission.objects.get(id=request.GET.get('mission_id'))
+        qs = Mission.objects.all() if request.user.is_staff else Mission.objects.filter(owner=request.user)
+        mission = get_object_or_404(qs, id=request.GET.get('mission_id'))
         if mission.current_waypoints_status != 2 or True:
             return Response({"error": "Маршрут не готов"}, status=500)
         next_waypoint = mission.current_waypoints.filter(status=0).order_by('index').first()

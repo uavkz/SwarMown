@@ -8,7 +8,7 @@ from io import BytesIO
 
 from django.http import HttpResponseRedirect
 from django.http import HttpResponse
-from django.shortcuts import render
+from django.shortcuts import render, get_object_or_404
 from django.urls import reverse_lazy
 from django.views import View
 from django.views.decorators.http import require_http_methods
@@ -324,7 +324,11 @@ class ManageRouteView(TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['mission'] = Mission.objects.get(id=kwargs['mission_id'])
+        if self.request.user.is_staff:
+            mission = get_object_or_404(Mission, id=kwargs['mission_id'])
+        else:
+            mission = get_object_or_404(Mission, id=kwargs['mission_id'], owner=self.request.user)
+        context['mission'] = mission
         self.handle(context)
         return context
 
@@ -335,16 +339,20 @@ class MissionsCreateView(TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['types'] = Mission.TYPES
-        context['fields'] = Field.objects.all()
+        context['fields'] = Field.objects.all() if self.request.user.is_staff else Field.objects.filter(owner=self.request.user)
         context['drones'] = Drone.objects.all()
         return context
 
     def post(self, request, **kwargs):
+        field = get_object_or_404(Field, id=request.POST['field'])
+        if not request.user.is_staff and field.owner_id != request.user.id:
+            return HttpResponse(status=403)
         m = Mission.objects.create(
+            owner=request.user,
             name=request.POST['name'],
             description=request.POST['description'],
             type=request.POST['type'],
-            field_id=request.POST['field'],
+            field=field,
             grid_step=request.POST['grid_step'],
         )
         m.drones.add(*request.POST.getlist('drones'))
@@ -353,7 +361,10 @@ class MissionsCreateView(TemplateView):
 
 class MissionsListView(ListView):
     template_name = "mainapp/list_mission.html"
-    queryset = Mission.objects.all().order_by('-id')
+
+    def get_queryset(self):
+        qs = Mission.objects.all().order_by('-id')
+        return qs if self.request.user.is_staff else qs.filter(owner=self.request.user)
 
 
 def _extract_polygons_from_kml(uploaded_file):
