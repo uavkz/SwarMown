@@ -1,6 +1,7 @@
 """
 Tests for mainapp.services_draw: get_grid, get_car_waypoints, get_car_waypoints_by_ratio_list.
 """
+
 from copy import deepcopy
 
 from django.test import TestCase
@@ -9,11 +10,10 @@ from shapely.geometry import Point as ShapelyPoint
 from shapely.geometry.polygon import Polygon as ShapelyPolygon
 
 from mainapp.services_draw import (
-    get_grid,
     get_car_waypoints,
     get_car_waypoints_by_ratio_list,
+    get_grid,
 )
-
 
 # A small rectangular field (lon, lat format)
 RECT_FIELD = [[30.0, 50.0], [30.1, 50.0], [30.1, 50.05], [30.0, 50.05]]

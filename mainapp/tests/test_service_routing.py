@@ -2,6 +2,7 @@
 Tests for mainapp.service_routing: get_route, iterate_zamboni,
 path_crosses_holes, adjust_path_around_holes.
 """
+
 from copy import deepcopy
 
 from django.test import TestCase
@@ -10,12 +11,11 @@ from shapely.geometry import Polygon as ShapelyPolygon
 
 from mainapp.models import Drone
 from mainapp.service_routing import (
+    adjust_path_around_holes,
     get_route,
     iterate_zamboni,
     path_crosses_holes,
-    adjust_path_around_holes,
 )
-
 
 # A small rectangular field (lon, lat format)
 RECT_FIELD = [[30.0, 50.0], [30.1, 50.0], [30.1, 50.05], [30.0, 50.05]]
@@ -180,6 +180,7 @@ class GetRouteStartCornerAffectsTraversalTest(TestCase):
             drones=[self.drone],
             pyproj_transformer=PYPROJ_TRANSFORMER,
         )
+
         # Compare the first spray-on waypoint in the first segment
         def first_spray_point(waypoints):
             for segment in waypoints:
@@ -192,9 +193,7 @@ class GetRouteStartCornerAffectsTraversalTest(TestCase):
         pt_sw = first_spray_point(wps_sw)
         self.assertIsNotNone(pt_ne)
         self.assertIsNotNone(pt_sw)
-        self.assertNotEqual(
-            pt_ne, pt_sw, "Different start corners should yield different first spray points"
-        )
+        self.assertNotEqual(pt_ne, pt_sw, "Different start corners should yield different first spray points")
 
 
 class GetRouteGridCoverageTest(TestCase):
@@ -215,9 +214,7 @@ class GetRouteGridCoverageTest(TestCase):
             pyproj_transformer=PYPROJ_TRANSFORMER,
         )
         total_grid_pts = sum(len(line) for line in grid)
-        spray_on_count = sum(
-            1 for seg in waypoints for wp in seg if wp.get("spray_on")
-        )
+        spray_on_count = sum(1 for seg in waypoints for wp in seg if wp.get("spray_on"))
         # spray_on waypoints should be at least 50% of grid points (allowing
         # for some being skipped due to drone distance limits)
         self.assertGreater(
@@ -283,13 +280,15 @@ class PathCrossesHolesThroughHoleTest(TestCase):
     """A line that passes through a hole returns True."""
 
     def test_path_through_hole(self):
-        hole = ShapelyPolygon([
-            (30.04, 50.02), (30.06, 50.02),
-            (30.06, 50.03), (30.04, 50.03),
-        ])
-        result = path_crosses_holes(
-            [30.0, 50.025], [30.1, 50.025], [hole]
+        hole = ShapelyPolygon(
+            [
+                (30.04, 50.02),
+                (30.06, 50.02),
+                (30.06, 50.03),
+                (30.04, 50.03),
+            ]
         )
+        result = path_crosses_holes([30.0, 50.025], [30.1, 50.025], [hole])
         self.assertTrue(result, "Path through the hole should be detected")
 
 
@@ -297,14 +296,16 @@ class PathCrossesHolesAroundHoleTest(TestCase):
     """A line that misses the hole returns False."""
 
     def test_path_around_hole(self):
-        hole = ShapelyPolygon([
-            (30.04, 50.02), (30.06, 50.02),
-            (30.06, 50.03), (30.04, 50.03),
-        ])
-        # Path goes well below the hole
-        result = path_crosses_holes(
-            [30.0, 50.0], [30.1, 50.0], [hole]
+        hole = ShapelyPolygon(
+            [
+                (30.04, 50.02),
+                (30.06, 50.02),
+                (30.06, 50.03),
+                (30.04, 50.03),
+            ]
         )
+        # Path goes well below the hole
+        result = path_crosses_holes([30.0, 50.0], [30.1, 50.0], [hole])
         self.assertFalse(result, "Path below hole should not cross it")
 
 
@@ -315,16 +316,21 @@ class AdjustPathAroundHolesDetourAddsPointsTest(TestCase):
     """Adjusted path has more points than the direct [start, end]."""
 
     def test_detour_adds_points(self):
-        hole = ShapelyPolygon([
-            (30.04, 50.02), (30.06, 50.02),
-            (30.06, 50.03), (30.04, 50.03),
-        ])
+        hole = ShapelyPolygon(
+            [
+                (30.04, 50.02),
+                (30.06, 50.02),
+                (30.06, 50.03),
+                (30.04, 50.03),
+            ]
+        )
         start_pt = [30.0, 50.025]
         end_pt = [30.1, 50.025]
 
         adjusted = adjust_path_around_holes(start_pt, end_pt, [hole])
         self.assertGreater(
-            len(adjusted), 2,
+            len(adjusted),
+            2,
             "Detour around hole should produce more than 2 points",
         )
         # First and last points should match start/end
@@ -336,10 +342,14 @@ class AdjustPathAroundHolesAvoidsHoleTest(TestCase):
     """No segment of the adjusted path crosses the hole."""
 
     def test_adjusted_avoids_hole(self):
-        hole = ShapelyPolygon([
-            (30.04, 50.02), (30.06, 50.02),
-            (30.06, 50.03), (30.04, 50.03),
-        ])
+        hole = ShapelyPolygon(
+            [
+                (30.04, 50.02),
+                (30.06, 50.02),
+                (30.06, 50.03),
+                (30.04, 50.03),
+            ]
+        )
         start_pt = [30.0, 50.025]
         end_pt = [30.1, 50.025]
 
@@ -349,6 +359,5 @@ class AdjustPathAroundHolesAvoidsHoleTest(TestCase):
             crosses = path_crosses_holes(adjusted[i], adjusted[i + 1], [hole])
             self.assertFalse(
                 crosses,
-                f"Segment {i}->{i+1} of adjusted path should not cross the hole: "
-                f"{adjusted[i]} -> {adjusted[i+1]}",
+                f"Segment {i}->{i + 1} of adjusted path should not cross the hole: {adjusted[i]} -> {adjusted[i + 1]}",
             )

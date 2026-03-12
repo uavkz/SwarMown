@@ -20,8 +20,12 @@ class CreatePlanFileTests(TestCase):
         """Result contains all required top-level keys."""
         result = create_plan_file(self.waypoints, drone_id=1)
         expected_keys = {
-            "fileType", "geoFence", "groundStation",
-            "mission", "rallyPoints", "version",
+            "fileType",
+            "geoFence",
+            "groundStation",
+            "mission",
+            "rallyPoints",
+            "version",
         }
         self.assertEqual(set(result.keys()), expected_keys)
 

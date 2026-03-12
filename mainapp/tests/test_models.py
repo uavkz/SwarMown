@@ -7,10 +7,10 @@ from django.utils import timezone
 
 from mainapp.models import Drone, Field, Mission, Waypoint
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _create_user(username="testuser"):
     return User.objects.create_user(username=username, password="testpass")
@@ -20,9 +20,9 @@ def _create_field(owner, name="Test Field"):
     return Field.objects.create(
         owner=owner,
         name=name,
-        points_serialized='[[50.0, 30.0], [50.1, 30.0], [50.1, 30.1], [50.0, 30.1]]',
-        road_serialized='[[50.0, 29.9], [50.1, 29.9]]',
-        holes_serialized='[]',
+        points_serialized="[[50.0, 30.0], [50.1, 30.0], [50.1, 30.1], [50.0, 30.1]]",
+        road_serialized="[[50.0, 29.9], [50.1, 29.9]]",
+        holes_serialized="[]",
     )
 
 
@@ -45,8 +45,7 @@ def _create_mission(owner, field, name="Test Mission", mission_type=1):
     )
 
 
-def _create_waypoint(drone, lat=50.0, lon=30.0, height=10, speed=15,
-                     acceleration=0, index=0, spray_on=False):
+def _create_waypoint(drone, lat=50.0, lon=30.0, height=10, speed=15, acceleration=0, index=0, spray_on=False):
     return Waypoint.objects.create(
         drone=drone,
         lat=lat,
@@ -62,6 +61,7 @@ def _create_waypoint(drone, lat=50.0, lon=30.0, height=10, speed=15,
 # ===========================================================================
 # 1. Creation smoke tests
 # ===========================================================================
+
 
 class FieldCreationTests(TestCase):
     """Verify that a Field can be created, saved, and retrieved."""
@@ -135,6 +135,7 @@ class WaypointCreationTests(TestCase):
 # 2. Default values
 # ===========================================================================
 
+
 class DefaultValuesTests(TestCase):
     """Verify default values declared on model fields."""
 
@@ -168,6 +169,7 @@ class DefaultValuesTests(TestCase):
 # ===========================================================================
 # 3. Relationships
 # ===========================================================================
+
 
 class FieldMissionRelationshipTests(TestCase):
     """Field -> Mission FK; deleting a Field cascades to its Missions."""
@@ -281,6 +283,7 @@ class DroneWaypointRelationshipTests(TestCase):
 # 4. Unique constraints
 # ===========================================================================
 
+
 class FieldUniqueConstraintTests(TestCase):
     """UniqueConstraint on (owner, name) for Field."""
 
@@ -347,6 +350,7 @@ class DroneUniqueTogetherTests(TestCase):
 # 5. Properties
 # ===========================================================================
 
+
 class MissionPropertyTests(TestCase):
     """Test verbose properties on Mission."""
 
@@ -356,7 +360,7 @@ class MissionPropertyTests(TestCase):
 
     def test_status_verbose_default(self):
         mission = _create_mission(self.user, self.field)
-        # status=0 -> "Не запущен"
+        # status=0 -> "Не запущен"  # noqa: RUF003
         self.assertEqual(mission.status_verbose, "Не запущен")
 
     def test_status_verbose_all_values(self):
@@ -369,9 +373,7 @@ class MissionPropertyTests(TestCase):
             3: "Завершен",
         }
         for code, label in expected.items():
-            mission = _create_mission(
-                self.user, self.field, name=f"m_{code}"
-            )
+            mission = _create_mission(self.user, self.field, name=f"m_{code}")
             mission.status = code
             mission.save()
             self.assertEqual(mission.status_verbose, label)
@@ -383,9 +385,7 @@ class MissionPropertyTests(TestCase):
             3: "Детальная съемка",
         }
         for code, label in expected.items():
-            mission = _create_mission(
-                self.user, self.field, name=f"t_{code}", mission_type=code
-            )
+            mission = _create_mission(self.user, self.field, name=f"t_{code}", mission_type=code)
             self.assertEqual(mission.type_verbose, label)
 
     def test_current_waypoints_status_verbose(self):
@@ -484,6 +484,7 @@ class WaypointPropertyTests(TestCase):
 # 6. Cascade deletes
 # ===========================================================================
 
+
 class CascadeDeleteTests(TestCase):
     """Deleting a User should cascade to Fields and Missions."""
 
@@ -545,6 +546,7 @@ class CascadeDeleteTests(TestCase):
 # 7. JSON serialized fields
 # ===========================================================================
 
+
 class FieldJsonSerializationTests(TestCase):
     """Ensure that JSON-serialized text fields store and retrieve valid JSON."""
 
@@ -555,8 +557,8 @@ class FieldJsonSerializationTests(TestCase):
             owner=user,
             name="JSON Test",
             points_serialized=json.dumps(coords),
-            road_serialized='[]',
-            holes_serialized='[]',
+            road_serialized="[]",
+            holes_serialized="[]",
         )
         fetched = Field.objects.get(pk=field.pk)
         loaded = json.loads(fetched.points_serialized)
@@ -577,8 +579,8 @@ class FieldJsonSerializationTests(TestCase):
         field = Field.objects.create(
             owner=user,
             name="Holey",
-            points_serialized='[[50.0, 30.0]]',
-            road_serialized='[]',
+            points_serialized="[[50.0, 30.0]]",
+            road_serialized="[]",
             holes_serialized=json.dumps(holes),
         )
         fetched = Field.objects.get(pk=field.pk)
@@ -604,8 +606,8 @@ class FieldJsonSerializationTests(TestCase):
             owner=user,
             name="Complex Poly",
             points_serialized=json.dumps(coords),
-            road_serialized='[]',
-            holes_serialized='[]',
+            road_serialized="[]",
+            holes_serialized="[]",
         )
         loaded = json.loads(Field.objects.get(pk=field.pk).points_serialized)
         self.assertEqual(loaded, coords)
@@ -614,6 +616,7 @@ class FieldJsonSerializationTests(TestCase):
 # ===========================================================================
 # 8. Edge cases
 # ===========================================================================
+
 
 class FieldEdgeCaseTests(TestCase):
     """Edge-case scenarios for Field."""
@@ -844,6 +847,7 @@ class WaypointEdgeCaseTests(TestCase):
 # ===========================================================================
 # 9. User reverse relations
 # ===========================================================================
+
 
 class UserReverseRelationTests(TestCase):
     """Verify related_name accessors on User."""

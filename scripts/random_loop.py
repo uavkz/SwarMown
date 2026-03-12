@@ -4,36 +4,34 @@ try:
     import os
     import sys
 
-    from django.conf import settings
-
     # sys.path.append('C:\\Users\\KindYAK\\Desktop\\SwarMown\\')
-    sys.path.append('/home/a.bekbaganbetov/SwarMown')
+    sys.path.append("/home/a.bekbaganbetov/SwarMown")
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "swarmown.settings")
     import django
+
     django.setup()
-except Exception as e:
+except Exception:
     pass
 
 import json
 import random
-
-from mainapp.models import *
-from mainapp.utils import drone_flight_price, flight_penalty
-from mainapp.service_routing import get_route
-
 from concurrent import futures
+
+from mainapp.models import Mission
+from mainapp.service_routing import get_route
+from mainapp.utils import drone_flight_price, flight_penalty, waypoints_distance, waypoints_flight_time
 
 
 def eval(individual, mission, field, road):
-    drones = [list(mission.drones.all().order_by('id'))[i] for i in individual[2]]
-    grid, waypoints, _, initial = get_route(
+    drones = [list(mission.drones.all().order_by("id"))[i] for i in individual[2]]
+    grid, waypoints, _, _initial = get_route(
         car_move=individual[3],
         direction=individual[0],
         start=individual[1],
         field=field,
         grid_step=mission.grid_step,
         road=road,
-        drones=drones
+        drones=drones,
     )
     distance = 0
     time = 0
@@ -43,16 +41,23 @@ def eval(individual, mission, field, road):
     grid_total = sum([len(line) for line in grid])
 
     for drone_waypoints in waypoints:
-        new_distance = waypoints_distance(drone_waypoints, lat_f=lambda x: x['lat'], lon_f=lambda x: x['lon'])
-        new_time = waypoints_flight_time(drone_waypoints, 7,
-                                         lat_f=lambda x: x['lat'], lon_f=lambda x: x['lon'],
-                                         max_speed_f=lambda x: x['drone']['max_speed'],
-                                         slowdown_ratio_f=lambda x: x['drone']['slowdown_ratio_per_degree'],
-                                         min_slowdown_ratio_f=lambda x: x['drone']['min_slowdown_ratio'],
-                                         spray_on_f=lambda x: x['spray_on'])
+        new_distance = waypoints_distance(drone_waypoints, lat_f=lambda x: x["lat"], lon_f=lambda x: x["lon"])
+        new_time = waypoints_flight_time(
+            drone_waypoints,
+            7,
+            lat_f=lambda x: x["lat"],
+            lon_f=lambda x: x["lon"],
+            max_speed_f=lambda x: x["drone"]["max_speed"],
+            slowdown_ratio_f=lambda x: x["drone"]["slowdown_ratio_per_degree"],
+            min_slowdown_ratio_f=lambda x: x["drone"]["min_slowdown_ratio"],
+            spray_on_f=lambda x: x["spray_on"],
+        )
         distance += new_distance
         time += new_time
-        drone_price_n, salary_n, = drone_flight_price(drone_waypoints[0]['drone'], new_distance, new_time, mission, number_of_starts)
+        (
+            drone_price_n,
+            salary_n,
+        ) = drone_flight_price(drone_waypoints[0]["drone"], new_distance, new_time, mission, number_of_starts)
         drone_price += drone_price_n
         salary += salary_n
         grid_traversed += max(0, len(drone_waypoints) - 2)
@@ -81,9 +86,9 @@ def run_random(mission):
             random.uniform(0, 360),
             ["ne", "nw", "se", "sw"][random.randint(0, 3)],
             [random.randint(0, number_of_drones - 1) for _ in range(random.randint(1, number_of_drones * 3))],
-            [random.uniform(0, 1) for _ in range(random.randint(1, 5))]
+            [random.uniform(0, 1) for _ in range(random.randint(1, 5))],
         ]
-        distance, time, drone_price, salary, penalty, number_of_starts = eval(individual, mission, field, road)
+        _distance, _time, drone_price, salary, penalty, _number_of_starts = eval(individual, mission, field, road)
         target = drone_price + salary + penalty
         targets.append(target)
         if (not best_target) or (target < best_target):
@@ -102,5 +107,5 @@ def run_random(mission):
 
 if __name__ == "__main__":
     with futures.ProcessPoolExecutor() as pool:
-        for i in pool.map(run_random, Mission.objects.all()):
+        for _i in pool.map(run_random, Mission.objects.all()):
             pass

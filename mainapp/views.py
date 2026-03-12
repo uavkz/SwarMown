@@ -1,50 +1,45 @@
 import asyncio
+import contextlib
 import csv
 import json
 import os
+import subprocess
 import sys
+import time
+import urllib.parse
+import xml.etree.ElementTree as ET
 import zipfile
 from io import BytesIO
 
-from django.http import HttpResponseRedirect
-from django.http import HttpResponse
-from django.shortcuts import render, get_object_or_404
+from django.conf import settings
+from django.http import FileResponse, HttpResponse, HttpResponseRedirect
+from django.shortcuts import get_object_or_404, render
 from django.urls import reverse_lazy
+from django.utils.text import slugify
 from django.views import View
 from django.views.decorators.http import require_http_methods
-from django.views.generic import TemplateView, ListView
+from django.views.generic import ListView, TemplateView
 
-import xml.etree.ElementTree as ET
-
-from mainapp.models import *
-from mainapp.utils import flatten_grid
+from mainapp.models import Drone, Field, Mission, Waypoint
 from mainapp.service_routing import get_route
+from mainapp.utils import flatten_grid
 from mainapp.utils_gis import get_elevations_for_points_dict
 from mainapp.utils_mavlink import create_plan_file
-
-
-import time
-import subprocess
-import urllib.parse
-from django.conf import settings
-from django.http import FileResponse
-from django.utils.text import slugify
-
 
 
 class Index(View):
     def get(self, request, **kwargs):
         if request.user.is_authenticated:
-            return HttpResponseRedirect(reverse_lazy('mainapp:list_mission'))
+            return HttpResponseRedirect(reverse_lazy("mainapp:list_mission"))
         else:
-            return HttpResponseRedirect(reverse_lazy('mainapp:login'))
+            return HttpResponseRedirect(reverse_lazy("mainapp:login"))
 
 
 def get_all_points(context):
     all_points = []
-    for waypoints in context['waypoints']:
+    for waypoints in context["waypoints"]:
         for waypoint in waypoints:
-            all_points.append([waypoint['lat'], waypoint['lon']])
+            all_points.append([waypoint["lat"], waypoint["lon"]])
 
     return get_elevations_for_points_dict(all_points)
 
@@ -57,17 +52,16 @@ class ManageRouteView(TemplateView):
         env_py = os.environ.get("GA_PYTHON")
         if env_py:
             candidates.append(env_py)
-        try:
+        with contextlib.suppress(Exception):
             candidates.append(sys.executable)
-        except Exception:
-            pass
         candidates.append(os.path.join(settings.BASE_DIR, "venv39", "Scripts", "python.exe"))
         candidates.append("python")
 
         for p in candidates:
             try:
-                subprocess.run([p, "-c", "import scoop"], check=True,
-                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                subprocess.run(
+                    [p, "-c", "import scoop"], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+                )
                 return p
             except Exception:
                 continue
@@ -93,16 +87,28 @@ class ManageRouteView(TemplateView):
 
         python_bin = self._pick_python()
         cmd = [
-            python_bin, "-m", "scoop", "-n", str(ncores),
+            python_bin,
+            "-m",
+            "scoop",
+            "-n",
+            str(ncores),
             script_rel,
-            "--mission_id", str(mission.id),
-            "--ngen", str(ngen),
-            "--population_size", str(population_size),
-            "--filename", filename_no_ext,
-            "--max-time", str(max_time),
-            "--borderline_time", str(borderline_time),
-            "--max_working_speed", str(max_working_speed),
-            "--mutation_chance", str(mutation_chance),
+            "--mission_id",
+            str(mission.id),
+            "--ngen",
+            str(ngen),
+            "--population_size",
+            str(population_size),
+            "--filename",
+            filename_no_ext,
+            "--max-time",
+            str(max_time),
+            "--borderline_time",
+            str(borderline_time),
+            "--max_working_speed",
+            str(max_working_speed),
+            "--mutation_chance",
+            str(mutation_chance),
         ]
 
         proc = subprocess.run(cmd, cwd=settings.BASE_DIR, capture_output=True, text=True)
@@ -117,7 +123,7 @@ class ManageRouteView(TemplateView):
         if not os.path.exists(json_path) or not os.path.exists(xls_path):
             return HttpResponse("Optimization finished but outputs are missing.", status=500)
 
-        with open(json_path, "r", encoding="utf-8") as f:
+        with open(json_path, encoding="utf-8") as f:
             data = json.load(f)
 
         serialized = json.dumps(data.get("serialized", []), ensure_ascii=False)
@@ -127,40 +133,44 @@ class ManageRouteView(TemplateView):
         car_move = self.request.GET.get("carMove", "no")
         direction = self.request.GET.get("direction", "simple")
         start = self.request.GET.get("start", "ne")
-        height_diff = self.request.GET.get("heightDiff", False) == "on"
-        round_start_zone = self.request.GET.get("roundStartZone", False) == "on"
-        feature3 = self.request.GET.get("feature3", False) == "on"
-        feature4 = self.request.GET.get("feature4", False) == "on"
+        # TODO: these flags are read but not yet wired up
+        # height_diff = self.request.GET.get("heightDiff", False) == "on"
+        # round_start_zone = self.request.GET.get("roundStartZone", False) == "on"
+        # feature3 = self.request.GET.get("feature3", False) == "on"
+        # feature4 = self.request.GET.get("feature4", False) == "on"
 
         # Format of serialized is: [direction, start, drones, car_move, Optional[list[float] - Requirements for triangulation]
         serialized = self.request.GET.get("serialized", False)
         if serialized:
             serialized = json.loads(serialized.replace("'", '"'))
 
-        field_obj = context['mission'].field
+        field_obj = context["mission"].field
         field = json.loads(field_obj.points_serialized)
         field = [[y, x] for (x, y) in field]
         road = json.loads(field_obj.road_serialized)
         road = [[y, x] for (x, y) in road]
-        holes = json.loads(field_obj.holes_serialized) # three-dimensional array: [# First hole # [[lat, lon], [lat, lon], ...], # Second hole # [[lat, lon], [lat, lon], ...], ...]
+        holes = json.loads(
+            field_obj.holes_serialized
+        )  # three-dimensional array: [# First hole # [[lat, lon], [lat, lon], ...], # Second hole # [[lat, lon], [lat, lon], ...], ...]
         holes = [[[y, x] for (x, y) in hole] for hole in holes]
 
-        grid_step = context['mission'].grid_step
-        number_of_drones = context['mission'].drones.all().count()
+        grid_step = context["mission"].grid_step
+        number_of_drones = context["mission"].drones.all().count()
         # [x, y, z, is_active]
 
-        context['field_flat'] = [coord for point in field for coord in point]
-        context['field_id'] = field_obj.id if field_obj else ""
-        context['field'] = field
-        context['road'] = road
-        context['holes'] = holes
-        context['grid_step'] = grid_step
-        context['number_of_drones'] = number_of_drones
+        context["field_flat"] = [coord for point in field for coord in point]
+        context["field_id"] = field_obj.id if field_obj else ""
+        context["field"] = field
+        context["road"] = road
+        context["holes"] = holes
+        context["grid_step"] = grid_step
+        context["number_of_drones"] = number_of_drones
         if serialized:
-            drones = [list(context['mission'].drones.all().order_by('id'))[i] for i in serialized[2]]
+            drones = [list(context["mission"].drones.all().order_by("id"))[i] for i in serialized[2]]
             requirements = None
             if len(serialized) > 4:
                 from pode import Requirement
+
                 requirements = [Requirement(r) for r in serialized[4]]
                 simple_holes_traversal = False
             else:
@@ -171,7 +181,7 @@ class ManageRouteView(TemplateView):
                 start=serialized[1],
                 field=field,
                 holes=holes,
-                grid_step=context['mission'].grid_step,
+                grid_step=context["mission"].grid_step,
                 road=road,
                 drones=drones,
                 triangulation_requirements=requirements,
@@ -186,18 +196,18 @@ class ManageRouteView(TemplateView):
                 holes=holes,
                 grid_step=grid_step,
                 road=road,
-                drones=context['mission'].drones.all().order_by('id'),
+                drones=context["mission"].drones.all().order_by("id"),
                 simple_holes_traversal=True,
                 # num_subpolygons_rel_to_holes=2,
             )
-        context['grid'] = list(flatten_grid(grid))
-        context['initial'] = initial_position
-        context['waypoints'] = waypoints
+        context["grid"] = list(flatten_grid(grid))
+        context["initial"] = initial_position
+        context["waypoints"] = waypoints
         # print("!!!")
         # with open(f"{field_obj}.txt", "w") as f:
         #     for w in waypoints[0]:
         #         f.write(f"{w['lat']} {w['lon']}\n")
-        context['pickup_waypoints'] = car_waypoints
+        context["pickup_waypoints"] = car_waypoints
 
     def get(self, request, *args, **kwargs):
         if "optimize" in request.GET:
@@ -228,63 +238,75 @@ class ManageRouteView(TemplateView):
         if "submitSave" in self.request.GET:
             context = self.get_context_data(**kwargs)
             i = 0
-            context['mission'].current_waypoints_status = 1
-            context['mission'].save()
-            context['mission'].current_waypoints.all().delete()
-            for waypoints in context['waypoints']:
+            context["mission"].current_waypoints_status = 1
+            context["mission"].save()
+            context["mission"].current_waypoints.all().delete()
+            for waypoints in context["waypoints"]:
                 for waypoint in waypoints:
                     w = Waypoint.objects.create(
-                        drone_id=waypoint['drone']['id'],
+                        drone_id=waypoint["drone"]["id"],
                         index=i,
-                        lat=waypoint['lat'],
-                        lon=waypoint['lon'],
-                        height=waypoint['height'],
-                        speed=waypoint['speed'],
-                        acceleration=waypoint['acceleration'],
-                        spray_on=waypoint['spray_on'],
+                        lat=waypoint["lat"],
+                        lon=waypoint["lon"],
+                        height=waypoint["height"],
+                        speed=waypoint["speed"],
+                        acceleration=waypoint["acceleration"],
+                        spray_on=waypoint["spray_on"],
                     )
                     i += 10
-                    context['mission'].current_waypoints.add(w)
-            context['mission'].current_waypoints_status = 2
-            context['mission'].save()
-            return HttpResponseRedirect(reverse_lazy('mainapp:list_mission'))
+                    context["mission"].current_waypoints.add(w)
+            context["mission"].current_waypoints_status = 2
+            context["mission"].save()
+            return HttpResponseRedirect(reverse_lazy("mainapp:list_mission"))
         if "getCsv" in self.request.GET:
             context = self.get_context_data(**kwargs)
-            response = HttpResponse(content_type='text/csv')
-            response['Content-Disposition'] = 'attachment; filename="waypoints.csv"'
+            response = HttpResponse(content_type="text/csv")
+            response["Content-Disposition"] = 'attachment; filename="waypoints.csv"'
             writer = csv.writer(response)
-            writer.writerow(['lat', 'lon', 'height', 'height_global', 'drone_id', 'drone_name', 'drone_model', 'speed', 'acceleration', 'spray_on'])
+            writer.writerow(
+                [
+                    "lat",
+                    "lon",
+                    "height",
+                    "height_global",
+                    "drone_id",
+                    "drone_name",
+                    "drone_model",
+                    "speed",
+                    "acceleration",
+                    "spray_on",
+                ]
+            )
             elevations_dict = asyncio.run(get_all_points(context))
-            for waypoints in context['waypoints']:
+            for waypoints in context["waypoints"]:
                 for waypoint in waypoints:
-                    height_absolute = request.GET.get(
-                        "height_absolute", False
-                    )
+                    height_absolute = request.GET.get("height_absolute", False)
                     if not height_absolute:
-                        height_absolute = elevations_dict[(round(waypoint['lat'], 3)), round(waypoint['lon'], 3)]
-                    writer.writerow([
-                        waypoint["lat"],
-                        waypoint["lon"],
-                        height_absolute + float(request.GET.get("height", 450.0)),
-                        height_absolute,
-                        waypoint["drone"]["id"],
-                        waypoint["drone"]["name"], waypoint["drone"]["model"],
-                        waypoint["speed"],
-                        waypoint["acceleration"],
-                        waypoint["spray_on"],
-                    ])
+                        height_absolute = elevations_dict[(round(waypoint["lat"], 3)), round(waypoint["lon"], 3)]
+                    writer.writerow(
+                        [
+                            waypoint["lat"],
+                            waypoint["lon"],
+                            height_absolute + float(request.GET.get("height", 450.0)),
+                            height_absolute,
+                            waypoint["drone"]["id"],
+                            waypoint["drone"]["name"],
+                            waypoint["drone"]["model"],
+                            waypoint["speed"],
+                            waypoint["acceleration"],
+                            waypoint["spray_on"],
+                        ]
+                    )
                 return response
         if "getJson" in self.request.GET:
             context = self.get_context_data(**kwargs)
             data = []
             elevations_dict = asyncio.run(get_all_points(context))
-            for waypoints in context['waypoints']:
+            for waypoints in context["waypoints"]:
                 for waypoint in waypoints:
-                    height_absolute = request.GET.get(
-                        "height_absolute", False
-                    )
+                    height_absolute = request.GET.get("height_absolute", False)
                     if not height_absolute:
-                        height_absolute = elevations_dict[(round(waypoint['lat'], 3)), round(waypoint['lon'], 3)]
+                        height_absolute = elevations_dict[(round(waypoint["lat"], 3)), round(waypoint["lon"], 3)]
                     data.append(
                         {
                             "lat": waypoint["lat"],
@@ -299,27 +321,26 @@ class ManageRouteView(TemplateView):
                             "spray_on": waypoint["spray_on"],
                         }
                     )
-            drone_ids = list(set([d['drone_id'] for d in data]))
+            drone_ids = list(set([d["drone_id"] for d in data]))
             jsons = [
-                create_plan_file([
-                    [d['lat'], d['lon'], d['height']]
-                    for d in data if d['drone_id'] == drone_id
-                ], drone_id)
+                create_plan_file(
+                    [[d["lat"], d["lon"], d["height"]] for d in data if d["drone_id"] == drone_id], drone_id
+                )
                 for drone_id in drone_ids
             ]
             if len(jsons) == 1:
-                response = HttpResponse(json.dumps(jsons[0]), content_type='application/json')
-                response['Content-Disposition'] = 'attachment; filename="plan.json"'
+                response = HttpResponse(json.dumps(jsons[0]), content_type="application/json")
+                response["Content-Disposition"] = 'attachment; filename="plan.json"'
             else:
                 zip_buffer = BytesIO()
-                with zipfile.ZipFile(zip_buffer, 'w') as zip_file:
-                    for i, (json_data, drone_id)  in enumerate(zip(jsons, drone_ids)):
+                with zipfile.ZipFile(zip_buffer, "w") as zip_file:
+                    for i, (json_data, drone_id) in enumerate(zip(jsons, drone_ids)):
                         file_name = f"plan_{drone_id}_{i}.json"
                         zip_file.writestr(file_name, json.dumps(json_data))
 
                 zip_buffer.seek(0)
-                response = HttpResponse(zip_buffer, content_type='application/zip')
-                response['Content-Disposition'] = 'attachment; filename="plans.zip"'
+                response = HttpResponse(zip_buffer, content_type="application/zip")
+                response["Content-Disposition"] = 'attachment; filename="plans.zip"'
 
             return response
 
@@ -328,10 +349,10 @@ class ManageRouteView(TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         if self.request.user.is_staff:
-            mission = get_object_or_404(Mission, id=kwargs['mission_id'])
+            mission = get_object_or_404(Mission, id=kwargs["mission_id"])
         else:
-            mission = get_object_or_404(Mission, id=kwargs['mission_id'], owner=self.request.user)
-        context['mission'] = mission
+            mission = get_object_or_404(Mission, id=kwargs["mission_id"], owner=self.request.user)
+        context["mission"] = mission
         self.handle(context)
         return context
 
@@ -341,32 +362,34 @@ class MissionsCreateView(TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['types'] = Mission.TYPES
-        context['fields'] = Field.objects.all() if self.request.user.is_staff else Field.objects.filter(owner=self.request.user)
-        context['drones'] = Drone.objects.all()
+        context["types"] = Mission.TYPES
+        context["fields"] = (
+            Field.objects.all() if self.request.user.is_staff else Field.objects.filter(owner=self.request.user)
+        )
+        context["drones"] = Drone.objects.all()
         return context
 
     def post(self, request, **kwargs):
-        field = get_object_or_404(Field, id=request.POST['field'])
+        field = get_object_or_404(Field, id=request.POST["field"])
         if not request.user.is_staff and field.owner_id != request.user.id:
             return HttpResponse(status=403)
         m = Mission.objects.create(
             owner=request.user,
-            name=request.POST['name'],
-            description=request.POST['description'],
-            type=request.POST['type'],
+            name=request.POST["name"],
+            description=request.POST["description"],
+            type=request.POST["type"],
             field=field,
-            grid_step=request.POST['grid_step'],
+            grid_step=request.POST["grid_step"],
         )
-        m.drones.add(*request.POST.getlist('drones'))
-        return HttpResponseRedirect(reverse_lazy('mainapp:list_mission'))
+        m.drones.add(*request.POST.getlist("drones"))
+        return HttpResponseRedirect(reverse_lazy("mainapp:list_mission"))
 
 
 class MissionsListView(ListView):
     template_name = "mainapp/list_mission.html"
 
     def get_queryset(self):
-        qs = Mission.objects.all().order_by('-id')
+        qs = Mission.objects.all().order_by("-id")
         return qs if self.request.user.is_staff else qs.filter(owner=self.request.user)
 
 

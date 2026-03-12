@@ -3,10 +3,11 @@ Tests for the REST API endpoints defined in restapp.
 
 Covers: FieldViewSet.create (POST /api/field/)
 """
+
 import json
 
 from django.contrib.auth.models import User
-from django.test import TestCase, Client
+from django.test import Client, TestCase
 
 from mainapp.models import Field
 
@@ -41,9 +42,7 @@ class FieldCreateAPITestCase(TestCase):
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertEqual(data["status"], 200)
-        self.assertTrue(
-            Field.objects.filter(owner=self.user, name="Test Field").exists()
-        )
+        self.assertTrue(Field.objects.filter(owner=self.user, name="Test Field").exists())
 
     # ------------------------------------------------------------------
     # 2. Create field - no auth
@@ -134,9 +133,9 @@ class FieldCreateAPITestCase(TestCase):
         """Holes with fewer than 3 points are filtered out."""
         self._login()
         holes = [
-            [[50.02, 30.02], [50.03, 30.02]],                     # 2 points - too few
-            [[50.04, 30.04], [50.05, 30.04], [50.05, 30.05]],     # 3 points - valid
-            [[50.06, 30.06]],                                       # 1 point  - too few
+            [[50.02, 30.02], [50.03, 30.02]],  # 2 points - too few
+            [[50.04, 30.04], [50.05, 30.04], [50.05, 30.05]],  # 3 points - valid
+            [[50.06, 30.06]],  # 1 point  - too few
         ]
         data = self.valid_data.copy()
         data["holes_serialized"] = json.dumps(holes)
