@@ -10,3 +10,7 @@ static/
 *.pyc
 *.sqlite3
 .env
+
+# Claude Code
+CLAUDE.md
+.claude/
