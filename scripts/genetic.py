@@ -1,33 +1,35 @@
-import datetime
-import pickle
-
 from pyproj import Transformer
 
-from mainapp.services_draw import get_grid
-
 try:
-    import os, sys
-    sys.path.append('C:\\Users\\KindYAK\\Desktop\\SwarMown\\')
+    import os
+    import sys
+
+    sys.path.append("C:\\Users\\KindYAK\\Desktop\\SwarMown\\")
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "swarmown.settings")
 
     import django
+
     django.setup()
-except Exception as e:
+except Exception:
     pass
 
+import argparse
 import json
 import random
 from collections import defaultdict
 
-import argparse
-from deap import creator, base, tools, algorithms
+from deap import algorithms, base, creator, tools
 from scoop import futures
 
 from mainapp.models import Mission
-from mainapp.utils import waypoints_distance, waypoints_flight_time, drone_flight_price, flight_penalty
-from mainapp.utils_excel import log_excel
 from mainapp.service_routing import get_route
-from mainapp.utils import transform_to_equidistant
+from mainapp.utils import (
+    drone_flight_price,
+    flight_penalty,
+    waypoints_distance,
+    waypoints_flight_time,
+)
+from mainapp.utils_excel import log_excel
 
 parser = argparse.ArgumentParser()
 
@@ -46,10 +48,14 @@ args = parser.parse_args()
 
 
 def eval(individual):
-    drones = [list(mission.drones.all().order_by('id'))[i] for i in individual[2]]
-    grid, waypoints, _, initial = get_route(
-        car_move=individual[3], direction=individual[0],
-        start=individual[1], field=field, grid_step=mission.grid_step, road=road,
+    drones = [list(mission.drones.all().order_by("id"))[i] for i in individual[2]]
+    grid, waypoints, _, _initial = get_route(
+        car_move=individual[3],
+        direction=individual[0],
+        start=individual[1],
+        field=field,
+        grid_step=mission.grid_step,
+        road=road,
         drones=drones,
         pyproj_transformer=pyproj_transformer,
         simple_holes_traversal=True,
@@ -62,22 +68,28 @@ def eval(individual):
 
     drone_flight_time = defaultdict(int)
     for drone_waypoints in waypoints:
-        new_distance = waypoints_distance(drone_waypoints, lat_f=lambda x: x['lat'], lon_f=lambda x: x['lon'])
-        new_time = waypoints_flight_time(drone_waypoints, float(args.max_working_speed),
-                                         lat_f=lambda x: x['lat'], lon_f=lambda x: x['lon'],
-                                         max_speed_f=lambda x: x['drone']['max_speed'],
-                                         slowdown_ratio_f=lambda x: x['drone']['slowdown_ratio_per_degree'],
-                                         min_slowdown_ratio_f=lambda x: x['drone']['min_slowdown_ratio'],
-                                         spray_on_f=lambda x: x['spray_on'])
+        new_distance = waypoints_distance(drone_waypoints, lat_f=lambda x: x["lat"], lon_f=lambda x: x["lon"])
+        new_time = waypoints_flight_time(
+            drone_waypoints,
+            float(args.max_working_speed),
+            lat_f=lambda x: x["lat"],
+            lon_f=lambda x: x["lon"],
+            max_speed_f=lambda x: x["drone"]["max_speed"],
+            slowdown_ratio_f=lambda x: x["drone"]["slowdown_ratio_per_degree"],
+            min_slowdown_ratio_f=lambda x: x["drone"]["min_slowdown_ratio"],
+            spray_on_f=lambda x: x["spray_on"],
+        )
         distance += new_distance
-        drone_flight_time[drone_waypoints[0]['drone']['id']] += new_time + (15 / 60)
-        drone_price_n = drone_flight_price(drone_waypoints[0]['drone'], new_distance, new_time)
+        drone_flight_time[drone_waypoints[0]["drone"]["id"]] += new_time + (15 / 60)
+        drone_price_n = drone_flight_price(drone_waypoints[0]["drone"], new_distance, new_time)
         drone_price += drone_price_n
         grid_traversed += max(0, len(drone_waypoints) - 2)
 
     time = max(drone_flight_time.values())
     salary = mission.hourly_price * time * len(drone_flight_time) + mission.start_price * number_of_starts
-    penalty = flight_penalty(time, float(args.borderline_time), float(args.max_time), salary, drone_price, grid_total, grid_traversed)
+    penalty = flight_penalty(
+        time, float(args.borderline_time), float(args.max_time), salary, drone_price, grid_total, grid_traversed
+    )
     return distance, time, drone_price, salary, penalty, number_of_starts
 
 
@@ -101,13 +113,13 @@ def custom_mutate(ind):
         start = ["ne", "nw", "se", "sw"][random.randint(0, 3)]
 
     if random.random() <= MUTATION_CHANCE:
-        if random.random() < 0.5: # Insert random
+        if random.random() < 0.5:  # Insert random
             drones.insert(random.randint(0, len(drones) - 1), random.randint(0, number_of_drones - 1))
 
-        if random.random() < 0.5 and len(drones) > 1: # Delete random
+        if random.random() < 0.5 and len(drones) > 1:  # Delete random
             del drones[random.randint(0, len(drones) - 1)]
 
-        if random.random() < 0.5: # Shuffle random
+        if random.random() < 0.5:  # Shuffle random
             random.shuffle(drones)
 
     if random.random() <= MUTATION_CHANCE:
@@ -131,7 +143,7 @@ def custom_mutate(ind):
     ind[1] = start
     ind[2] = drones
     ind[3] = car_points
-    return ind,
+    return (ind,)
 
 
 MISSION_ID = int(args.mission_id)
@@ -139,7 +151,7 @@ NGEN = int(args.ngen)
 POPULATION_SIZE = int(args.population_size)
 MUTATION_CHANCE = float(args.mutation_chance)
 # Distance, Time, Price, NumberOfStarts
-TARGET_WEIGHTS = (-1.0, )
+TARGET_WEIGHTS = (-1.0,)
 
 MAX_DRONES_ON_CAR = 5
 
@@ -151,8 +163,8 @@ road = [[y, x] for (x, y) in road]
 number_of_drones = mission.drones.all().count()
 
 pyproj_transformer = Transformer.from_crs(
-    'epsg:4087',
-    'epsg:4326',
+    "epsg:4087",
+    "epsg:4326",
     always_xy=True,
 )
 
@@ -161,16 +173,20 @@ toolbox = base.Toolbox()
 creator.create("FitnessMax", base.Fitness, weights=TARGET_WEIGHTS)
 creator.create("Individual", list, fitness=creator.FitnessMax)
 
-toolbox.register("attr_direction", random.uniform, 0, 360) # 0
-toolbox.register("attr_start", lambda: ["ne", "nw", "se", "sw"][random.randint(0, 3)]) # 1
-toolbox.register("attr_drones", lambda: [random.randint(0, number_of_drones - 1) for _ in
-                                         range(random.randint(1, number_of_drones * 3))]) # 2
-toolbox.register("attr_car_points",
-                 lambda: [random.uniform(0, 1) for _ in range(random.randint(1, 5))]) # 3
+toolbox.register("attr_direction", random.uniform, 0, 360)  # 0
+toolbox.register("attr_start", lambda: ["ne", "nw", "se", "sw"][random.randint(0, 3)])  # 1
+toolbox.register(
+    "attr_drones",
+    lambda: [random.randint(0, number_of_drones - 1) for _ in range(random.randint(1, number_of_drones * 3))],
+)  # 2
+toolbox.register("attr_car_points", lambda: [random.uniform(0, 1) for _ in range(random.randint(1, 5))])  # 3
 
-toolbox.register("individual", tools.initCycle, creator.Individual,
-                 (toolbox.attr_direction, toolbox.attr_start, toolbox.attr_drones, toolbox.attr_car_points)
-                 )
+toolbox.register(
+    "individual",
+    tools.initCycle,
+    creator.Individual,
+    (toolbox.attr_direction, toolbox.attr_start, toolbox.attr_drones, toolbox.attr_car_points),
+)
 
 toolbox.register("population", tools.initRepeat, list, toolbox.individual)
 
@@ -187,12 +203,12 @@ def run():
 
     iterations = []
     for gen in range(NGEN):
-        print(f"{gen+1}/{NGEN}")
+        print(f"{gen + 1}/{NGEN}")
         offspring = algorithms.varAnd(population, toolbox, cxpb=0.5, mutpb=1)
         fits = toolbox.map(toolbox.evaluate, offspring)
         fitness_params = []
         for (distance, time, drone_price, salary, penalty, number_of_starts), ind in zip(fits, offspring):
-            ind.fitness.values = (drone_price + salary + penalty, )
+            ind.fitness.values = (drone_price + salary + penalty,)
             ind[2] = ind[2][:number_of_starts]
             ind[3] = ind[3][:number_of_starts]
             fitness_params.append(
@@ -209,26 +225,25 @@ def run():
         top = tools.selBest(population, k=1)
 
         fitnesses = [sum([t * tw for t, tw in zip(ind.fitness.values, TARGET_WEIGHTS)]) for ind in offspring]
-        best_solution = min(fitness_params, key=lambda x: x['drone_price'] + x['salary'] + x['penalty'])
+        best_solution = min(fitness_params, key=lambda x: x["drone_price"] + x["salary"] + x["penalty"])
         iterations.append(
             {
                 "best_ind": top[0],
-
-                "best_distance": best_solution['distance'],
-                "average_distance": sum((ind['distance'] for ind in fitness_params)) / len(fitness_params),
-                "best_time": best_solution['time'],
-                "average_time": sum((ind['time'] for ind in fitness_params)) / len(fitness_params),
-                "best_drone_price": best_solution['drone_price'],
-                "average_drone_price": sum((ind['drone_price'] for ind in fitness_params)) / len(fitness_params),
-                "best_salary": best_solution['salary'],
-                "average_salary": sum((ind['salary'] for ind in fitness_params)) / len(fitness_params),
-                "best_penalty": best_solution['penalty'],
-                "average_penalty": sum((ind['penalty'] for ind in fitness_params)) / len(fitness_params),
-                "best_number_of_starts": best_solution['number_of_starts'],
-                "average_number_of_starts": sum((ind['number_of_starts'] for ind in fitness_params)) / len(fitness_params),
-
+                "best_distance": best_solution["distance"],
+                "average_distance": sum(ind["distance"] for ind in fitness_params) / len(fitness_params),
+                "best_time": best_solution["time"],
+                "average_time": sum(ind["time"] for ind in fitness_params) / len(fitness_params),
+                "best_drone_price": best_solution["drone_price"],
+                "average_drone_price": sum(ind["drone_price"] for ind in fitness_params) / len(fitness_params),
+                "best_salary": best_solution["salary"],
+                "average_salary": sum(ind["salary"] for ind in fitness_params) / len(fitness_params),
+                "best_penalty": best_solution["penalty"],
+                "average_penalty": sum(ind["penalty"] for ind in fitness_params) / len(fitness_params),
+                "best_number_of_starts": best_solution["number_of_starts"],
+                "average_number_of_starts": sum(ind["number_of_starts"] for ind in fitness_params)
+                / len(fitness_params),
                 "best_fit": max(fitnesses),
-                "average_fit": sum(fitnesses) / len(fitnesses)
+                "average_fit": sum(fitnesses) / len(fitnesses),
             }
         )
         print(f"Top score {max(fitnesses)}, average score {sum(fitnesses) / len(fitnesses)}")

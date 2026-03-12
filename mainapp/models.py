@@ -2,18 +2,13 @@ from django.contrib.auth.models import User
 from django.db import models
 
 from mainapp.utils import waypoints_distance, waypoints_flight_time
-from swarmown import settings
 
 
 class Field(models.Model):
     class Meta:
         verbose_name = "Поле"
         verbose_name_plural = "Поля"
-        constraints = [
-            models.UniqueConstraint(
-                fields=["owner", "name"], name="unique_field_name_per_owner"
-            )
-        ]
+        constraints = [models.UniqueConstraint(fields=["owner", "name"], name="unique_field_name_per_owner")]
 
     name = models.CharField(max_length=251)
     owner = models.ForeignKey(
@@ -25,12 +20,15 @@ class Field(models.Model):
         verbose_name="Владелец",
     )
 
-    points_serialized = models.TextField() # Json Serialized [[lat, lon], [lat, lon], ...]
-    road_serialized = models.TextField(default=[]) # Json Serialized [[lat, lon], [lat, lon], ...]
-    holes_serialized = models.TextField(default=[], verbose_name="Препятствия (Serialized)") # Json Serialized [# First hole # [[lat, lon], [lat, lon], ...], # Second hole # [[lat, lon], [lat, lon], ...], ...]
+    points_serialized = models.TextField()  # Json Serialized [[lat, lon], [lat, lon], ...]
+    road_serialized = models.TextField(default=[])  # Json Serialized [[lat, lon], [lat, lon], ...]
+    holes_serialized = models.TextField(
+        default=[], verbose_name="Препятствия (Serialized)"
+    )  # Json Serialized [# First hole # [[lat, lon], [lat, lon], ...], # Second hole # [[lat, lon], [lat, lon], ...], ...]
 
     def __str__(self):
         return f"{self.name}"
+
 
 #
 # import json
@@ -54,15 +52,12 @@ class Field(models.Model):
 # cop = {"type": "Polygon", "coordinates": [zip(x, y)]}
 # print(round(shape(cop).area))  # 268952044107.43506
 
+
 class Mission(models.Model):
     class Meta:
         verbose_name = "Миссия"
         verbose_name_plural = "Миссии"
-        constraints = [
-            models.UniqueConstraint(
-                fields=["owner", "name"], name="unique_mission_name_per_owner"
-            )
-        ]
+        constraints = [models.UniqueConstraint(fields=["owner", "name"], name="unique_mission_name_per_owner")]
 
     STATUSES = (
         (-2, "Критическая ошибка"),
@@ -101,12 +96,18 @@ class Mission(models.Model):
     status = models.SmallIntegerField(default=0, choices=STATUSES, verbose_name="Статус")
     type = models.SmallIntegerField(choices=TYPES, verbose_name="Тип задачи")
 
-    field = models.ForeignKey('Field', on_delete=models.CASCADE, verbose_name="Поля")
+    field = models.ForeignKey("Field", on_delete=models.CASCADE, verbose_name="Поля")
     grid_step = models.FloatField(default=100, verbose_name="Шаг решетки (м)")
-    drones = models.ManyToManyField('Drone', blank=True, verbose_name="Дроны")
-    current_waypoints_status = models.SmallIntegerField(default=0, choices=WAYPOINTS_STATUSES, verbose_name="Статус маршрута")
-    current_waypoints = models.ManyToManyField('Waypoint', blank=True, verbose_name="Текущий путь", related_name="mission")
-    waypoints_history = models.ManyToManyField('Waypoint', blank=True, verbose_name="История", related_name="mission_history")
+    drones = models.ManyToManyField("Drone", blank=True, verbose_name="Дроны")
+    current_waypoints_status = models.SmallIntegerField(
+        default=0, choices=WAYPOINTS_STATUSES, verbose_name="Статус маршрута"
+    )
+    current_waypoints = models.ManyToManyField(
+        "Waypoint", blank=True, verbose_name="Текущий путь", related_name="mission"
+    )
+    waypoints_history = models.ManyToManyField(
+        "Waypoint", blank=True, verbose_name="История", related_name="mission_history"
+    )
 
     start_price = models.FloatField(default=3, verbose_name="Цена за один старт (оплата пилоту, $)")
     hourly_price = models.FloatField(default=10, verbose_name="Цена за один час (оплата пилоту, $)")
@@ -128,7 +129,7 @@ class Mission(models.Model):
 
     @property
     def drones_verbose(self):
-        return ", ".join([str(d) for d in self.drones.all().order_by('id')])
+        return ", ".join([str(d) for d in self.drones.all().order_by("id")])
 
     @property
     def simulated_distance(self):
@@ -140,11 +141,11 @@ class Mission(models.Model):
 
     @property
     def simulated_flight_time(self):
-        return waypoints_flight_time(self.current_waypoints.all().order_by('index'))
+        return waypoints_flight_time(self.current_waypoints.all().order_by("index"))
 
     @property
     def history_flight_time(self):
-        return waypoints_flight_time(self.waypoints_history.all().order_by('index'))
+        return waypoints_flight_time(self.waypoints_history.all().order_by("index"))
 
 
 class Drone(models.Model):
@@ -159,7 +160,9 @@ class Drone(models.Model):
     max_speed = models.FloatField(default=15, verbose_name="Максимальная скорость (км/ч)")
     max_distance_no_load = models.FloatField(verbose_name="Максимальная дальность полета (км)")
 
-    slowdown_ratio_per_degree = models.FloatField(default=0.9/180, verbose_name="Коэффициент замедление на один градус поворота")
+    slowdown_ratio_per_degree = models.FloatField(
+        default=0.9 / 180, verbose_name="Коэффициент замедление на один градус поворота"
+    )
     min_slowdown_ratio = models.FloatField(default=0.01, verbose_name="Минимальный коэффициент замедления при повороте")
 
     price_per_cycle = models.FloatField(default=3, verbose_name="Цена за один полет ($)")
@@ -186,7 +189,7 @@ class Waypoint(models.Model):
         (2, "Завершен"),
     )
 
-    drone = models.ForeignKey('Drone', on_delete=models.CASCADE)
+    drone = models.ForeignKey("Drone", on_delete=models.CASCADE)
 
     status = models.SmallIntegerField(default=0, choices=STATUSES, verbose_name="Статус")
 

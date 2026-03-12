@@ -4,13 +4,14 @@ Smoke tests for mainapp views.
 Covers: Index, MissionsListView, MissionsCreateView, ManageRouteView,
         login page, and unauthenticated-access redirects.
 """
+
 from unittest.mock import patch
 
 from django.contrib.auth.models import User
-from django.test import TestCase, Client
+from django.test import Client, TestCase
 from django.urls import reverse
 
-from mainapp.models import Field, Mission, Drone
+from mainapp.models import Drone, Field, Mission
 
 
 class ViewsSmokeTestCase(TestCase):
@@ -28,7 +29,11 @@ class ViewsSmokeTestCase(TestCase):
             holes_serialized="[]",
         )
         self.drone = Drone.objects.create(
-            name="D1", model="M1", max_distance_no_load=10, weight=5, max_load=2,
+            name="D1",
+            model="M1",
+            max_distance_no_load=10,
+            weight=5,
+            max_load=2,
         )
         self.mission = Mission.objects.create(
             owner=self.user,
@@ -87,9 +92,7 @@ class MissionsCreateViewTests(ViewsSmokeTestCase):
         }
         response = self.client.post(reverse("mainapp:add_mission"), data)
         self.assertEqual(response.status_code, 302)
-        self.assertTrue(
-            Mission.objects.filter(name="New Mission", owner=self.user).exists()
-        )
+        self.assertTrue(Mission.objects.filter(name="New Mission", owner=self.user).exists())
 
 
 class ManageRouteViewTests(ViewsSmokeTestCase):
@@ -118,9 +121,9 @@ class ManageRouteViewTests(ViewsSmokeTestCase):
         # get_route returns (grid, waypoints, car_waypoints, initial_position)
         mock_get_route.return_value = (
             [[[50.0, 30.0, 0, 1]]],  # grid
-            [[mock_waypoint]],        # waypoints (list of lists)
-            [],                       # car_waypoints
-            [50.0, 30.0],             # initial_position
+            [[mock_waypoint]],  # waypoints (list of lists)
+            [],  # car_waypoints
+            [50.0, 30.0],  # initial_position
         )
         url = reverse("mainapp:manage_route", kwargs={"mission_id": self.mission.id})
         response = self.client.get(url)
@@ -151,7 +154,11 @@ class UnauthenticatedAccessTests(TestCase):
             holes_serialized="[]",
         )
         self.drone = Drone.objects.create(
-            name="D1", model="M1", max_distance_no_load=10, weight=5, max_load=2,
+            name="D1",
+            model="M1",
+            max_distance_no_load=10,
+            weight=5,
+            max_load=2,
         )
         self.mission = Mission.objects.create(
             owner=self.user,

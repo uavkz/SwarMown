@@ -1,13 +1,13 @@
 import unittest
 
 try:
-    from pode import Requirement
-    from gon.base import Point, Polygon, Contour, EMPTY
+    from gon.base import Contour, Point, Polygon
 
     from mainapp.utils_triangulation_pode import (
         divide_polygon_with_holes,
         remove_overlaps,
     )
+    from pode import Requirement
 
     PODE_AVAILABLE = True
 except ImportError:
@@ -20,12 +20,8 @@ class DividePolygonWithHolesTests(unittest.TestCase):
 
     def setUp(self):
         # Square with a small square hole
-        self.outer = Contour(
-            [Point(0, 0), Point(10, 0), Point(10, 10), Point(0, 10)]
-        )
-        self.hole = Contour(
-            [Point(3, 3), Point(5, 3), Point(5, 5), Point(3, 5)]
-        )
+        self.outer = Contour([Point(0, 0), Point(10, 0), Point(10, 10), Point(0, 10)])
+        self.hole = Contour([Point(3, 3), Point(5, 3), Point(5, 5), Point(3, 5)])
         self.polygon = Polygon(self.outer, [self.hole])
         self.reqs = [Requirement(0.5), Requirement(0.5)]
 
@@ -52,22 +48,15 @@ class DividePolygonWithHolesTests(unittest.TestCase):
             total_parts_area,
             original_area,
             delta=original_area * 0.01,
-            msg=(
-                f"Total parts area {total_parts_area} differs from "
-                f"original area {original_area} by more than 1%"
-            ),
+            msg=(f"Total parts area {total_parts_area} differs from original area {original_area} by more than 1%"),
         )
 
     # 4. remove_overlaps - cleaned version has no overlap
     def test_remove_overlaps_no_overlap(self):
         """After remove_overlaps, partitions do not overlap (areas sum to original)."""
         # Create two overlapping polygons that both cover parts of the outer square
-        poly_a = Polygon(
-            Contour([Point(0, 0), Point(6, 0), Point(6, 10), Point(0, 10)])
-        )
-        poly_b = Polygon(
-            Contour([Point(4, 0), Point(10, 0), Point(10, 10), Point(4, 10)])
-        )
+        poly_a = Polygon(Contour([Point(0, 0), Point(6, 0), Point(6, 10), Point(0, 10)]))
+        poly_b = Polygon(Contour([Point(4, 0), Point(10, 0), Point(10, 10), Point(4, 10)]))
         original = Polygon(self.outer)
         cleaned = remove_overlaps(original, [poly_a, poly_b])
         total_cleaned_area = sum(float(p.area) for p in cleaned)

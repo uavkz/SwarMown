@@ -1,8 +1,7 @@
-from pode import divide, Requirement
-from gon.base import Point, Polygon, Contour, EMPTY, Multipolygon, Triangulation
 import matplotlib.pyplot as plt
+from gon.base import EMPTY, Multipolygon, Polygon, Triangulation
 
-
+from pode import Requirement, divide
 
 # outer_boundary = Contour([Point(0, 0), Point(10, 0), Point(10, 16), Point(0, 10)])
 # hole1 = Contour([Point(2, 2), Point(4, 2), Point(4, 4), Point(2, 4)])
@@ -22,6 +21,7 @@ import matplotlib.pyplot as plt
 #     Requirement(1/6),  # 50% of the area, no anchor point
 #     Requirement(1 - (1/6) * 5),  # 50% of the area, no anchor point
 # ]
+
 
 def remove_overlaps(
     original_polygon: Polygon,
@@ -78,7 +78,7 @@ def divide_polygon_with_holes(
             print(f"Partition {i}:")
             print(f"Area: {float(part.area)}")
             anchor_point = requirements[i - 1].point
-            contains_anchor = anchor_point in part if anchor_point else 'N/A'
+            contains_anchor = anchor_point in part if anchor_point else "N/A"
             print(f"Contains anchor point: {contains_anchor}")
             print(f"Coordinates: {part.border.vertices}\n")
 
@@ -91,7 +91,6 @@ def divide_polygon_with_holes(
             print(f"Original polygon area: {float(original_area)}")
             print(f"Total area of partitions: {float(total_parts_area)}")
             print(f"Difference in area: {float(area_difference)}")
-
 
     cleaned_parts = remove_overlaps(polygon_with_holes, parts)
     if verbose:
@@ -113,18 +112,17 @@ def visualize_partitions(
 ):
     multipolygon = Multipolygon(parts)
 
-    fig, ax = plt.subplots()
+    _fig, ax = plt.subplots()
     for polygon in multipolygon.polygons:
         x, y = zip(*[(p.x, p.y) for p in polygon.border.vertices])
-        ax.fill(x, y, alpha=1, edgecolor='black', linewidth=1)
+        ax.fill(x, y, alpha=1, edgecolor="black", linewidth=1)
         for hole in polygon.holes:
             xh, yh = zip(*[(p.x, p.y) for p in hole.vertices])
-            ax.fill(xh, yh, color='white', edgecolor='black', linewidth=1)
+            ax.fill(xh, yh, color="white", edgecolor="black", linewidth=1)
 
     for req in requirements:
         if req.point:
-            ax.plot(req.point.x, req.point.y, 'ro')  # Red dot for anchor points
+            ax.plot(req.point.x, req.point.y, "ro")  # Red dot for anchor points
 
-    ax.set_aspect('equal')
+    ax.set_aspect("equal")
     plt.show()
-

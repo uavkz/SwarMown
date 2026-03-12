@@ -8,8 +8,7 @@ from vincenty import vincenty
 
 def flatten_grid(grid):
     for line in grid:
-        for coord in line:
-            yield coord
+        yield from line
 
 
 def unique(list1):
@@ -30,17 +29,17 @@ def _transform_points(points, from_proj, to_proj):
 
 
 def transform_to_equidistant(points):
-    p_ll = pyproj.Proj('epsg:4326')
+    p_ll = pyproj.Proj("epsg:4326")
     # p_mt = pyproj.Proj('epsg:3857')  # metric; same as EPSG:90091, generally good Google Map
-    p_mt = pyproj.Proj('epsg:4087')  # metric; equidistant
+    p_mt = pyproj.Proj("epsg:4087")  # metric; equidistant
 
     _transform_points(points, p_ll, p_mt)
 
 
 def transform_to_lat_lon(points):
-    p_ll = pyproj.Proj('epsg:4326')
+    p_ll = pyproj.Proj("epsg:4326")
     # p_mt = pyproj.Proj('epsg:3857')  # metric; same as EPSG:90091, generally good Google Map
-    p_mt = pyproj.Proj('epsg:4087')  # metric; equidistant
+    p_mt = pyproj.Proj("epsg:4087")  # metric; equidistant
 
     _transform_points(points, p_mt, p_ll)
 
@@ -63,8 +62,8 @@ def calc_vincenty(p1, p2, lon_first=False):
     if lon_first:
         try:
             p1 = [p1[1], p1[0]]
-        except:
-            p1 = [p1['lon'], p1['lat']]
+        except (TypeError, KeyError):
+            p1 = [p1["lon"], p1["lat"]]
         p2 = [p2[1], p2[0]]
     return vincenty(p1, p2)
 
@@ -74,17 +73,23 @@ def waypoints_distance(waypoints, lat_f=lambda x: x.lat, lon_f=lambda x: x.lon):
     prev_waypoint = None
     for waypoint in waypoints:
         if prev_waypoint:
-            total_distance += calc_vincenty([lat_f(waypoint), lon_f(waypoint)], [lat_f(prev_waypoint), lon_f(prev_waypoint)]) * 1000
+            total_distance += (
+                calc_vincenty([lat_f(waypoint), lon_f(waypoint)], [lat_f(prev_waypoint), lon_f(prev_waypoint)]) * 1000
+            )
         prev_waypoint = waypoint
     return total_distance
 
 
-def waypoints_flight_time(waypoints, max_working_speed=100,
-                          lat_f=lambda x: x.lat, lon_f=lambda x: x.lon,
-                          max_speed_f=lambda x: x.drone.max_speed,
-                          slowdown_ratio_f=lambda x: x.drone.slowdown_ratio_per_degree,
-                          min_slowdown_ratio_f=lambda x: x.drone.min_slowdown_ratio,
-                          spray_on_f=lambda x: False):
+def waypoints_flight_time(
+    waypoints,
+    max_working_speed=100,
+    lat_f=lambda x: x.lat,
+    lon_f=lambda x: x.lon,
+    max_speed_f=lambda x: x.drone.max_speed,
+    slowdown_ratio_f=lambda x: x.drone.slowdown_ratio_per_degree,
+    min_slowdown_ratio_f=lambda x: x.drone.min_slowdown_ratio,
+    spray_on_f=lambda x: False,
+):
     total_time = 0
     prev_waypoint = None
     prev_prev_waypoint = None
@@ -109,7 +114,7 @@ def waypoints_flight_time(waypoints, max_working_speed=100,
 
 
 def drone_flight_price(drone, distance, time):
-    drone_price = drone['price_per_cycle'] + drone['price_per_kilometer'] * distance + drone['price_per_hour'] * time
+    drone_price = drone["price_per_cycle"] + drone["price_per_kilometer"] * distance + drone["price_per_hour"] * time
     return drone_price
 
 
@@ -143,11 +148,7 @@ def rotate(point, origin, angle):
 def latlong_to_3d(latr, lonr):
     """Convert a point given latitude and longitude in radians to
     3-dimensional space, assuming a sphere radius of one."""
-    return np.array((
-        math.cos(latr) * math.cos(lonr),
-        math.cos(latr) * math.sin(lonr),
-        math.sin(latr)
-    ))
+    return np.array((math.cos(latr) * math.cos(lonr), math.cos(latr) * math.sin(lonr), math.sin(latr)))
 
 
 def angle_between_vectors_degrees(u, v):

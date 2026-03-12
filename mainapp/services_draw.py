@@ -4,8 +4,7 @@ import numpy as np
 from shapely.geometry import Point
 from shapely.geometry.polygon import Polygon
 
-from mainapp.utils import transform_to_equidistant, transform_to_lat_lon, waypoints_distance, \
-    calc_vincenty, rotate
+from mainapp.utils import calc_vincenty, rotate, transform_to_equidistant, transform_to_lat_lon, waypoints_distance
 
 
 def get_grid(field, step, angle=0, do_transform=True, trans=None):
@@ -15,16 +14,16 @@ def get_grid(field, step, angle=0, do_transform=True, trans=None):
     polygon = Polygon(field)
     grid = []
 
-    min_x = min((p[0] for p in field))
-    min_y = min((p[1] for p in field))
-    max_x = max((p[0] for p in field))
-    max_y = max((p[1] for p in field))
+    min_x = min(p[0] for p in field)
+    min_y = min(p[1] for p in field)
+    max_x = max(p[0] for p in field)
+    max_y = max(p[1] for p in field)
 
-    min_x -= (max_y - min_y)
-    max_x += (max_y - min_y)
+    min_x -= max_y - min_y
+    max_x += max_y - min_y
 
-    min_y -= (max_x - min_x)
-    max_y += (max_x - min_x)
+    min_y -= max_x - min_x
+    max_y += max_x - min_x
 
     for x in np.linspace(min_x, max_x, round((max_x - min_x) / step)):
         line = []

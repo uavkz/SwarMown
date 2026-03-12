@@ -5,11 +5,7 @@ def create_plan_file(waypoints, drone_id, altitude_world=855, height=80):
     # Plan structure in JSON format
     plan_structure = {
         "fileType": "Plan",
-        "geoFence": {
-            "circles": [],
-            "polygons": [],
-            "version": 2
-        },
+        "geoFence": {"circles": [], "polygons": [], "version": 2},
         "groundStation": "QGroundControl",
         "mission": {
             "cruiseSpeed": 15,
@@ -19,13 +15,10 @@ def create_plan_file(waypoints, drone_id, altitude_world=855, height=80):
             "items": [],
             "plannedHomePosition": (waypoints[0][0], waypoints[0][1], altitude_world),
             "vehicleType": 2,
-            "version": 2
+            "version": 2,
         },
-        "rallyPoints": {
-            "points": [],
-            "version": 2
-        },
-        "version": 1
+        "rallyPoints": {"points": [], "version": 2},
+        "version": 1,
     }
 
     # Add waypoints to the mission
@@ -44,7 +37,7 @@ def create_plan_file(waypoints, drone_id, altitude_world=855, height=80):
             "doJumpId": i + 1,
             "frame": frame,
             "params": [0, 0 if i > 0 else 2, 0, None, point[0], point[1], 50],
-            "type": "SimpleItem"
+            "type": "SimpleItem",
         }
         if i == 0:
             mission_item = {
@@ -56,8 +49,8 @@ def create_plan_file(waypoints, drone_id, altitude_world=855, height=80):
                 "doJumpId": i + 1,
                 "frame": frame,
                 "params": [0, 0 if i > 0 else 2, None, None, None, None, None],
-                "type": "SimpleItem"
+                "type": "SimpleItem",
             }
-        plan_structure['mission']['items'].append(mission_item)
+        plan_structure["mission"]["items"].append(mission_item)
 
     return plan_structure

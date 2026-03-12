@@ -14,15 +14,15 @@ from pyproj import Transformer
 from shapely.geometry import Point as ShapelyPoint
 from shapely.geometry.polygon import Polygon as ShapelyPolygon
 
-from mainapp.models import Field, Mission, Drone, Waypoint
+from mainapp.models import Drone, Field
 from mainapp.service_routing import get_route
 from mainapp.utils import (
-    waypoints_distance,
-    waypoints_flight_time,
     drone_flight_price,
     flight_penalty,
     transform_to_equidistant,
     transform_to_lat_lon,
+    waypoints_distance,
+    waypoints_flight_time,
 )
 
 # A real-ish rectangular field (roughly 5km x 3km near Almaty, Kazakhstan)
@@ -70,9 +70,7 @@ class FullPipelineTests(TestCase):
     """End-to-end tests: field + drone -> get_route -> validate output."""
 
     def setUp(self):
-        self.user = User.objects.create_user(
-            username="testpilot", password="pass1234"
-        )
+        self.user = User.objects.create_user(username="testpilot", password="pass1234")
         self.field = Field.objects.create(
             name="TestField",
             owner=self.user,
@@ -88,7 +86,7 @@ class FullPipelineTests(TestCase):
         """Create field + drone, call get_route. Grid and waypoints must be
         non-empty; each segment must have >= 3 points (fly_to + coverage +
         fly_back); every waypoint dict must carry the required keys."""
-        grid, waypoints, car_wps, first_car = get_route(
+        grid, waypoints, _car_wps, _first_car = get_route(
             car_move=[0.5],
             direction=0,
             start="sw",
@@ -101,14 +99,10 @@ class FullPipelineTests(TestCase):
 
         # Grid non-empty
         non_empty_lines = [line for line in grid if line]
-        self.assertGreater(
-            len(non_empty_lines), 0, "Grid must contain at least one non-empty line"
-        )
+        self.assertGreater(len(non_empty_lines), 0, "Grid must contain at least one non-empty line")
 
         # Waypoints non-empty
-        self.assertGreater(
-            len(waypoints), 0, "Route must produce at least one waypoint segment"
-        )
+        self.assertGreater(len(waypoints), 0, "Route must produce at least one waypoint segment")
 
         # Each segment has at least 3 points (fly_to, coverage point(s), fly_back)
         for idx, segment in enumerate(waypoints):
@@ -212,9 +206,7 @@ class FullPipelineTests(TestCase):
             )
             dp = drone_flight_price(segment[0]["drone"], distance / 1000, time)
 
-            self.assertGreater(
-                distance, 0, f"Segment {seg_idx}: distance must be > 0"
-            )
+            self.assertGreater(distance, 0, f"Segment {seg_idx}: distance must be > 0")
             self.assertGreater(time, 0, f"Segment {seg_idx}: flight time must be > 0")
             self.assertGreater(dp, 0, f"Segment {seg_idx}: drone price must be > 0")
 
@@ -402,9 +394,7 @@ class FullPipelineWithHolesTests(TestCase):
     """End-to-end tests with holes (obstacles) in the field."""
 
     def setUp(self):
-        self.user = User.objects.create_user(
-            username="testpilot_holes", password="pass1234"
-        )
+        self.user = User.objects.create_user(username="testpilot_holes", password="pass1234")
         self.field = Field.objects.create(
             name="TestFieldHoles",
             owner=self.user,
@@ -420,7 +410,7 @@ class FullPipelineWithHolesTests(TestCase):
         """Route with a hole in the middle (simple_holes_traversal=True).
         Route must still generate. No spray_on waypoint should fall inside
         the hole polygon (within reasonable tolerance)."""
-        grid, waypoints, car_wps, first_car = get_route(
+        grid, waypoints, _car_wps, _first_car = get_route(
             car_move=[0.5],
             direction=0,
             start="sw",
@@ -435,12 +425,8 @@ class FullPipelineWithHolesTests(TestCase):
 
         # Route must generate successfully
         non_empty_lines = [line for line in grid if line]
-        self.assertGreater(
-            len(non_empty_lines), 0, "Grid must have non-empty lines even with holes"
-        )
-        self.assertGreater(
-            len(waypoints), 0, "Must produce waypoint segments even with holes"
-        )
+        self.assertGreater(len(non_empty_lines), 0, "Grid must have non-empty lines even with holes")
+        self.assertGreater(len(waypoints), 0, "Must produce waypoint segments even with holes")
 
         # Build a slightly shrunk hole polygon to avoid false positives at
         # edges due to floating point.
@@ -455,8 +441,7 @@ class FullPipelineWithHolesTests(TestCase):
                     pt = ShapelyPoint(wp["lon"], wp["lat"])
                     self.assertFalse(
                         hole_inner.contains(pt),
-                        f"spray_on waypoint ({wp['lon']}, {wp['lat']}) is inside "
-                        f"the hole polygon",
+                        f"spray_on waypoint ({wp['lon']}, {wp['lat']}) is inside the hole polygon",
                     )
 
 
@@ -482,12 +467,8 @@ class SanityTests(TestCase):
         ]
         path_ba = list(reversed(path_ab))
 
-        dist_ab = waypoints_distance(
-            path_ab, lat_f=lambda x: x["lat"], lon_f=lambda x: x["lon"]
-        )
-        dist_ba = waypoints_distance(
-            path_ba, lat_f=lambda x: x["lat"], lon_f=lambda x: x["lon"]
-        )
+        dist_ab = waypoints_distance(path_ab, lat_f=lambda x: x["lat"], lon_f=lambda x: x["lon"])
+        dist_ba = waypoints_distance(path_ba, lat_f=lambda x: x["lat"], lon_f=lambda x: x["lon"])
 
         self.assertAlmostEqual(
             dist_ab,
@@ -501,9 +482,7 @@ class SanityTests(TestCase):
     def test_zero_length_path(self):
         """A single waypoint should yield distance ~= 0."""
         single = [{"lat": 43.2, "lon": 76.9}]
-        dist = waypoints_distance(
-            single, lat_f=lambda x: x["lat"], lon_f=lambda x: x["lon"]
-        )
+        dist = waypoints_distance(single, lat_f=lambda x: x["lat"], lon_f=lambda x: x["lon"])
         self.assertAlmostEqual(dist, 0, places=5, msg="Single point -> distance ~ 0")
 
     # -- 11. Price increases with distance -----------------------------------
@@ -579,7 +558,8 @@ class SanityTests(TestCase):
         # After transforming, values should be in metric (large numbers)
         for pt in points:
             self.assertGreater(
-                abs(pt[0]), 1000,
+                abs(pt[0]),
+                1000,
                 "Equidistant projection should produce large metric values",
             )
 

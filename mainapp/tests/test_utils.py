@@ -7,7 +7,7 @@ Covers:
 - Edge cases: empty lists, single point, zero distance, boundary angles
 - Sanity checks: distance positivity, monotonicity, penalty growth
 """
-import copy
+
 import math
 
 import numpy as np
@@ -493,70 +493,82 @@ class TestFlightPenalty(TestCase):
     """Tests for flight_penalty."""
 
     def test_smoke(self):
-        flight_penalty(time=1, borderline_time=2, max_time=3,
-                       salary=10, drone_price=5, total_grid=100, grid_traversed=100)
+        flight_penalty(
+            time=1, borderline_time=2, max_time=3, salary=10, drone_price=5, total_grid=100, grid_traversed=100
+        )
 
     def test_no_penalty_under_borderline(self):
-        p = flight_penalty(time=1, borderline_time=2, max_time=3,
-                           salary=10, drone_price=5, total_grid=100, grid_traversed=100)
+        p = flight_penalty(
+            time=1, borderline_time=2, max_time=3, salary=10, drone_price=5, total_grid=100, grid_traversed=100
+        )
         self.assertEqual(p, 0)
 
     def test_moderate_penalty_between_borderline_and_max(self):
-        p = flight_penalty(time=2.5, borderline_time=2, max_time=3,
-                           salary=10, drone_price=5, total_grid=100, grid_traversed=100)
+        p = flight_penalty(
+            time=2.5, borderline_time=2, max_time=3, salary=10, drone_price=5, total_grid=100, grid_traversed=100
+        )
         self.assertGreater(p, 0)
         # Should be (10+5) * (2.5-2)/(3-2) = 15 * 0.5 = 7.5
         self.assertAlmostEqual(p, 7.5)
 
     def test_huge_penalty_over_max(self):
-        p = flight_penalty(time=4, borderline_time=2, max_time=3,
-                           salary=10, drone_price=5, total_grid=100, grid_traversed=100)
+        p = flight_penalty(
+            time=4, borderline_time=2, max_time=3, salary=10, drone_price=5, total_grid=100, grid_traversed=100
+        )
         # (salary + drone_price) * 1000^(time - max_time)
         # = 15 * 1000^1 = 15_000
         self.assertAlmostEqual(p, 15_000)
 
     def test_penalty_increases_with_excess_time(self):
-        p1 = flight_penalty(time=3.5, borderline_time=2, max_time=3,
-                            salary=10, drone_price=5, total_grid=100, grid_traversed=100)
-        p2 = flight_penalty(time=5, borderline_time=2, max_time=3,
-                            salary=10, drone_price=5, total_grid=100, grid_traversed=100)
+        p1 = flight_penalty(
+            time=3.5, borderline_time=2, max_time=3, salary=10, drone_price=5, total_grid=100, grid_traversed=100
+        )
+        p2 = flight_penalty(
+            time=5, borderline_time=2, max_time=3, salary=10, drone_price=5, total_grid=100, grid_traversed=100
+        )
         self.assertGreater(p2, p1)
 
     def test_penalty_at_exact_borderline(self):
-        p = flight_penalty(time=2, borderline_time=2, max_time=3,
-                           salary=10, drone_price=5, total_grid=100, grid_traversed=100)
+        p = flight_penalty(
+            time=2, borderline_time=2, max_time=3, salary=10, drone_price=5, total_grid=100, grid_traversed=100
+        )
         self.assertEqual(p, 0)
 
     def test_penalty_at_exact_max_time(self):
         """At time == max_time, the 'elif' branch fires with ratio = 1."""
-        p = flight_penalty(time=3, borderline_time=2, max_time=3,
-                           salary=10, drone_price=5, total_grid=100, grid_traversed=100)
+        p = flight_penalty(
+            time=3, borderline_time=2, max_time=3, salary=10, drone_price=5, total_grid=100, grid_traversed=100
+        )
         # (10+5) * (3-2)/(3-2) = 15
         self.assertAlmostEqual(p, 15)
 
     def test_untraversed_grid_penalty(self):
         """If total_grid - grid_traversed > 3, an extra 1_000_000 is added."""
-        p = flight_penalty(time=1, borderline_time=2, max_time=3,
-                           salary=10, drone_price=5, total_grid=100, grid_traversed=90)
+        p = flight_penalty(
+            time=1, borderline_time=2, max_time=3, salary=10, drone_price=5, total_grid=100, grid_traversed=90
+        )
         self.assertEqual(p, 1_000_000)
 
     def test_untraversed_grid_threshold(self):
         """Exactly 3 untraversed should NOT trigger the million penalty."""
-        p = flight_penalty(time=1, borderline_time=2, max_time=3,
-                           salary=10, drone_price=5, total_grid=100, grid_traversed=97)
+        p = flight_penalty(
+            time=1, borderline_time=2, max_time=3, salary=10, drone_price=5, total_grid=100, grid_traversed=97
+        )
         self.assertEqual(p, 0)
 
     def test_untraversed_grid_above_threshold(self):
         """4 untraversed (>3) should trigger the million penalty."""
-        p = flight_penalty(time=1, borderline_time=2, max_time=3,
-                           salary=10, drone_price=5, total_grid=100, grid_traversed=96)
+        p = flight_penalty(
+            time=1, borderline_time=2, max_time=3, salary=10, drone_price=5, total_grid=100, grid_traversed=96
+        )
         self.assertEqual(p, 1_000_000)
 
     def test_combined_time_and_grid_penalty(self):
         """Both time excess and grid miss should stack."""
-        p = flight_penalty(time=4, borderline_time=2, max_time=3,
-                           salary=10, drone_price=5, total_grid=100, grid_traversed=90)
-        expected_time_penalty = 15 * 1000 ** 1  # 15_000
+        p = flight_penalty(
+            time=4, borderline_time=2, max_time=3, salary=10, drone_price=5, total_grid=100, grid_traversed=90
+        )
+        expected_time_penalty = 15 * 1000**1  # 15_000
         expected_total = expected_time_penalty + 1_000_000
         self.assertAlmostEqual(p, expected_total)
 
@@ -787,8 +799,7 @@ class TestIntegration(TestCase):
             rotated = rotate(point, origin, angle)
             rotated_dist = math.sqrt(rotated[0] ** 2 + rotated[1] ** 2)
             self.assertAlmostEqual(
-                original_dist, rotated_dist, places=10,
-                msg=f"Distance not preserved at {angle} degrees"
+                original_dist, rotated_dist, places=10, msg=f"Distance not preserved at {angle} degrees"
             )
 
     def test_euclidean_matches_vincenty_at_equator_roughly(self):

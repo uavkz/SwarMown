@@ -2,17 +2,17 @@ import xlwt
 
 
 def log_excel(
-    name, # For file
-    info, # Dict with fields - populations size, target weights, number of iterations, field, grid_step
+    name,  # For file
+    info,  # Dict with fields - populations size, target weights, number of iterations, field, grid_step
     drones,  # Drones objects
-    iterations, # Iterations - each target, overall, best
-    best_reqs=None, # Best requirements for holes triangulation
+    iterations,  # Iterations - each target, overall, best
+    best_reqs=None,  # Best requirements for holes triangulation
 ):
     style_table_header = style("table_header")
-    style_text = style("text")
+    style("text")
     style_text_big = style("text_big")
     style_text_medium = style("text_medium")
-    style_total = style("text_total")
+    style("text_total")
 
     book = xlwt.Workbook()
 
@@ -24,25 +24,25 @@ def log_excel(
     sheet_info.col(1).width = 256 * 40
 
     sheet_info.row(0).write(0, "Mission", style_text_big)
-    sheet_info.row(0).write(1, info['mission'], style_text_big)
+    sheet_info.row(0).write(1, info["mission"], style_text_big)
     sheet_info.row(1).write(0, "Field", style_text_big)
-    sheet_info.row(1).write(1, info['field'], style_text_big)
+    sheet_info.row(1).write(1, info["field"], style_text_big)
     sheet_info.row(2).write(0, "Grid step (m)", style_text_big)
-    sheet_info.row(2).write(1, info['grid_step'], style_text_big)
+    sheet_info.row(2).write(1, info["grid_step"], style_text_big)
     sheet_info.row(3).write(0, "Population size", style_text_big)
-    sheet_info.row(3).write(1, info['population_size'], style_text_big)
+    sheet_info.row(3).write(1, info["population_size"], style_text_big)
     sheet_info.row(4).write(0, "Number of iterations", style_text_big)
-    sheet_info.row(4).write(1, info['number_of_iterations'], style_text_big)
+    sheet_info.row(4).write(1, info["number_of_iterations"], style_text_big)
     sheet_info.row(5).write(0, "Wage per start", style_text_big)
-    sheet_info.row(5).write(1, info['start_price'], style_text_big)
+    sheet_info.row(5).write(1, info["start_price"], style_text_big)
     sheet_info.row(6).write(0, "Wage per hour", style_text_big)
-    sheet_info.row(6).write(1, info['hourly_price'], style_text_big)
+    sheet_info.row(6).write(1, info["hourly_price"], style_text_big)
     sheet_info.row(7).write(0, "Boredline time", style_text_big)
-    sheet_info.row(7).write(1, info['borderline_time'], style_text_big)
+    sheet_info.row(7).write(1, info["borderline_time"], style_text_big)
     sheet_info.row(8).write(0, "Max time", style_text_big)
-    sheet_info.row(8).write(1, info['max_time'], style_text_big)
+    sheet_info.row(8).write(1, info["max_time"], style_text_big)
     sheet_info.row(9).write(0, "Max working speed", style_text_big)
-    sheet_info.row(9).write(1, info['max_working_speed'], style_text_big)
+    sheet_info.row(9).write(1, info["max_working_speed"], style_text_big)
     # Drones
     sheet_drones = book.add_sheet("Drones")
     sheet_drones.portrait = False
@@ -70,16 +70,16 @@ def log_excel(
     sheet_drones.row(0).write(9, "Price per hour", style_table_header)
 
     for i, drone in enumerate(drones):
-        sheet_drones.row(i+1).write(0, i, style_text_medium)
-        sheet_drones.row(i+1).write(1, drone.id, style_text_medium)
-        sheet_drones.row(i+1).write(2, drone.name, style_text_medium)
-        sheet_drones.row(i+1).write(3, drone.max_speed, style_text_medium)
-        sheet_drones.row(i+1).write(4, drone.max_distance_no_load, style_text_medium)
-        sheet_drones.row(i+1).write(5, drone.slowdown_ratio_per_degree, style_text_medium)
-        sheet_drones.row(i+1).write(6, drone.min_slowdown_ratio, style_text_medium)
-        sheet_drones.row(i+1).write(7, drone.price_per_cycle, style_text_medium)
-        sheet_drones.row(i+1).write(8, drone.price_per_kilometer, style_text_medium)
-        sheet_drones.row(i+1).write(9, drone.price_per_hour, style_text_medium)
+        sheet_drones.row(i + 1).write(0, i, style_text_medium)
+        sheet_drones.row(i + 1).write(1, drone.id, style_text_medium)
+        sheet_drones.row(i + 1).write(2, drone.name, style_text_medium)
+        sheet_drones.row(i + 1).write(3, drone.max_speed, style_text_medium)
+        sheet_drones.row(i + 1).write(4, drone.max_distance_no_load, style_text_medium)
+        sheet_drones.row(i + 1).write(5, drone.slowdown_ratio_per_degree, style_text_medium)
+        sheet_drones.row(i + 1).write(6, drone.min_slowdown_ratio, style_text_medium)
+        sheet_drones.row(i + 1).write(7, drone.price_per_cycle, style_text_medium)
+        sheet_drones.row(i + 1).write(8, drone.price_per_kilometer, style_text_medium)
+        sheet_drones.row(i + 1).write(9, drone.price_per_hour, style_text_medium)
 
     # Iterations
     sheet_iters = book.add_sheet("Iterations")
@@ -121,24 +121,26 @@ def log_excel(
 
     for i, iteration in enumerate(iterations):
         sheet_iters.row(i + 1).write(0, i, style_text_medium)
-        sheet_iters.row(i + 1).write(1, iteration['best_distance'], style_text_medium)
-        sheet_iters.row(i + 1).write(2, iteration['average_distance'], style_text_medium)
-        sheet_iters.row(i + 1).write(3, iteration['best_time'], style_text_medium)
-        sheet_iters.row(i + 1).write(4, iteration['average_time'], style_text_medium)
-        sheet_iters.row(i + 1).write(5, iteration['best_drone_price'], style_text_medium)
-        sheet_iters.row(i + 1).write(6, iteration['average_drone_price'], style_text_medium)
-        sheet_iters.row(i + 1).write(7, iteration['best_salary'], style_text_medium)
-        sheet_iters.row(i + 1).write(8, iteration['average_salary'], style_text_medium)
-        sheet_iters.row(i + 1).write(9, iteration['best_penalty'], style_text_medium)
-        sheet_iters.row(i + 1).write(10, iteration['average_penalty'], style_text_medium)
-        sheet_iters.row(i + 1).write(11, iteration['best_number_of_starts'], style_text_medium)
-        sheet_iters.row(i + 1).write(12, iteration['average_number_of_starts'], style_text_medium)
-        sheet_iters.row(i + 1).write(13, iteration['best_fit'], style_text_medium)
-        sheet_iters.row(i + 1).write(14, iteration['average_fit'], style_text_medium)
+        sheet_iters.row(i + 1).write(1, iteration["best_distance"], style_text_medium)
+        sheet_iters.row(i + 1).write(2, iteration["average_distance"], style_text_medium)
+        sheet_iters.row(i + 1).write(3, iteration["best_time"], style_text_medium)
+        sheet_iters.row(i + 1).write(4, iteration["average_time"], style_text_medium)
+        sheet_iters.row(i + 1).write(5, iteration["best_drone_price"], style_text_medium)
+        sheet_iters.row(i + 1).write(6, iteration["average_drone_price"], style_text_medium)
+        sheet_iters.row(i + 1).write(7, iteration["best_salary"], style_text_medium)
+        sheet_iters.row(i + 1).write(8, iteration["average_salary"], style_text_medium)
+        sheet_iters.row(i + 1).write(9, iteration["best_penalty"], style_text_medium)
+        sheet_iters.row(i + 1).write(10, iteration["average_penalty"], style_text_medium)
+        sheet_iters.row(i + 1).write(11, iteration["best_number_of_starts"], style_text_medium)
+        sheet_iters.row(i + 1).write(12, iteration["average_number_of_starts"], style_text_medium)
+        sheet_iters.row(i + 1).write(13, iteration["best_fit"], style_text_medium)
+        sheet_iters.row(i + 1).write(14, iteration["average_fit"], style_text_medium)
         if best_reqs:
-            sheet_iters.row(i + 1).write(15, str(iteration['best_ind'] + [[r.area for r in best_reqs]]), style_text_medium)
+            sheet_iters.row(i + 1).write(
+                15, str(iteration["best_ind"] + [[r.area for r in best_reqs]]), style_text_medium
+            )
         else:
-            sheet_iters.row(i + 1).write(15, str(iteration['best_ind']), style_text_medium)
+            sheet_iters.row(i + 1).write(15, str(iteration["best_ind"]), style_text_medium)
 
     book.save(f"{name}.xls")
 
@@ -157,7 +159,7 @@ def style(param):
         new_style.borders.right = 1
         new_style.borders.bottom = 1
         new_style.pattern.pattern = xlwt.Pattern.SOLID_PATTERN
-        new_style.pattern.pattern_fore_colour = xlwt.Style.colour_map['gray25']
+        new_style.pattern.pattern_fore_colour = xlwt.Style.colour_map["gray25"]
         return new_style
     if param == "text":
         new_style = xlwt.XFStyle()
