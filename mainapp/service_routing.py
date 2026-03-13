@@ -1,3 +1,4 @@
+import math
 from itertools import repeat
 from typing import Optional, Union
 
@@ -54,6 +55,7 @@ def get_route(
     simple_holes_traversal: bool = False,
     ###
     subpolygons_traversal_order: Optional[list[int]] = None,  # Same length as triangulation_requirements
+    avoidance_config: Optional[dict] = None,
 ):
     # This prevents really strange namespace/scope issues
     # Same issue which is partially addressed by monkey patch in settings.py
@@ -104,22 +106,295 @@ def get_route(
 
             combined_grid.extend(sub_grid)
         car_waypoints = _resolve_car_waypoints(car_move, combined_grid, road)
-        waypoints = get_waypoints(combined_grid, car_waypoints, drones, start, holes)
+        waypoints = get_waypoints(combined_grid, car_waypoints, drones, start, holes, avoidance_config)
         grid = combined_grid
     else:  # No Holes
         angle = _direction_to_angle(direction)
         if grid is None:
             grid = get_grid(field, grid_step, angle, trans=pyproj_transformer)
         car_waypoints = _resolve_car_waypoints(car_move, grid, road)
-        waypoints = get_waypoints(grid, car_waypoints, drones, start)
+        waypoints = get_waypoints(grid, car_waypoints, drones, start, avoidance_config=avoidance_config)
     return grid, waypoints, car_waypoints, car_waypoints[0]
 
 
-def get_waypoints(grid, car_waypoints, drones, start, holes=None):
+def compute_crossing_width(start_pt, end_pt, hole):
+    """Compute the distance a straight-line segment travels inside a hole polygon (meters).
+
+    Uses projected coordinates (the hole is a Shapely Polygon in lon/lat space,
+    so 'length' is in degrees — we approximate meters by scaling).
+    """
+    line = LineString([start_pt, end_pt])
+    intersection = line.intersection(hole)
+    if intersection.is_empty:
+        return 0.0
+    # Convert degree-length to approximate meters (rough, good enough for threshold)
+    # At ~50° latitude, 1° lon ≈ 71 km, 1° lat ≈ 111 km. Average ≈ 90 km/°
+    return intersection.length * 90_000
+
+
+def compute_approach_angle(start_pt, end_pt):
+    """Compute approach angle of a segment in degrees [0, 360).
+
+    start_pt, end_pt are [lon, lat].
+    """
+    dx = end_pt[0] - start_pt[0]
+    dy = end_pt[1] - start_pt[1]
+    angle = math.degrees(math.atan2(dy, dx)) % 360
+    return angle
+
+
+def _angle_in_arc(angle, arc_start, arc_end):
+    """Check if angle is within the arc [arc_start, arc_end] (mod 360).
+
+    When arc_start == arc_end (mod 360), this is a full circle (always True).
+    """
+    arc_start = arc_start % 360
+    arc_end = arc_end % 360
+    angle = angle % 360
+    if arc_start == arc_end:
+        return True  # full circle or degenerate point — always matches
+    if arc_start < arc_end:
+        return arc_start <= angle <= arc_end
+    else:
+        # Arc wraps around 0
+        return angle >= arc_start or angle <= arc_end
+
+
+def compute_flyover_path(start_pt, end_pt, hole, fly_over_altitude, current_alt):
+    """Generate waypoints to fly over an obstacle.
+
+    Returns list of (lon, lat, altitude) tuples.
+    The path: start → climb at entry → fly level over → descend at exit → end.
+    """
+    line = LineString([start_pt, end_pt])
+    intersection = line.intersection(hole.boundary)
+    if intersection.is_empty:
+        return [(start_pt[0], start_pt[1], current_alt), (end_pt[0], end_pt[1], current_alt)]
+
+    # Extract intersection points, ordered along the line
+    if intersection.geom_type == "Point":
+        pts = [(intersection.x, intersection.y)]
+    elif intersection.geom_type == "MultiPoint":
+        pts = [(p.x, p.y) for p in intersection.geoms]
+    else:
+        # LineString or other — use bounds
+        pts = [(intersection.bounds[0], intersection.bounds[1]), (intersection.bounds[2], intersection.bounds[3])]
+
+    # Sort by distance from start
+    pts.sort(key=lambda p: (p[0] - start_pt[0]) ** 2 + (p[1] - start_pt[1]) ** 2)
+
+    if len(pts) >= 2:
+        entry_pt = pts[0]
+        exit_pt = pts[-1]
+    else:
+        entry_pt = exit_pt = pts[0]
+
+    # Pull back entry/exit slightly before/after the hole boundary
+    # (move 10% of segment length along the line direction)
+    dx = end_pt[0] - start_pt[0]
+    dy = end_pt[1] - start_pt[1]
+    seg_len = math.sqrt(dx**2 + dy**2)
+    if seg_len > 0:
+        margin_frac = min(0.01, 0.001 / seg_len)  # tiny pullback
+        entry_lon = entry_pt[0] - dx * margin_frac
+        entry_lat = entry_pt[1] - dy * margin_frac
+        exit_lon = exit_pt[0] + dx * margin_frac
+        exit_lat = exit_pt[1] + dy * margin_frac
+    else:
+        entry_lon, entry_lat = entry_pt
+        exit_lon, exit_lat = exit_pt
+
+    return [
+        (start_pt[0], start_pt[1], current_alt),
+        (entry_lon, entry_lat, fly_over_altitude),
+        (exit_lon, exit_lat, fly_over_altitude),
+        (end_pt[0], end_pt[1], fly_over_altitude),  # stay high after crossing
+    ]
+
+
+def _should_fly_over(start_pt, end_pt, hole, hole_idx, avoidance_config, current_altitude):
+    """Decide whether to fly over or go around based on strategy and params.
+
+    Returns (fly_over: bool, fly_over_altitude: float).
+    """
+    strategy = avoidance_config["strategy"]
+    params = avoidance_config.get("strategy_params")
+    hole_heights = avoidance_config["hole_heights"]
+    height_max = avoidance_config["height_max"]
+    safety_margin = avoidance_config["safety_margin"]
+
+    obstacle_height = hole_heights[hole_idx] if hole_idx < len(hole_heights) else 0
+    required_alt = obstacle_height + safety_margin
+
+    # Can't fly over if too high for our ceiling
+    if required_alt > height_max:
+        return False, 0
+
+    # Already above obstacle — always fly over (free)
+    if current_altitude >= required_alt:
+        return True, current_altitude
+
+    fly_over_alt = max(current_altitude, required_alt)
+    fly_over_alt = min(fly_over_alt, height_max)
+    gap = required_alt - current_altitude
+
+    if strategy == "greedy":
+        # Greedy: compare fly-over cost vs detour cost
+        crossing_w = compute_crossing_width(start_pt, end_pt, hole)
+        detour_path = single_segment_adjust(start_pt, end_pt, hole)
+        detour_len = LineString(detour_path).length * 90_000  # approx meters
+        direct_len = LineString([start_pt, end_pt]).length * 90_000
+        detour_extra = detour_len - direct_len
+
+        # Fly-over cost: climb gap meters + cross at altitude
+        # Rough heuristic: climb cost ≈ gap * energy_multiplier, detour cost ≈ extra distance
+        energy_mult = avoidance_config.get("energy_per_meter_climb", 1.5)
+        flyover_cost = gap * energy_mult
+        around_cost = detour_extra
+
+        return flyover_cost < around_cost, fly_over_alt
+
+    if params is None:
+        return False, 0
+
+    # --- GA strategies ---
+    is_single = strategy.endswith("s")
+    base_strategy = strategy.rstrip("s")
+
+    def _get_param(idx, default=0):
+        """Get per-hole or single param."""
+        if is_single:
+            # Single variant: one value for all holes
+            if isinstance(params, (list, tuple)):
+                return params[0] if params else default
+            return params
+        if isinstance(params, (list, tuple)) and idx < len(params):
+            return params[idx]
+        return default
+
+    if base_strategy == "B1":
+        # Binary: 0=around, 1=over
+        return bool(_get_param(hole_idx, 0)), fly_over_alt
+
+    elif base_strategy == "B2":
+        # Max-climb threshold
+        max_climb = _get_param(hole_idx, 0)
+        return gap <= max_climb, fly_over_alt
+
+    elif base_strategy == "B3":
+        # Crossing-width threshold
+        width_threshold = _get_param(hole_idx, 0)
+        crossing_w = compute_crossing_width(start_pt, end_pt, hole)
+        return crossing_w < width_threshold, fly_over_alt
+
+    elif base_strategy == "B4":
+        # Directional arc
+        p = _get_param(hole_idx, (0, 0))
+        if isinstance(p, (list, tuple)) and len(p) >= 2:
+            arc_start, arc_end = p[0], p[1]
+        else:
+            return False, 0
+        approach_angle = compute_approach_angle(start_pt, end_pt)
+        return _angle_in_arc(approach_angle, arc_start, arc_end), fly_over_alt
+
+    elif base_strategy == "B5":
+        # Max-climb + crossing-width threshold (combined)
+        p = _get_param(hole_idx, (0, 0))
+        if isinstance(p, (list, tuple)) and len(p) >= 2:
+            max_climb, width_threshold = p[0], p[1]
+        else:
+            return False, 0
+        if gap <= 0:
+            return True, current_altitude  # already above
+        crossing_w = compute_crossing_width(start_pt, end_pt, hole)
+        return gap <= max_climb and crossing_w < width_threshold, fly_over_alt
+
+    elif base_strategy == "B6":
+        # Directional arc + max-climb threshold
+        p = _get_param(hole_idx, (0, 0, 0))
+        if isinstance(p, (list, tuple)) and len(p) >= 3:
+            arc_start, arc_end, max_climb = p[0], p[1], p[2]
+        else:
+            return False, 0
+        if gap <= 0:
+            approach_angle = compute_approach_angle(start_pt, end_pt)
+            return _angle_in_arc(approach_angle, arc_start, arc_end), current_altitude
+        approach_angle = compute_approach_angle(start_pt, end_pt)
+        return (
+            _angle_in_arc(approach_angle, arc_start, arc_end) and gap <= max_climb,
+            fly_over_alt,
+        )
+
+    return False, 0
+
+
+def avoid_obstacle_3d(start_pt, end_pt, hole_polygons, avoidance_config, current_altitude):
+    """3D obstacle avoidance: for each hole crossing, decide fly-over or detour.
+
+    Returns (adjusted_path, exit_altitude) where adjusted_path is a list of
+    (lon, lat, altitude) tuples or [lon, lat] points.
+    """
+    if not avoidance_config or avoidance_config.get("strategy", "2d") == "2d":
+        # Pure 2D: always go around
+        return adjust_path_around_holes(start_pt, end_pt, hole_polygons), current_altitude
+
+    result_coords = [(start_pt[0], start_pt[1], current_altitude)]
+    exit_alt = current_altitude
+
+    # Process each hole that the segment crosses
+    current_start = start_pt
+    current_alt = current_altitude
+
+    for hole_idx, hole in enumerate(hole_polygons):
+        if not path_crosses_this_hole(current_start, end_pt, hole):
+            continue
+
+        fly_over, fly_alt = _should_fly_over(current_start, end_pt, hole, hole_idx, avoidance_config, current_alt)
+
+        if fly_over:
+            flyover = compute_flyover_path(current_start, end_pt, hole, fly_alt, current_alt)
+            # Skip the first point (already in result_coords)
+            result_coords.extend(flyover[1:])
+            current_alt = flyover[-1][2]  # exit altitude
+            exit_alt = current_alt
+            # After fly-over, the remaining path from exit to end_pt may still cross other holes
+            current_start = [flyover[-2][0], flyover[-2][1]]  # exit point
+        else:
+            # Go around (2D detour)
+            detour = single_segment_adjust(current_start, end_pt, hole)
+            for pt in detour[1:]:
+                result_coords.append((pt[0], pt[1], current_alt))
+            current_start = detour[-1] if detour else end_pt
+
+    # Ensure end point is included
+    last = result_coords[-1]
+    if abs(last[0] - end_pt[0]) > 1e-10 or abs(last[1] - end_pt[1]) > 1e-10:
+        result_coords.append((end_pt[0], end_pt[1], exit_alt))
+
+    return result_coords, exit_alt
+
+
+def add_3d_path(drone_waypoints, path_3d, drone):
+    """Add 3D path points (lon, lat, altitude) as waypoints. Returns total distance."""
+    total_distance = 0
+    for idx, point in enumerate(path_3d):
+        if idx > 0:
+            prev = path_3d[idx - 1]
+            total_distance += calc_vincenty([prev[0], prev[1]], [point[0], point[1]], lon_first=True)
+        height = point[2] if len(point) > 2 else 10
+        spray_on = idx == len(path_3d) - 1
+        add_waypoint(drone_waypoints, [point[0], point[1]], drone, height=height, spray_on=spray_on)
+    return total_distance
+
+
+def get_waypoints(grid, car_waypoints, drones, start, holes=None, avoidance_config=None):
     waypoints = []
     zamboni_iterator = iterate_zamboni(grid, start)
 
     hole_polygons = [Polygon(hole) for hole in holes] if holes else []
+    use_3d = avoidance_config is not None and avoidance_config.get("strategy", "2d") != "2d"
+    working_alt = avoidance_config["height_min"] if use_3d else 10
+
     last_point = None
     for car_waypoint, next_car_waypoint in iterate_car_waypoints(car_waypoints):
         point = None
@@ -128,6 +403,7 @@ def get_waypoints(grid, car_waypoints, drones, start, holes=None):
             point = None
             total_drone_distance = 0
             first_run = True
+            current_alt = working_alt  # reset altitude per drone flight
             for point in zamboni_iterator:
                 # No more points, all traversed
                 if point is None:
@@ -140,26 +416,44 @@ def get_waypoints(grid, car_waypoints, drones, start, holes=None):
                     ):
                         continue
                     total_drone_distance += generate_fly_to(
-                        drone_waypoints, car_waypoint, last_point or point, drone, hole_polygons
+                        drone_waypoints,
+                        car_waypoint,
+                        last_point or point,
+                        drone,
+                        hole_polygons,
+                        avoidance_config=avoidance_config,
+                        current_alt=current_alt,
                     )
 
                 # If there's an untraversed point from previous drone - traverse it
                 if last_point and first_run and path_crosses_holes(last_point, point, hole_polygons):
-                    adjusted_path = adjust_path_around_holes(last_point, point, hole_polygons)
-                    total_drone_distance += add_adjusted_path(drone_waypoints, adjusted_path, drone)
+                    if use_3d:
+                        path_3d, current_alt = avoid_obstacle_3d(
+                            last_point, point, hole_polygons, avoidance_config, current_alt
+                        )
+                        total_drone_distance += add_3d_path(drone_waypoints, path_3d, drone)
+                    else:
+                        adjusted_path = adjust_path_around_holes(last_point, point, hole_polygons)
+                        total_drone_distance += add_adjusted_path(drone_waypoints, adjusted_path, drone)
                     last_point = point
                     first_run = False
                     continue
 
                 if last_point and path_crosses_holes(last_point, point, hole_polygons):
-                    adjusted_path = adjust_path_around_holes(last_point, point, hole_polygons)
-                    total_drone_distance += add_adjusted_path(drone_waypoints, adjusted_path, drone)
+                    if use_3d:
+                        path_3d, current_alt = avoid_obstacle_3d(
+                            last_point, point, hole_polygons, avoidance_config, current_alt
+                        )
+                        total_drone_distance += add_3d_path(drone_waypoints, path_3d, drone)
+                    else:
+                        adjusted_path = adjust_path_around_holes(last_point, point, hole_polygons)
+                        total_drone_distance += add_adjusted_path(drone_waypoints, adjusted_path, drone)
                     last_point = point
                     continue
 
                 # Normal waypoint addition
                 total_drone_distance += calc_vincenty(last_point or drone_waypoints[-1], point, lon_first=True)
-                add_waypoint(drone_waypoints, point, drone, spray_on=True)
+                add_waypoint(drone_waypoints, point, drone, height=current_alt, spray_on=True)
                 last_point = point
 
                 # If you will not be able to return - break
@@ -169,7 +463,14 @@ def get_waypoints(grid, car_waypoints, drones, start, holes=None):
                     break
 
             if drone_waypoints:
-                total_drone_distance += generate_fly_back(drone_waypoints, next_car_waypoint, drone, hole_polygons)
+                total_drone_distance += generate_fly_back(
+                    drone_waypoints,
+                    next_car_waypoint,
+                    drone,
+                    hole_polygons,
+                    avoidance_config=avoidance_config,
+                    current_alt=current_alt,
+                )
                 waypoints.append(drone_waypoints)
             if point is None:
                 break
@@ -179,21 +480,31 @@ def get_waypoints(grid, car_waypoints, drones, start, holes=None):
     return waypoints
 
 
-def generate_fly_to(drone_waypoints, drones_init, coord_to, drone, hole_polygons=None):
+def generate_fly_to(
+    drone_waypoints, drones_init, coord_to, drone, hole_polygons=None, avoidance_config=None, current_alt=10
+):
+    use_3d = avoidance_config is not None and avoidance_config.get("strategy", "2d") != "2d"
     if hole_polygons and path_crosses_holes(drones_init, coord_to, hole_polygons):
+        if use_3d:
+            path_3d, _ = avoid_obstacle_3d(drones_init, coord_to, hole_polygons, avoidance_config, current_alt)
+            return add_3d_path(drone_waypoints, path_3d, drone)
         adjusted_path = adjust_path_around_holes(drones_init, coord_to, hole_polygons)
         return add_adjusted_path(drone_waypoints, adjusted_path, drone)
-    add_waypoint(drone_waypoints, drones_init, drone)
+    add_waypoint(drone_waypoints, drones_init, drone, height=current_alt if use_3d else 10)
     return calc_vincenty(drones_init, coord_to, lon_first=True)
 
 
-def generate_fly_back(drone_waypoints, drones_init, drone, hole_polygons=None):
+def generate_fly_back(drone_waypoints, drones_init, drone, hole_polygons=None, avoidance_config=None, current_alt=10):
+    use_3d = avoidance_config is not None and avoidance_config.get("strategy", "2d") != "2d"
     if hole_polygons and drone_waypoints:
         start_point = [drone_waypoints[-1]["lon"], drone_waypoints[-1]["lat"]]
         if path_crosses_holes(start_point, drones_init, hole_polygons):
+            if use_3d:
+                path_3d, _ = avoid_obstacle_3d(start_point, drones_init, hole_polygons, avoidance_config, current_alt)
+                return add_3d_path(drone_waypoints, path_3d, drone)
             adjusted_path = adjust_path_around_holes(start_point, drones_init, hole_polygons)
             return add_adjusted_path(drone_waypoints, adjusted_path, drone)
-    add_waypoint(drone_waypoints, drones_init, drone)
+    add_waypoint(drone_waypoints, drones_init, drone, height=current_alt if use_3d else 10)
     if len(drone_waypoints) >= 2:
         return calc_vincenty(drones_init, [drone_waypoints[-2]["lon"], drone_waypoints[-2]["lat"]], lon_first=True)
     return 0

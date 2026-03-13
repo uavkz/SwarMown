@@ -8,10 +8,12 @@ from concurrent.futures import ThreadPoolExecutor
 from scripts.ga_common import (
     bootstrap_django,
     build_argparser,
+    build_avoidance_config,
     custom_mutate,
     evaluate_individual,
     load_mission,
     make_pyproj_transformer,
+    parse_obstacle_heights,
     run_ga,
     save_results,
     setup_toolbox,
@@ -22,6 +24,11 @@ bootstrap_django()
 args = build_argparser().parse_args()
 mission_data = load_mission(args.mission_id)
 pyproj_transformer = make_pyproj_transformer()
+
+# 3D avoidance setup
+num_holes = len(mission_data["holes"])
+hole_heights = parse_obstacle_heights(args, num_holes)
+avoidance_config = build_avoidance_config(args, hole_heights) if args.avoidance_strategy != "2d" else None
 
 NUM_RANDOM_INDIVS = 10
 NUM_RANDOM_REQUIREMENTS = 30
@@ -36,14 +43,21 @@ def evaluate(individual):
         args,
         pyproj_transformer,
         triangulation_requirements=BEST_REQS,
+        avoidance_config=avoidance_config,
     )
 
 
 def mutate(ind):
-    return custom_mutate(ind, mission_data["num_drones"], args.mutation_chance)
+    return custom_mutate(ind, mission_data["num_drones"], args.mutation_chance, args.avoidance_strategy)
 
 
-toolbox = setup_toolbox(mission_data["num_drones"], evaluate, mutate)
+toolbox = setup_toolbox(
+    mission_data["num_drones"],
+    evaluate,
+    mutate,
+    avoidance_strategy=args.avoidance_strategy,
+    num_holes=num_holes,
+)
 
 
 def _generate_random_requirements_sets(n):
@@ -77,15 +91,16 @@ def _generate_random_individual():
 
 def _pre_eval_worker(combo):
     indiv, reqs = combo
-    _, _, dprice, sal, pen, _ = evaluate_individual(
+    _, _, _dprice, _sal, _pen, _ = evaluate_individual(
         indiv,
         mission_data,
         args,
         pyproj_transformer,
         triangulation_requirements=reqs,
+        avoidance_config=avoidance_config,
     )
     return {
-        "cost": dprice + sal + pen,
+        "cost": _dprice + _sal + _pen,
         "req": reqs,
     }
 

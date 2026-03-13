@@ -86,7 +86,16 @@ def waypoints_flight_time(
     slowdown_ratio_f=lambda x: x.drone.slowdown_ratio_per_degree,
     min_slowdown_ratio_f=lambda x: x.drone.min_slowdown_ratio,
     spray_on_f=lambda x: False,
+    height_f=None,
+    climb_rate=3.0,
+    descent_rate=2.0,
 ):
+    """Compute total flight time in hours.
+
+    When height_f is provided, accounts for altitude changes:
+    segment time = max(horizontal_time, vertical_time) since the drone
+    moves horizontally and vertically simultaneously.
+    """
     total_time = 0
     prev_waypoint = None
     prev_prev_waypoint = None
@@ -104,14 +113,33 @@ def waypoints_flight_time(
                     speed = speed * max(1 - angle * slowdown_ratio, min_slowdown_ratio)
                 if spray_on_f(waypoint):
                     speed = min(max_working_speed, speed)
-            total_time += dist / speed
+            horizontal_time = dist / speed
+
+            if height_f is not None:
+                delta_h = height_f(waypoint) - height_f(prev_waypoint)
+                if delta_h > 0:
+                    vertical_time = delta_h / climb_rate / 3600
+                elif delta_h < 0:
+                    vertical_time = abs(delta_h) / descent_rate / 3600
+                else:
+                    vertical_time = 0
+                total_time += max(horizontal_time, vertical_time)
+            else:
+                total_time += horizontal_time
         prev_prev_waypoint = prev_waypoint
         prev_waypoint = waypoint
     return total_time
 
 
-def drone_flight_price(drone, distance, time):
+def drone_flight_price(drone, distance, time, climb_meters=0, energy_per_meter_climb=0):
+    """Compute drone flight price.
+
+    When climb_meters > 0, adds energy cost for altitude gain as equivalent
+    additional distance (climb_meters * energy_per_meter_climb).
+    """
     drone_price = drone["price_per_cycle"] + drone["price_per_kilometer"] * distance + drone["price_per_hour"] * time
+    if climb_meters > 0 and energy_per_meter_climb > 0:
+        drone_price += drone["price_per_kilometer"] * climb_meters * energy_per_meter_climb
     return drone_price
 
 
@@ -155,6 +183,32 @@ def angle_between_vectors_degrees(u, v):
     r = max(r, -1)
     degrees = np.degrees(math.acos(r))
     return degrees
+
+
+def calc_distance_3d(p1, p2, h1, h2, lon_first=False):
+    """3D distance: Vincenty horizontal + Euclidean vertical.
+
+    Returns distance in km (consistent with calc_vincenty).
+    h1, h2 are altitudes in meters.
+    """
+    d_horizontal_km = calc_vincenty(p1, p2, lon_first=lon_first)
+    if d_horizontal_km is None:
+        return None
+    d_horizontal_m = d_horizontal_km * 1000
+    d_vertical_m = abs(h2 - h1)
+    return math.sqrt(d_horizontal_m**2 + d_vertical_m**2) / 1000
+
+
+def waypoints_total_climb(waypoints, height_f=lambda x: x.height):
+    """Total meters of positive altitude change (climb) along waypoints."""
+    total_climb = 0.0
+    prev_height = None
+    for wp in waypoints:
+        h = height_f(wp)
+        if prev_height is not None and h > prev_height:
+            total_climb += h - prev_height
+        prev_height = h
+    return total_climb
 
 
 def angle_lat_lon_vectors(a, b, c, lat_f, lon_f):

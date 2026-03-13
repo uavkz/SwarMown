@@ -15,6 +15,7 @@ from mainapp.utils import (
     flight_penalty,
     waypoints_distance,
     waypoints_flight_time,
+    waypoints_total_climb,
 )
 from mainapp.utils_excel import log_excel
 
@@ -31,6 +32,7 @@ _WP_MAX_SPEED = lambda x: x["drone"]["max_speed"]  # noqa: E731
 _WP_SLOWDOWN = lambda x: x["drone"]["slowdown_ratio_per_degree"]  # noqa: E731
 _WP_MIN_SLOWDOWN = lambda x: x["drone"]["min_slowdown_ratio"]  # noqa: E731
 _WP_SPRAY = lambda x: x["spray_on"]  # noqa: E731
+_WP_HEIGHT = lambda x: x["height"]  # noqa: E731
 
 
 def bootstrap_django():
@@ -60,23 +62,77 @@ def build_argparser():
     parser.add_argument("--borderline_time", "-b", type=float, required=True)
     parser.add_argument("--max_working_speed", "-mxs", type=float, required=True)
     parser.add_argument("--mutation_chance", "-mt", type=float, required=True)
+    # 3D obstacle avoidance parameters
+    parser.add_argument("--height_min", type=float, default=10.0, help="Working flight altitude AGL (meters)")
+    parser.add_argument("--height_max", type=float, default=120.0, help="Max allowed flight altitude AGL (meters)")
+    parser.add_argument("--safety_margin", type=float, default=5.0, help="Safety margin above obstacle top (meters)")
+    parser.add_argument(
+        "--obstacle_heights", type=str, default=None, help='JSON list of obstacle heights in meters, e.g. "[15, 20]"'
+    )
+    parser.add_argument("--climb_rate", type=float, default=3.0, help="Max climb rate (m/s)")
+    parser.add_argument("--descent_rate", type=float, default=2.0, help="Max descent rate (m/s)")
+    parser.add_argument(
+        "--energy_per_meter_climb", type=float, default=1.5, help="Climb energy cost multiplier vs horizontal"
+    )
+    parser.add_argument(
+        "--avoidance_strategy",
+        type=str,
+        default="2d",
+        choices=["2d", "greedy", "B1", "B2", "B3", "B4", "B5", "B6", "B1s", "B2s", "B3s", "B4s", "B5s", "B6s"],
+        help="Obstacle avoidance strategy (2d=always around, greedy=per-crossing, B*=GA-optimized, *s=single)",
+    )
     return parser
 
 
 def load_mission(mission_id):
-    """Load mission, field, road, and drones from DB. Returns a dict."""
+    """Load mission, field, road, holes, and drones from DB. Returns a dict."""
     from mainapp.models import Mission
 
     mission = Mission.objects.get(id=mission_id)
     field = [[y, x] for x, y in json.loads(mission.field.points_serialized)]
     road = [[y, x] for x, y in json.loads(mission.field.road_serialized)]
     drones_list = list(mission.drones.all().order_by("id"))
+
+    # Parse holes (swap lat/lon to lon/lat like field/road)
+    holes_raw = json.loads(mission.field.holes_serialized)
+    holes = [[[y, x] for x, y in hole] for hole in holes_raw if len(hole) >= 3]
+
     return {
         "mission": mission,
         "field": field,
         "road": road,
+        "holes": holes,
         "drones_list": drones_list,
         "num_drones": len(drones_list),
+    }
+
+
+def parse_obstacle_heights(args, num_holes):
+    """Parse obstacle heights from CLI args. Returns list of heights in meters.
+
+    If --obstacle_heights is provided, uses those values.
+    Otherwise returns all zeros (2D behavior — obstacles have no height).
+    """
+    if args.obstacle_heights:
+        heights = json.loads(args.obstacle_heights)
+        if len(heights) != num_holes:
+            raise ValueError(f"--obstacle_heights has {len(heights)} values but mission has {num_holes} holes")
+        return [float(h) for h in heights]
+    return [0.0] * num_holes
+
+
+def build_avoidance_config(args, hole_heights):
+    """Build the avoidance configuration dict from CLI args and hole heights."""
+    return {
+        "hole_heights": hole_heights,
+        "height_min": args.height_min,
+        "height_max": args.height_max,
+        "safety_margin": args.safety_margin,
+        "climb_rate": args.climb_rate,
+        "descent_rate": args.descent_rate,
+        "energy_per_meter_climb": args.energy_per_meter_climb,
+        "strategy": args.avoidance_strategy,
+        "strategy_params": None,  # set by GA for B* strategies
     }
 
 
@@ -90,12 +146,19 @@ def make_pyproj_transformer():
 
 
 def evaluate_individual(
-    individual, mission_data, args, pyproj_transformer, triangulation_requirements=None, simple_holes_traversal=False
+    individual,
+    mission_data,
+    args,
+    pyproj_transformer,
+    triangulation_requirements=None,
+    simple_holes_traversal=False,
+    avoidance_config=None,
 ):
     """Evaluate a single GA individual. Returns (distance, time, drone_price,
     salary, penalty, number_of_starts)."""
     mission = mission_data["mission"]
     drones = [mission_data["drones_list"][i] for i in individual[2]]
+    holes = mission_data.get("holes", [])
 
     route_kwargs = dict(
         car_move=individual[3],
@@ -107,12 +170,23 @@ def evaluate_individual(
         drones=drones,
         pyproj_transformer=pyproj_transformer,
     )
+    if holes:
+        route_kwargs["holes"] = holes
     if triangulation_requirements is not None:
         route_kwargs["triangulation_requirements"] = triangulation_requirements
     if simple_holes_traversal:
         route_kwargs["simple_holes_traversal"] = True
 
+    # 3D avoidance: inject strategy_params from gene[4] if present
+    if avoidance_config is not None:
+        ac = dict(avoidance_config)
+        if len(individual) > 4:
+            ac["strategy_params"] = individual[4]
+        route_kwargs["avoidance_config"] = ac
+
     grid, waypoints, _, _ = get_route(**route_kwargs)
+
+    use_3d = avoidance_config is not None and avoidance_config.get("strategy", "2d") != "2d"
 
     distance = 0
     drone_price, salary, penalty = 0, 0, 0
@@ -123,9 +197,7 @@ def evaluate_individual(
     drone_flight_time = defaultdict(int)
     for drone_waypoints in waypoints:
         new_distance = waypoints_distance(drone_waypoints, lat_f=_WP_LAT, lon_f=_WP_LON)
-        new_time = waypoints_flight_time(
-            drone_waypoints,
-            args.max_working_speed,
+        flight_time_kwargs = dict(
             lat_f=_WP_LAT,
             lon_f=_WP_LON,
             max_speed_f=_WP_MAX_SPEED,
@@ -133,9 +205,22 @@ def evaluate_individual(
             min_slowdown_ratio_f=_WP_MIN_SLOWDOWN,
             spray_on_f=_WP_SPRAY,
         )
+        if use_3d:
+            flight_time_kwargs["height_f"] = _WP_HEIGHT
+            flight_time_kwargs["climb_rate"] = avoidance_config["climb_rate"]
+            flight_time_kwargs["descent_rate"] = avoidance_config["descent_rate"]
+        new_time = waypoints_flight_time(drone_waypoints, args.max_working_speed, **flight_time_kwargs)
         distance += new_distance
         drone_flight_time[drone_waypoints[0]["drone"]["id"]] += new_time + SETUP_TIME_PER_FLIGHT_HOURS
-        drone_price += drone_flight_price(drone_waypoints[0]["drone"], new_distance, new_time)
+
+        climb_meters = 0
+        energy_per_meter = 0
+        if use_3d:
+            climb_meters = waypoints_total_climb(drone_waypoints, height_f=_WP_HEIGHT)
+            energy_per_meter = avoidance_config["energy_per_meter_climb"]
+        drone_price += drone_flight_price(
+            drone_waypoints[0]["drone"], new_distance, new_time, climb_meters, energy_per_meter
+        )
         grid_traversed += max(0, len(drone_waypoints) - 2)
 
     if not drone_flight_time:
@@ -150,7 +235,58 @@ def evaluate_individual(
 # --- Mutation ---------------------------------------------------------------
 
 
-def custom_mutate(ind, num_drones, mutation_chance):
+def generate_avoidance_gene(strategy, num_holes):
+    """Generate a random gene[4] for the given avoidance strategy."""
+    is_single = strategy.endswith("s")
+    base = strategy.rstrip("s")
+    n = 1 if is_single else max(num_holes, 1)
+
+    if base == "B1":
+        return [random.randint(0, 1) for _ in range(n)]
+    elif base == "B2":
+        return [random.uniform(0, 50) for _ in range(n)]
+    elif base == "B3":
+        return [random.uniform(0, 500) for _ in range(n)]
+    elif base == "B4":
+        return [(random.uniform(0, 360), random.uniform(0, 360)) for _ in range(n)]
+    elif base == "B5":
+        return [(random.uniform(0, 50), random.uniform(0, 500)) for _ in range(n)]
+    elif base == "B6":
+        return [(random.uniform(0, 360), random.uniform(0, 360), random.uniform(0, 50)) for _ in range(n)]
+    return None
+
+
+def mutate_avoidance_gene(gene, strategy, mutation_chance):
+    """Mutate gene[4] in-place for the given avoidance strategy."""
+    if gene is None:
+        return gene
+    base = strategy.rstrip("s")
+    for i in range(len(gene)):
+        if random.random() > mutation_chance:
+            continue
+        if base == "B1":
+            gene[i] = 1 - gene[i]  # flip bit
+        elif base == "B2":
+            gene[i] = max(0, gene[i] + random.gauss(0, 10))
+        elif base == "B3":
+            gene[i] = max(0, gene[i] + random.gauss(0, 50))
+        elif base == "B4":
+            a, b = gene[i]
+            gene[i] = ((a + random.gauss(0, 30)) % 360, (b + random.gauss(0, 30)) % 360)
+        elif base == "B5":
+            mc, wt = gene[i]
+            gene[i] = (max(0, mc + random.gauss(0, 10)), max(0, wt + random.gauss(0, 50)))
+        elif base == "B6":
+            a, b, mc = gene[i]
+            gene[i] = (
+                (a + random.gauss(0, 30)) % 360,
+                (b + random.gauss(0, 30)) % 360,
+                max(0, mc + random.gauss(0, 10)),
+            )
+    return gene
+
+
+def custom_mutate(ind, num_drones, mutation_chance, avoidance_strategy=None):
     """Mutate an individual in-place. Returns (ind,) per DEAP convention."""
     direction = ind[0]
     start = ind[1]
@@ -195,14 +331,23 @@ def custom_mutate(ind, num_drones, mutation_chance):
     ind[1] = start
     ind[2] = drones
     ind[3] = car_points
+
+    # Mutate gene[4] (avoidance params) if present
+    if len(ind) > 4 and avoidance_strategy:
+        ind[4] = mutate_avoidance_gene(ind[4], avoidance_strategy, mutation_chance)
+
     return (ind,)
 
 
 # --- DEAP Toolbox -----------------------------------------------------------
 
 
-def setup_toolbox(num_drones, evaluate_fn, mutate_fn):
-    """Create and configure a DEAP toolbox."""
+def setup_toolbox(num_drones, evaluate_fn, mutate_fn, avoidance_strategy=None, num_holes=0):
+    """Create and configure a DEAP toolbox.
+
+    When avoidance_strategy is a B* strategy, individuals get a 5th gene
+    for obstacle avoidance parameters.
+    """
     from deap import base, creator, tools
     from scoop import futures
 
@@ -218,11 +363,19 @@ def setup_toolbox(num_drones, evaluate_fn, mutate_fn):
     )
     toolbox.register("attr_car_points", lambda: [random.uniform(0, 1) for _ in range(random.randint(1, 5))])
 
+    gene_generators = (toolbox.attr_direction, toolbox.attr_start, toolbox.attr_drones, toolbox.attr_car_points)
+
+    # Add gene[4] for GA avoidance strategies
+    uses_ga_gene = avoidance_strategy and avoidance_strategy not in ("2d", "greedy")
+    if uses_ga_gene:
+        toolbox.register("attr_avoidance", generate_avoidance_gene, avoidance_strategy, num_holes)
+        gene_generators = (*gene_generators, toolbox.attr_avoidance)
+
     toolbox.register(
         "individual",
         tools.initCycle,
         creator.Individual,
-        (toolbox.attr_direction, toolbox.attr_start, toolbox.attr_drones, toolbox.attr_car_points),
+        gene_generators,
     )
     toolbox.register("population", tools.initRepeat, list, toolbox.individual)
     toolbox.register("evaluate", evaluate_fn)
