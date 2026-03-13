@@ -1,6 +1,4 @@
-import asyncio
 import contextlib
-import csv
 import json
 import os
 import subprocess
@@ -8,8 +6,6 @@ import sys
 import time
 import urllib.parse
 import xml.etree.ElementTree as ET
-import zipfile
-from io import BytesIO
 
 from django.conf import settings
 from django.db import transaction
@@ -23,9 +19,8 @@ from django.views.generic import ListView, TemplateView
 
 from mainapp.models import Drone, Field, Mission, Waypoint
 from mainapp.service_routing import get_route
+from mainapp.services_export import export_csv, export_mavlink_json
 from mainapp.utils import flatten_grid
-from mainapp.utils_gis import get_elevations_for_points_dict
-from mainapp.utils_mavlink import create_plan_file
 
 
 class Index(View):
@@ -34,15 +29,6 @@ class Index(View):
             return HttpResponseRedirect(reverse_lazy("mainapp:list_mission"))
         else:
             return HttpResponseRedirect(reverse_lazy("mainapp:login"))
-
-
-def get_all_points(context):
-    all_points = []
-    for waypoints in context["waypoints"]:
-        for waypoint in waypoints:
-            all_points.append([waypoint["lat"], waypoint["lon"]])
-
-    return get_elevations_for_points_dict(all_points)
 
 
 class ManageRouteView(TemplateView):
@@ -130,18 +116,10 @@ class ManageRouteView(TemplateView):
         serialized = json.dumps(data.get("serialized", []), ensure_ascii=False)
         return serialized, base
 
-    def handle(self, context):
-        car_move = self.request.GET.get("carMove", "no")
-        direction = self.request.GET.get("direction", "simple")
-        start = self.request.GET.get("start", "ne")
-        # TODO: these flags are read but not yet wired up
-        # height_diff = self.request.GET.get("heightDiff", False) == "on"
-        # round_start_zone = self.request.GET.get("roundStartZone", False) == "on"
-        # feature3 = self.request.GET.get("feature3", False) == "on"
-        # feature4 = self.request.GET.get("feature4", False) == "on"
-
-        # Format of serialized is: [direction, start, drones, car_move, Optional[list[float] - Requirements for triangulation]
-        serialized = self.request.GET.get("serialized", False)
+    def _compute_route(self, context):
+        """Load field data and compute route, populating context."""
+        request = self.request
+        serialized = request.GET.get("serialized", False)
         if serialized:
             try:
                 serialized = json.loads(serialized)
@@ -149,36 +127,27 @@ class ManageRouteView(TemplateView):
                 serialized = json.loads(serialized.replace("'", '"'))
 
         field_obj = context["mission"].field
-        field = json.loads(field_obj.points_serialized)
-        field = [[y, x] for (x, y) in field]
-        road = json.loads(field_obj.road_serialized)
-        road = [[y, x] for (x, y) in road]
-        holes = json.loads(
-            field_obj.holes_serialized
-        )  # three-dimensional array: [# First hole # [[lat, lon], [lat, lon], ...], # Second hole # [[lat, lon], [lat, lon], ...], ...]
-        holes = [[[y, x] for (x, y) in hole] for hole in holes]
-
-        grid_step = context["mission"].grid_step
-        number_of_drones = context["mission"].drones.all().count()
-        # [x, y, z, is_active]
+        field = [[y, x] for x, y in json.loads(field_obj.points_serialized)]
+        road = [[y, x] for x, y in json.loads(field_obj.road_serialized)]
+        holes = [[[y, x] for x, y in hole] for hole in json.loads(field_obj.holes_serialized)]
 
         context["field_flat"] = [coord for point in field for coord in point]
         context["field_id"] = field_obj.id if field_obj else ""
         context["field"] = field
         context["road"] = road
         context["holes"] = holes
-        context["grid_step"] = grid_step
-        context["number_of_drones"] = number_of_drones
+        context["grid_step"] = context["mission"].grid_step
+        context["number_of_drones"] = context["mission"].drones.all().count()
+
         if serialized:
             drones = [list(context["mission"].drones.all().order_by("id"))[i] for i in serialized[2]]
             requirements = None
+            simple_holes_traversal = True
             if len(serialized) > 4:
                 from pode import Requirement
 
                 requirements = [Requirement(r) for r in serialized[4]]
                 simple_holes_traversal = False
-            else:
-                simple_holes_traversal = True
             grid, waypoints, car_waypoints, initial_position = get_route(
                 car_move=serialized[3],
                 direction=serialized[0],
@@ -193,172 +162,101 @@ class ManageRouteView(TemplateView):
             )
         else:
             grid, waypoints, car_waypoints, initial_position = get_route(
-                car_move=car_move,
-                direction=direction,
-                start=start,
+                car_move=request.GET.get("carMove", "no"),
+                direction=request.GET.get("direction", "simple"),
+                start=request.GET.get("start", "ne"),
                 field=field,
                 holes=holes,
-                grid_step=grid_step,
+                grid_step=context["mission"].grid_step,
                 road=road,
                 drones=context["mission"].drones.all().order_by("id"),
                 simple_holes_traversal=True,
-                # num_subpolygons_rel_to_holes=2,
             )
+
         context["grid"] = list(flatten_grid(grid))
         context["initial"] = initial_position
         context["waypoints"] = waypoints
-        # print("!!!")
-        # with open(f"{field_obj}.txt", "w") as f:
-        #     for w in waypoints[0]:
-        #         f.write(f"{w['lat']} {w['lon']}\n")
         context["pickup_waypoints"] = car_waypoints
 
-    def get(self, request, *args, **kwargs):
-        if "optimize" in request.GET:
-            context = self.get_context_data(**kwargs)
-            mission = context["mission"]
-            res = self._optimize_now(mission)
-            if isinstance(res, HttpResponse):
-                return res
-            serialized, base = res
-            q = {
-                "serialized": serialized,
-                "excel": base,
-                "carMove": request.GET.get("carMove", "no"),
-                "direction": request.GET.get("direction", "simple"),
-                "start": request.GET.get("start", "ne"),
-            }
-            qs = "&".join(f"{k}={urllib.parse.quote(str(v))}" for k, v in q.items())
-            return HttpResponseRedirect(f"{request.path}?{qs}")
+    def _handle_optimize(self, context):
+        mission = context["mission"]
+        res = self._optimize_now(mission)
+        if isinstance(res, HttpResponse):
+            return res
+        serialized, base = res
+        q = {
+            "serialized": serialized,
+            "excel": base,
+            "carMove": self.request.GET.get("carMove", "no"),
+            "direction": self.request.GET.get("direction", "simple"),
+            "start": self.request.GET.get("start", "ne"),
+        }
+        qs = "&".join(f"{k}={urllib.parse.quote(str(v))}" for k, v in q.items())
+        return HttpResponseRedirect(f"{self.request.path}?{qs}")
 
-        if "downloadExcel" in self.request.GET:
-            base = self.request.GET.get("excel", "")
-            if not base or any(c in base for c in ("/", "\\", "..")):
-                return HttpResponse(status=400)
-            path = os.path.join(settings.MEDIA_ROOT, "opt_results", base + ".xls")
-            if not os.path.exists(path):
-                return HttpResponse(status=404)
-            return FileResponse(open(path, "rb"), as_attachment=True, filename=f"{base}.xls")
-        if "submitSave" in self.request.GET:
-            context = self.get_context_data(**kwargs)
-            with transaction.atomic():
-                i = 0
-                context["mission"].current_waypoints_status = 1
-                context["mission"].save()
-                context["mission"].current_waypoints.all().delete()
-                waypoints_to_create = []
-                for waypoints in context["waypoints"]:
-                    for waypoint in waypoints:
-                        waypoints_to_create.append(
-                            Waypoint(
-                                drone_id=waypoint["drone"]["id"],
-                                index=i,
-                                lat=waypoint["lat"],
-                                lon=waypoint["lon"],
-                                height=waypoint["height"],
-                                speed=waypoint["speed"],
-                                acceleration=waypoint["acceleration"],
-                                spray_on=waypoint["spray_on"],
-                            )
+    def _handle_download_excel(self):
+        base = self.request.GET.get("excel", "")
+        if not base or any(c in base for c in ("/", "\\", "..")):
+            return HttpResponse(status=400)
+        path = os.path.join(settings.MEDIA_ROOT, "opt_results", base + ".xls")
+        if not os.path.exists(path):
+            return HttpResponse(status=404)
+        return FileResponse(open(path, "rb"), as_attachment=True, filename=f"{base}.xls")
+
+    def _handle_save(self, context):
+        with transaction.atomic():
+            i = 0
+            context["mission"].current_waypoints_status = 1
+            context["mission"].save()
+            context["mission"].current_waypoints.all().delete()
+            waypoints_to_create = []
+            for waypoints in context["waypoints"]:
+                for wp in waypoints:
+                    waypoints_to_create.append(
+                        Waypoint(
+                            drone_id=wp["drone"]["id"],
+                            index=i,
+                            lat=wp["lat"],
+                            lon=wp["lon"],
+                            height=wp["height"],
+                            speed=wp["speed"],
+                            acceleration=wp["acceleration"],
+                            spray_on=wp["spray_on"],
                         )
-                        i += 10
-                created = Waypoint.objects.bulk_create(waypoints_to_create)
-                context["mission"].current_waypoints.set(created)
-                context["mission"].current_waypoints_status = 2
-                context["mission"].save()
-            return HttpResponseRedirect(reverse_lazy("mainapp:list_mission"))
-        if "getCsv" in self.request.GET:
-            context = self.get_context_data(**kwargs)
-            response = HttpResponse(content_type="text/csv")
-            response["Content-Disposition"] = 'attachment; filename="waypoints.csv"'
-            writer = csv.writer(response)
-            writer.writerow(
-                [
-                    "lat",
-                    "lon",
-                    "height",
-                    "height_global",
-                    "drone_id",
-                    "drone_name",
-                    "drone_model",
-                    "speed",
-                    "acceleration",
-                    "spray_on",
-                ]
-            )
-            elevations_dict = asyncio.run(get_all_points(context))
-            height_param = request.GET.get("height_absolute")
-            height_offset = float(request.GET.get("height", 450.0))
-            for waypoints in context["waypoints"]:
-                for waypoint in waypoints:
-                    if height_param:
-                        height_absolute = float(height_param)
-                    else:
-                        height_absolute = elevations_dict[(round(waypoint["lat"], 3)), round(waypoint["lon"], 3)]
-                    writer.writerow(
-                        [
-                            waypoint["lat"],
-                            waypoint["lon"],
-                            height_absolute + height_offset,
-                            height_absolute,
-                            waypoint["drone"]["id"],
-                            waypoint["drone"]["name"],
-                            waypoint["drone"]["model"],
-                            waypoint["speed"],
-                            waypoint["acceleration"],
-                            waypoint["spray_on"],
-                        ]
                     )
-            return response
-        if "getJson" in self.request.GET:
-            context = self.get_context_data(**kwargs)
-            data = []
-            elevations_dict = asyncio.run(get_all_points(context))
-            height_param = request.GET.get("height_absolute")
-            height_offset = float(request.GET.get("height", 450.0))
-            for waypoints in context["waypoints"]:
-                for waypoint in waypoints:
-                    if height_param:
-                        height_absolute = float(height_param)
-                    else:
-                        height_absolute = elevations_dict[(round(waypoint["lat"], 3)), round(waypoint["lon"], 3)]
-                    data.append(
-                        {
-                            "lat": waypoint["lat"],
-                            "lon": waypoint["lon"],
-                            "height": float(height_absolute) + height_offset,
-                            "height_global": height_absolute,
-                            "drone_id": waypoint["drone"]["id"],
-                            "drone_name": waypoint["drone"]["name"],
-                            "drone_model": waypoint["drone"]["model"],
-                            "speed": waypoint["speed"],
-                            "acceleration": waypoint["acceleration"],
-                            "spray_on": waypoint["spray_on"],
-                        }
-                    )
-            drone_ids = list(set([d["drone_id"] for d in data]))
-            jsons = [
-                create_plan_file(
-                    [[d["lat"], d["lon"], d["height"]] for d in data if d["drone_id"] == drone_id], drone_id
-                )
-                for drone_id in drone_ids
-            ]
-            if len(jsons) == 1:
-                response = HttpResponse(json.dumps(jsons[0]), content_type="application/json")
-                response["Content-Disposition"] = 'attachment; filename="plan.json"'
-            else:
-                zip_buffer = BytesIO()
-                with zipfile.ZipFile(zip_buffer, "w") as zip_file:
-                    for i, (json_data, drone_id) in enumerate(zip(jsons, drone_ids)):
-                        file_name = f"plan_{drone_id}_{i}.json"
-                        zip_file.writestr(file_name, json.dumps(json_data))
+                    i += 10
+            created = Waypoint.objects.bulk_create(waypoints_to_create)
+            context["mission"].current_waypoints.set(created)
+            context["mission"].current_waypoints_status = 2
+            context["mission"].save()
+        return HttpResponseRedirect(reverse_lazy("mainapp:list_mission"))
 
-                zip_buffer.seek(0)
-                response = HttpResponse(zip_buffer, content_type="application/zip")
-                response["Content-Disposition"] = 'attachment; filename="plans.zip"'
+    def _handle_export_csv(self, context):
+        height_offset = float(self.request.GET.get("height", 450.0))
+        height_absolute = self.request.GET.get("height_absolute")
+        return export_csv(context["waypoints"], height_offset, height_absolute)
 
-            return response
+    def _handle_export_json(self, context):
+        height_offset = float(self.request.GET.get("height", 450.0))
+        height_absolute = self.request.GET.get("height_absolute")
+        return export_mavlink_json(context["waypoints"], height_offset, height_absolute)
 
+    def get(self, request, *args, **kwargs):
+        if "downloadExcel" in request.GET:
+            return self._handle_download_excel()
+
+        # Actions that need route context but return non-template responses
+        for param, handler in [
+            ("optimize", self._handle_optimize),
+            ("submitSave", self._handle_save),
+            ("getCsv", self._handle_export_csv),
+            ("getJson", self._handle_export_json),
+        ]:
+            if param in request.GET:
+                context = self.get_context_data(**kwargs)
+                return handler(context)
+
+        # Normal template rendering — super().get() calls get_context_data() itself
         return super().get(request, *args, **kwargs)
 
     def get_context_data(self, **kwargs):
@@ -368,7 +266,7 @@ class ManageRouteView(TemplateView):
         else:
             mission = get_object_or_404(Mission, id=kwargs["mission_id"], owner=self.request.user)
         context["mission"] = mission
-        self.handle(context)
+        self._compute_route(context)
         return context
 
 

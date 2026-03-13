@@ -1,26 +1,6 @@
-import matplotlib.pyplot as plt
 from gon.base import EMPTY, Multipolygon, Polygon, Triangulation
 
 from pode import Requirement, divide
-
-# outer_boundary = Contour([Point(0, 0), Point(10, 0), Point(10, 16), Point(0, 10)])
-# hole1 = Contour([Point(2, 2), Point(4, 2), Point(4, 4), Point(2, 4)])
-# hole2 = Contour([Point(6, 6), Point(8, 6), Point(8, 8), Point(6, 8)])
-#
-# polygon_with_holes = Polygon(outer_boundary, [hole1, hole2])
-# #
-# requirements = [
-#     # Requirement(0.3, point=Point(1, 1)),  # 50% of the area, no anchor point
-#     # Requirement(0.3, point=Point(2, 1)),  # 50% of the area, no anchor point
-#     # Requirement(0.3),  # 50% of the area, no anchor point
-#     # Requirement(1 - (0.3) * 3),  # 50% of the area, no anchor point
-#     Requirement(1/6),  # 50% of the area, no anchor point
-#     Requirement(1/6),  # 50% of the area, no anchor point
-#     Requirement(1/6),  # 50% of the area, no anchor point
-#     Requirement(1/6),  # 50% of the area, no anchor point
-#     Requirement(1/6),  # 50% of the area, no anchor point
-#     Requirement(1 - (1/6) * 5),  # 50% of the area, no anchor point
-# ]
 
 
 def remove_overlaps(
@@ -104,25 +84,3 @@ def divide_polygon_with_holes(
         print(f"Total area of partitions: {float(total_parts_area)}")
         print(f"Difference in area: {float(area_difference)}")
     return cleaned_parts
-
-
-def visualize_partitions(
-    parts: list[Polygon],
-    requirements: list[Requirement],
-):
-    multipolygon = Multipolygon(parts)
-
-    _fig, ax = plt.subplots()
-    for polygon in multipolygon.polygons:
-        x, y = zip(*[(p.x, p.y) for p in polygon.border.vertices])
-        ax.fill(x, y, alpha=1, edgecolor="black", linewidth=1)
-        for hole in polygon.holes:
-            xh, yh = zip(*[(p.x, p.y) for p in hole.vertices])
-            ax.fill(xh, yh, color="white", edgecolor="black", linewidth=1)
-
-    for req in requirements:
-        if req.point:
-            ax.plot(req.point.x, req.point.y, "ro")  # Red dot for anchor points
-
-    ax.set_aspect("equal")
-    plt.show()
