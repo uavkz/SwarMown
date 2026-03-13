@@ -11,6 +11,30 @@ from mainapp.utils_triangulation_pode import divide_polygon_with_holes
 from pode import Requirement
 
 
+def _direction_to_angle(direction):
+    """Convert a direction spec to an angle in degrees."""
+    if direction == "simple":
+        return 45
+    elif direction == "horizontal":
+        return 0
+    elif direction == "vertical":
+        return 90
+    elif isinstance(direction, (float, int)):
+        return direction
+    else:
+        raise ValueError(f"Unknown direction: {direction!r}")
+
+
+def _resolve_car_waypoints(car_move, grid, road):
+    """Resolve car waypoints from a car_move spec (string mode or ratio list)."""
+    if isinstance(car_move, str):
+        return get_car_waypoints(grid, road, how=car_move)
+    elif isinstance(car_move, list):
+        return get_car_waypoints_by_ratio_list(road, car_move)
+    else:
+        raise ValueError(f"Unknown car_move type: {type(car_move)}")
+
+
 def get_route(
     car_move,
     direction: Union[str, float, list[Union[str, float]]],
@@ -66,18 +90,7 @@ def get_route(
         combined_grid = []
         for idx, subpolygon in enumerate(subpolygons_ordered):
             sub_direction = direction[idx] if isinstance(direction, list) else direction
-
-            # Process direction as before
-            if sub_direction == "simple":
-                angle = 45
-            elif sub_direction == "horizontal":
-                angle = 0
-            elif sub_direction == "vertical":
-                angle = 90
-            elif isinstance(sub_direction, (float, int)):
-                angle = sub_direction
-            else:
-                raise Exception("Not implemented")
+            angle = _direction_to_angle(sub_direction)
 
             sub_field = [[p.x, p.y] for p in subpolygon.border.vertices]
             transform_to_equidistant(sub_field)
@@ -90,33 +103,14 @@ def get_route(
                 ]
 
             combined_grid.extend(sub_grid)
-        if isinstance(car_move, str):
-            car_waypoints = get_car_waypoints(combined_grid, road, how=car_move)
-        elif isinstance(car_move, list):
-            car_waypoints = get_car_waypoints_by_ratio_list(road, car_move)
-        else:
-            raise Exception("Not implemented")
+        car_waypoints = _resolve_car_waypoints(car_move, combined_grid, road)
         waypoints = get_waypoints(combined_grid, car_waypoints, drones, start, holes)
         grid = combined_grid
     else:  # No Holes
-        if direction == "simple":
-            angle = 45
-        elif direction == "horizontal":
-            angle = 0
-        elif direction == "vertical":
-            angle = 90
-        elif isinstance(direction, (float, int)):
-            angle = direction
-        else:
-            raise Exception("Not implemented")
+        angle = _direction_to_angle(direction)
         if grid is None:
             grid = get_grid(field, grid_step, angle, trans=pyproj_transformer)
-        if isinstance(car_move, str):
-            car_waypoints = get_car_waypoints(grid, road, how=car_move)
-        elif isinstance(car_move, list):
-            car_waypoints = get_car_waypoints_by_ratio_list(road, car_move)
-        else:
-            raise Exception("Not implemented")
+        car_waypoints = _resolve_car_waypoints(car_move, grid, road)
         waypoints = get_waypoints(grid, car_waypoints, drones, start)
     return grid, waypoints, car_waypoints, car_waypoints[0]
 
@@ -200,10 +194,9 @@ def generate_fly_back(drone_waypoints, drones_init, drone, hole_polygons=None):
             adjusted_path = adjust_path_around_holes(start_point, drones_init, hole_polygons)
             return add_adjusted_path(drone_waypoints, adjusted_path, drone)
     add_waypoint(drone_waypoints, drones_init, drone)
-    try:
+    if len(drone_waypoints) >= 2:
         return calc_vincenty(drones_init, [drone_waypoints[-2]["lon"], drone_waypoints[-2]["lat"]], lon_first=True)
-    except Exception:
-        return 0
+    return 0
 
 
 def iterate_zamboni(grid, start):
@@ -238,7 +231,6 @@ def path_crosses_holes(start_point, end_point, hole_polygons):
 
 
 def single_segment_adjust(start_pt, end_pt, hole):
-    LineString([start_pt, end_pt])
     if not path_crosses_this_hole(start_pt, end_pt, hole):
         return [start_pt, end_pt]  # No crossing => nothing to fix
 

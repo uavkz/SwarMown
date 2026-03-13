@@ -1,4 +1,4 @@
-from django.conf.urls import include, url
+from django.urls import include, path
 from rest_framework import routers
 
 from restapp.views import FieldViewSet, WaypointsViewSet
@@ -10,5 +10,5 @@ router.register("waypoints", WaypointsViewSet, basename="waypoints")
 app_name = "restapp"
 
 urlpatterns = [
-    url("", include(router.urls)),
+    path("", include(router.urls)),
 ]

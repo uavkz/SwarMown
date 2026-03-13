@@ -1,8 +1,8 @@
 import math
 
 import numpy as np
-import pyproj
 from django.forms import model_to_dict
+from pyproj import Transformer
 from vincenty import vincenty
 
 
@@ -11,36 +11,21 @@ def flatten_grid(grid):
         yield from line
 
 
-def unique(list1):
-    seen = set()
-    unique_list = []
-    for x in list1:
-        key = tuple(x) if isinstance(x, list) else x
-        if key not in seen:
-            seen.add(key)
-            unique_list.append(x)
-    return unique_list
+_TO_EQUIDISTANT = Transformer.from_crs("epsg:4326", "epsg:4087")
+_TO_LATLON = Transformer.from_crs("epsg:4087", "epsg:4326")
 
 
-def euclidean(x1, x2, y1, y2):
-    return np.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2)
-
-
-_PROJ_LL = pyproj.Proj("epsg:4326")
-_PROJ_MT = pyproj.Proj("epsg:4087")  # metric; equidistant
-
-
-def _transform_points(points, from_proj, to_proj):
+def _transform_points(points, transformer):
     for point in points:
-        point[0], point[1] = pyproj.transform(from_proj, to_proj, point[0], point[1])
+        point[0], point[1] = transformer.transform(point[0], point[1])
 
 
 def transform_to_equidistant(points):
-    _transform_points(points, _PROJ_LL, _PROJ_MT)
+    _transform_points(points, _TO_EQUIDISTANT)
 
 
 def transform_to_lat_lon(points):
-    _transform_points(points, _PROJ_MT, _PROJ_LL)
+    _transform_points(points, _TO_LATLON)
 
 
 _drone_dict_cache = {}
@@ -156,12 +141,6 @@ def rotate(point, origin, angle):
     qx = ox + math.cos(angle) * (px - ox) - math.sin(angle) * (py - oy)
     qy = oy + math.sin(angle) * (px - ox) + math.cos(angle) * (py - oy)
     return [qx, qy]
-
-
-def latlong_to_3d(latr, lonr):
-    """Convert a point given latitude and longitude in radians to
-    3-dimensional space, assuming a sphere radius of one."""
-    return np.array((math.cos(latr) * math.cos(lonr), math.cos(latr) * math.sin(lonr), math.sin(latr)))
 
 
 def angle_between_vectors_degrees(u, v):

@@ -20,13 +20,11 @@ from mainapp.utils import (
     angle_lat_lon_vectors,
     calc_vincenty,
     drone_flight_price,
-    euclidean,
     flatten_grid,
     flight_penalty,
     rotate,
     transform_to_equidistant,
     transform_to_lat_lon,
-    unique,
     waypoints_distance,
     waypoints_flight_time,
 )
@@ -94,68 +92,6 @@ class TestFlattenGrid(TestCase):
 
     def test_single_element(self):
         self.assertEqual(list(flatten_grid([[42]])), [42])
-
-
-# ===================================================================
-# unique
-# ===================================================================
-class TestUnique(TestCase):
-    """Tests for unique."""
-
-    def test_smoke(self):
-        unique([])
-
-    def test_removes_duplicates(self):
-        self.assertEqual(unique([1, 2, 2, 3, 1]), [1, 2, 3])
-
-    def test_preserves_order(self):
-        self.assertEqual(unique([3, 1, 2, 1, 3]), [3, 1, 2])
-
-    def test_empty(self):
-        self.assertEqual(unique([]), [])
-
-    def test_single_element(self):
-        self.assertEqual(unique([7]), [7])
-
-    def test_all_same(self):
-        self.assertEqual(unique([5, 5, 5]), [5])
-
-    def test_strings(self):
-        self.assertEqual(unique(["a", "b", "a"]), ["a", "b"])
-
-
-# ===================================================================
-# euclidean
-# ===================================================================
-class TestEuclidean(TestCase):
-    """Tests for euclidean."""
-
-    def test_smoke(self):
-        euclidean(0, 0, 0, 0)
-
-    def test_3_4_5_triangle(self):
-        self.assertAlmostEqual(euclidean(0, 3, 0, 4), 5.0)
-
-    def test_same_point(self):
-        self.assertAlmostEqual(euclidean(5, 5, 5, 5), 0.0)
-
-    def test_horizontal(self):
-        self.assertAlmostEqual(euclidean(0, 10, 0, 0), 10.0)
-
-    def test_vertical(self):
-        self.assertAlmostEqual(euclidean(0, 0, 0, 7), 7.0)
-
-    def test_negative_coords(self):
-        self.assertAlmostEqual(euclidean(-3, 0, 0, 4), 5.0)
-
-    def test_always_positive(self):
-        """Distance is always >= 0."""
-        self.assertGreaterEqual(euclidean(1, 2, 3, 4), 0)
-
-    def test_symmetry(self):
-        d1 = euclidean(1, 4, 2, 6)
-        d2 = euclidean(4, 1, 6, 2)
-        self.assertAlmostEqual(d1, d2)
 
 
 # ===================================================================
@@ -783,13 +719,6 @@ class TestIntegration(TestCase):
         )
         self.assertEqual(p, 0)
 
-    def test_unique_after_flatten(self):
-        """flatten then unique removes duplicates from grid."""
-        grid = [[(0, 0), (1, 1)], [(1, 1), (2, 2)]]
-        flat = list(flatten_grid(grid))
-        u = unique(flat)
-        self.assertEqual(len(u), 3)
-
     def test_rotate_preserves_distance_from_origin(self):
         """Rotation should preserve distance from origin."""
         point = (3, 4)
@@ -802,13 +731,8 @@ class TestIntegration(TestCase):
                 original_dist, rotated_dist, places=10, msg=f"Distance not preserved at {angle} degrees"
             )
 
-    def test_euclidean_matches_vincenty_at_equator_roughly(self):
-        """At small scales near equator, euclidean on degree coords and
-        vincenty in km should at least both be positive and ordered consistently."""
-        d_euc_1 = euclidean(0, 1, 0, 0)
-        d_euc_2 = euclidean(0, 2, 0, 0)
+    def test_vincenty_ordering(self):
+        """Vincenty distances are ordered consistently."""
         d_vin_1 = calc_vincenty((0, 0), (1, 0))
         d_vin_2 = calc_vincenty((0, 0), (2, 0))
-        # Both should rank the second distance as larger
-        self.assertGreater(d_euc_2, d_euc_1)
         self.assertGreater(d_vin_2, d_vin_1)
