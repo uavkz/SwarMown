@@ -48,7 +48,7 @@ args = parser.parse_args()
 
 
 def eval(individual):
-    drones = [list(mission.drones.all().order_by("id"))[i] for i in individual[2]]
+    drones = [drones_list[i] for i in individual[2]]
     grid, waypoints, _, _initial = get_route(
         car_move=individual[3],
         direction=individual[0],
@@ -85,6 +85,8 @@ def eval(individual):
         drone_price += drone_price_n
         grid_traversed += max(0, len(drone_waypoints) - 2)
 
+    if not drone_flight_time:
+        return 0, 0, 0, 0, 1_000_000, 0
     time = max(drone_flight_time.values())
     salary = mission.hourly_price * time * len(drone_flight_time) + mission.start_price * number_of_starts
     penalty = flight_penalty(
@@ -160,7 +162,8 @@ field = json.loads(mission.field.points_serialized)
 field = [[y, x] for (x, y) in field]
 road = json.loads(mission.field.road_serialized)
 road = [[y, x] for (x, y) in road]
-number_of_drones = mission.drones.all().count()
+drones_list = list(mission.drones.all().order_by("id"))
+number_of_drones = len(drones_list)
 
 pyproj_transformer = Transformer.from_crs(
     "epsg:4087",
@@ -208,9 +211,9 @@ def run():
         fits = toolbox.map(toolbox.evaluate, offspring)
         fitness_params = []
         for (distance, time, drone_price, salary, penalty, number_of_starts), ind in zip(fits, offspring):
-            ind.fitness.values = (drone_price + salary + penalty,)
             ind[2] = ind[2][:number_of_starts]
             ind[3] = ind[3][:number_of_starts]
+            ind.fitness.values = (drone_price + salary + penalty,)
             fitness_params.append(
                 {
                     "distance": distance,

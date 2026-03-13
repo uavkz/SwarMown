@@ -12,6 +12,7 @@ import zipfile
 from io import BytesIO
 
 from django.conf import settings
+from django.db import transaction
 from django.http import FileResponse, HttpResponse, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse_lazy
@@ -142,7 +143,10 @@ class ManageRouteView(TemplateView):
         # Format of serialized is: [direction, start, drones, car_move, Optional[list[float] - Requirements for triangulation]
         serialized = self.request.GET.get("serialized", False)
         if serialized:
-            serialized = json.loads(serialized.replace("'", '"'))
+            try:
+                serialized = json.loads(serialized)
+            except json.JSONDecodeError:
+                serialized = json.loads(serialized.replace("'", '"'))
 
         field_obj = context["mission"].field
         field = json.loads(field_obj.points_serialized)
@@ -237,30 +241,31 @@ class ManageRouteView(TemplateView):
             return FileResponse(open(path, "rb"), as_attachment=True, filename=f"{base}.xls")
         if "submitSave" in self.request.GET:
             context = self.get_context_data(**kwargs)
-            i = 0
-            context["mission"].current_waypoints_status = 1
-            context["mission"].save()
-            context["mission"].current_waypoints.all().delete()
-            waypoints_to_create = []
-            for waypoints in context["waypoints"]:
-                for waypoint in waypoints:
-                    waypoints_to_create.append(
-                        Waypoint(
-                            drone_id=waypoint["drone"]["id"],
-                            index=i,
-                            lat=waypoint["lat"],
-                            lon=waypoint["lon"],
-                            height=waypoint["height"],
-                            speed=waypoint["speed"],
-                            acceleration=waypoint["acceleration"],
-                            spray_on=waypoint["spray_on"],
+            with transaction.atomic():
+                i = 0
+                context["mission"].current_waypoints_status = 1
+                context["mission"].save()
+                context["mission"].current_waypoints.all().delete()
+                waypoints_to_create = []
+                for waypoints in context["waypoints"]:
+                    for waypoint in waypoints:
+                        waypoints_to_create.append(
+                            Waypoint(
+                                drone_id=waypoint["drone"]["id"],
+                                index=i,
+                                lat=waypoint["lat"],
+                                lon=waypoint["lon"],
+                                height=waypoint["height"],
+                                speed=waypoint["speed"],
+                                acceleration=waypoint["acceleration"],
+                                spray_on=waypoint["spray_on"],
+                            )
                         )
-                    )
-                    i += 10
-            created = Waypoint.objects.bulk_create(waypoints_to_create)
-            context["mission"].current_waypoints.set(created)
-            context["mission"].current_waypoints_status = 2
-            context["mission"].save()
+                        i += 10
+                created = Waypoint.objects.bulk_create(waypoints_to_create)
+                context["mission"].current_waypoints.set(created)
+                context["mission"].current_waypoints_status = 2
+                context["mission"].save()
             return HttpResponseRedirect(reverse_lazy("mainapp:list_mission"))
         if "getCsv" in self.request.GET:
             context = self.get_context_data(**kwargs)
@@ -282,16 +287,19 @@ class ManageRouteView(TemplateView):
                 ]
             )
             elevations_dict = asyncio.run(get_all_points(context))
+            height_param = request.GET.get("height_absolute")
+            height_offset = float(request.GET.get("height", 450.0))
             for waypoints in context["waypoints"]:
                 for waypoint in waypoints:
-                    height_absolute = request.GET.get("height_absolute", False)
-                    if not height_absolute:
+                    if height_param:
+                        height_absolute = float(height_param)
+                    else:
                         height_absolute = elevations_dict[(round(waypoint["lat"], 3)), round(waypoint["lon"], 3)]
                     writer.writerow(
                         [
                             waypoint["lat"],
                             waypoint["lon"],
-                            height_absolute + float(request.GET.get("height", 450.0)),
+                            height_absolute + height_offset,
                             height_absolute,
                             waypoint["drone"]["id"],
                             waypoint["drone"]["name"],
@@ -301,21 +309,24 @@ class ManageRouteView(TemplateView):
                             waypoint["spray_on"],
                         ]
                     )
-                return response
+            return response
         if "getJson" in self.request.GET:
             context = self.get_context_data(**kwargs)
             data = []
             elevations_dict = asyncio.run(get_all_points(context))
+            height_param = request.GET.get("height_absolute")
+            height_offset = float(request.GET.get("height", 450.0))
             for waypoints in context["waypoints"]:
                 for waypoint in waypoints:
-                    height_absolute = request.GET.get("height_absolute", False)
-                    if not height_absolute:
+                    if height_param:
+                        height_absolute = float(height_param)
+                    else:
                         height_absolute = elevations_dict[(round(waypoint["lat"], 3)), round(waypoint["lon"], 3)]
                     data.append(
                         {
                             "lat": waypoint["lat"],
                             "lon": waypoint["lon"],
-                            "height": float(height_absolute) + float(request.GET.get("height", 450.0)),
+                            "height": float(height_absolute) + height_offset,
                             "height_global": height_absolute,
                             "drone_id": waypoint["drone"]["id"],
                             "drone_name": waypoint["drone"]["name"],
@@ -419,8 +430,11 @@ def _extract_polygons_from_kml(uploaded_file):
         for token in (coords_el.text or "").strip().split():
             parts = token.split(",")
             if len(parts) >= 2:
-                lon = float(parts[0])
-                lat = float(parts[1])
+                try:
+                    lon = float(parts[0])
+                    lat = float(parts[1])
+                except ValueError:
+                    continue
                 pts.append([lat, lon])
         if len(pts) >= 3 and pts[0] == pts[-1]:
             pts = pts[:-1]

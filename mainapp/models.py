@@ -21,9 +21,9 @@ class Field(models.Model):
     )
 
     points_serialized = models.TextField()  # Json Serialized [[lat, lon], [lat, lon], ...]
-    road_serialized = models.TextField(default=[])  # Json Serialized [[lat, lon], [lat, lon], ...]
+    road_serialized = models.TextField(default="[]")  # Json Serialized [[lat, lon], [lat, lon], ...]
     holes_serialized = models.TextField(
-        default=[], verbose_name="Препятствия (Serialized)"
+        default="[]", verbose_name="Препятствия (Serialized)"
     )  # Json Serialized [# First hole # [[lat, lon], [lat, lon], ...], # Second hole # [[lat, lon], [lat, lon], ...], ...]
 
     def __str__(self):
