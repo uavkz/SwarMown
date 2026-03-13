@@ -745,6 +745,20 @@ class TestGAAvoidanceGene(TestCase):
         gene = generate_avoidance_gene("2d", 3)
         self.assertIsNone(gene)
 
+    def test_serialize_avoidance_gene_b5(self):
+        from scripts.ga_common import _serialize_avoidance_gene
+
+        gene = [(12.0, 150.0), (5.0, 80.0)]
+        result = _serialize_avoidance_gene(gene)
+        self.assertEqual(result, [[12.0, 150.0], [5.0, 80.0]])
+
+    def test_serialize_avoidance_gene_b1(self):
+        from scripts.ga_common import _serialize_avoidance_gene
+
+        gene = [0, 1, 1]
+        result = _serialize_avoidance_gene(gene)
+        self.assertEqual(result, [0, 1, 1])
+
 
 # ===================================================================
 # parse_obstacle_heights

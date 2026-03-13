@@ -462,6 +462,13 @@ def save_results(iterations, args, mission, filename=None, extra_info=None, **ex
         "max_working_speed": args.max_working_speed,
         "borderline_time": args.borderline_time,
         "max_time": args.max_time,
+        "avoidance_strategy": args.avoidance_strategy,
+        "height_min": args.height_min,
+        "height_max": args.height_max,
+        "safety_margin": args.safety_margin,
+        "climb_rate": args.climb_rate,
+        "descent_rate": args.descent_rate,
+        "energy_per_meter_climb": args.energy_per_meter_climb,
     }
     if extra_info:
         info.update(extra_info)
@@ -477,7 +484,20 @@ def save_results(iterations, args, mission, filename=None, extra_info=None, **ex
     try:
         best = iterations[-1]["best_ind"]
         serialized = [best[0], best[1], list(best[2]), list(best[3])]
+        if len(best) > 4:
+            serialized.append(_serialize_avoidance_gene(best[4]))
         with open(f"{fname}.json", "w", encoding="utf-8") as f:
             json.dump({"serialized": serialized}, f)
     except Exception:
         pass
+
+
+def _serialize_avoidance_gene(gene):
+    """Convert avoidance gene[4] to JSON-serializable format."""
+    result = []
+    for item in gene:
+        if isinstance(item, (list, tuple)):
+            result.append(list(item))
+        else:
+            result.append(item)
+    return result
