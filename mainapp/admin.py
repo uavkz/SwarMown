@@ -10,6 +10,7 @@ class FieldAdmin(admin.ModelAdmin):
     )
     list_filter = ("owner",)
     search_fields = ("name",)
+    list_select_related = ("owner",)
 
 
 class MissionAdmin(admin.ModelAdmin):
@@ -33,6 +34,7 @@ class MissionAdmin(admin.ModelAdmin):
         "field",
     )
     search_fields = ("name",)
+    list_select_related = ("owner", "field")
 
 
 class DroneAdmin(admin.ModelAdmin):
@@ -72,6 +74,7 @@ class WaypointAdmin(admin.ModelAdmin):
         "status",
     )
     search_fields = ("name",)
+    list_select_related = ("drone",)
 
 
 admin.site.register(Field, FieldAdmin)

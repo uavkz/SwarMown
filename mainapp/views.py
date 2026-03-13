@@ -241,20 +241,24 @@ class ManageRouteView(TemplateView):
             context["mission"].current_waypoints_status = 1
             context["mission"].save()
             context["mission"].current_waypoints.all().delete()
+            waypoints_to_create = []
             for waypoints in context["waypoints"]:
                 for waypoint in waypoints:
-                    w = Waypoint.objects.create(
-                        drone_id=waypoint["drone"]["id"],
-                        index=i,
-                        lat=waypoint["lat"],
-                        lon=waypoint["lon"],
-                        height=waypoint["height"],
-                        speed=waypoint["speed"],
-                        acceleration=waypoint["acceleration"],
-                        spray_on=waypoint["spray_on"],
+                    waypoints_to_create.append(
+                        Waypoint(
+                            drone_id=waypoint["drone"]["id"],
+                            index=i,
+                            lat=waypoint["lat"],
+                            lon=waypoint["lon"],
+                            height=waypoint["height"],
+                            speed=waypoint["speed"],
+                            acceleration=waypoint["acceleration"],
+                            spray_on=waypoint["spray_on"],
+                        )
                     )
                     i += 10
-                    context["mission"].current_waypoints.add(w)
+            created = Waypoint.objects.bulk_create(waypoints_to_create)
+            context["mission"].current_waypoints.set(created)
             context["mission"].current_waypoints_status = 2
             context["mission"].save()
             return HttpResponseRedirect(reverse_lazy("mainapp:list_mission"))
@@ -389,7 +393,12 @@ class MissionsListView(ListView):
     template_name = "mainapp/list_mission.html"
 
     def get_queryset(self):
-        qs = Mission.objects.all().order_by("-id")
+        qs = (
+            Mission.objects.all()
+            .order_by("-id")
+            .select_related("field", "owner")
+            .prefetch_related("drones", "current_waypoints")
+        )
         return qs if self.request.user.is_staff else qs.filter(owner=self.request.user)
 
 

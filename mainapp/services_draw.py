@@ -3,6 +3,7 @@ from copy import deepcopy
 import numpy as np
 from shapely.geometry import Point
 from shapely.geometry.polygon import Polygon
+from shapely.prepared import prep
 
 from mainapp.utils import calc_vincenty, rotate, transform_to_equidistant, transform_to_lat_lon, waypoints_distance
 
@@ -12,6 +13,7 @@ def get_grid(field, step, angle=0, do_transform=True, trans=None):
     if do_transform:
         transform_to_equidistant(field)
     polygon = Polygon(field)
+    prepared_polygon = prep(polygon)
     grid = []
 
     min_x = min(p[0] for p in field)
@@ -19,22 +21,23 @@ def get_grid(field, step, angle=0, do_transform=True, trans=None):
     max_x = max(p[0] for p in field)
     max_y = max(p[1] for p in field)
 
-    min_x -= max_y - min_y
-    max_x += max_y - min_y
+    height = max_y - min_y
+    width = max_x - min_x
+    min_x -= height
+    max_x += height
+    min_y -= width
+    max_y += width
 
-    min_y -= max_x - min_x
-    max_y += max_x - min_x
-
-    for x in np.linspace(min_x, max_x, round((max_x - min_x) / step)):
+    for x in np.linspace(min_x, max_x, max(round((max_x - min_x) / step), 1)):
         line = []
-        for y in np.linspace(min_y, max_y, round((max_y - min_y) / step)):
+        for y in np.linspace(min_y, max_y, max(round((max_y - min_y) / step), 1)):
             line.append([x, y])
         grid.append(line)
 
     pivot_point = [(min_x + max_x) / 2, (min_y + max_y) / 2]
     for i, line in enumerate(grid):
         line = [rotate(point, pivot_point, angle) for point in line]
-        line = list(filter(lambda x: polygon.contains(Point(x[0], x[1])), line))
+        line = [p for p in line if prepared_polygon.contains(Point(p[0], p[1]))]
         if trans is None:
             transform_to_lat_lon(line)
         else:
@@ -78,22 +81,28 @@ def get_car_waypoints_by_ratio_list(road, ratio_list):
     # X/Long, Y/Lat
     if not road:
         raise Exception("No road")
+
+    # Precompute cumulative distances once
+    cumulative = [0.0]
+    for j in range(1, len(road)):
+        seg = calc_vincenty([road[j][1], road[j][0]], [road[j - 1][1], road[j - 1][0]]) * 1000
+        cumulative.append(cumulative[-1] + seg)
+    total_distance = cumulative[-1]
+
     car_waypoints = []
-    total_distance = waypoints_distance(road, lat_f=lambda x: x[1], lon_f=lambda x: x[0])
     for ratio in ratio_list:
-        dist = 0
         target_point = ratio * total_distance
-        prev_point = None
-        for point in road:
-            if prev_point:
-                new_dist = calc_vincenty([point[1], point[0]], [prev_point[1], prev_point[0]]) * 1000
-                if dist + new_dist >= target_point:
-                    d_x = point[0] - prev_point[0]
-                    d_y = point[1] - prev_point[1]
-                    ratio = (target_point - dist) / new_dist
-                    point = [prev_point[0] + d_x * ratio, prev_point[1] + d_y * ratio]
-                    break
-                dist += new_dist
-            prev_point = point
-        car_waypoints.append([point[0], point[1]])
+        # Find segment via cumulative distances
+        for j in range(1, len(road)):
+            if cumulative[j] >= target_point:
+                seg_len = cumulative[j] - cumulative[j - 1]
+                frac = (target_point - cumulative[j - 1]) / seg_len if seg_len > 0 else 0
+                point = [
+                    road[j - 1][0] + (road[j][0] - road[j - 1][0]) * frac,
+                    road[j - 1][1] + (road[j][1] - road[j - 1][1]) * frac,
+                ]
+                break
+        else:
+            point = [road[-1][0], road[-1][1]]
+        car_waypoints.append(point)
     return car_waypoints
