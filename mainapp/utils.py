@@ -12,9 +12,12 @@ def flatten_grid(grid):
 
 
 def unique(list1):
-    unique_list = list()
+    seen = set()
+    unique_list = []
     for x in list1:
-        if x not in unique_list:
+        key = tuple(x) if isinstance(x, list) else x
+        if key not in seen:
+            seen.add(key)
             unique_list.append(x)
     return unique_list
 
@@ -23,25 +26,34 @@ def euclidean(x1, x2, y1, y2):
     return np.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2)
 
 
+_PROJ_LL = pyproj.Proj("epsg:4326")
+_PROJ_MT = pyproj.Proj("epsg:4087")  # metric; equidistant
+
+
 def _transform_points(points, from_proj, to_proj):
     for point in points:
         point[0], point[1] = pyproj.transform(from_proj, to_proj, point[0], point[1])
 
 
 def transform_to_equidistant(points):
-    p_ll = pyproj.Proj("epsg:4326")
-    # p_mt = pyproj.Proj('epsg:3857')  # metric; same as EPSG:90091, generally good Google Map
-    p_mt = pyproj.Proj("epsg:4087")  # metric; equidistant
-
-    _transform_points(points, p_ll, p_mt)
+    _transform_points(points, _PROJ_LL, _PROJ_MT)
 
 
 def transform_to_lat_lon(points):
-    p_ll = pyproj.Proj("epsg:4326")
-    # p_mt = pyproj.Proj('epsg:3857')  # metric; same as EPSG:90091, generally good Google Map
-    p_mt = pyproj.Proj("epsg:4087")  # metric; equidistant
+    _transform_points(points, _PROJ_MT, _PROJ_LL)
 
-    _transform_points(points, p_mt, p_ll)
+
+_drone_dict_cache = {}
+
+
+def _get_drone_dict(drone):
+    drone_id = drone.id if hasattr(drone, "id") else id(drone)
+    cached = _drone_dict_cache.get(drone_id)
+    if cached is not None and cached.get("name") == drone.name:
+        return cached
+    result = model_to_dict(drone)
+    _drone_dict_cache[drone_id] = result
+    return result
 
 
 def add_waypoint(waypoints, point, drone, height=10, speed=30, acceleration=0, spray_on=False):
@@ -50,7 +62,7 @@ def add_waypoint(waypoints, point, drone, height=10, speed=30, acceleration=0, s
             "lat": point[1],
             "lon": point[0],
             "height": height,
-            "drone": model_to_dict(drone),
+            "drone": _get_drone_dict(drone),
             "speed": speed,
             "acceleration": acceleration,
             "spray_on": spray_on,
