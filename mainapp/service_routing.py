@@ -42,7 +42,7 @@ def get_route(
 
         if not triangulation_requirements and holes:
             if num_subpolygons:
-                num_subpolygons = num_subpolygons
+                pass  # use provided num_subpolygons as-is
             elif num_subpolygons_rel_to_holes:
                 num_subpolygons = len(holes) + num_subpolygons_rel_to_holes
             else:
@@ -91,7 +91,7 @@ def get_route(
 
             combined_grid.extend(sub_grid)
         if isinstance(car_move, str):
-            car_waypoints = get_car_waypoints(grid, road, how=car_move)
+            car_waypoints = get_car_waypoints(combined_grid, road, how=car_move)
         elif isinstance(car_move, list):
             car_waypoints = get_car_waypoints_by_ratio_list(road, car_move)
         else:

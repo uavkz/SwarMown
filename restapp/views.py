@@ -40,9 +40,11 @@ class WaypointsViewSet(viewsets.ViewSet):
     def list(self, request):
         qs = Mission.objects.all() if request.user.is_staff else Mission.objects.filter(owner=request.user)
         mission = get_object_or_404(qs, id=request.GET.get("mission_id"))
-        if True:
+        if mission.current_waypoints_status != 2:
             return Response({"error": "Маршрут не готов"}, status=500)
         next_waypoint = mission.current_waypoints.filter(status=0).order_by("index").first()
+        if not next_waypoint:
+            return Response({"error": "Нет доступных waypoints"}, status=404)
         next_waypoint = json.loads(serializers.serialize("json", [next_waypoint])[1:-1])
         waypoint_pk = next_waypoint["pk"]
         next_waypoint = next_waypoint["fields"]
