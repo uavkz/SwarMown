@@ -36,6 +36,7 @@ from mainapp.utils import (
     calc_distance_3d,
     calc_vincenty,
     drone_flight_price,
+    waypoints_distance,
     waypoints_flight_time,
     waypoints_total_climb,
 )
@@ -918,3 +919,156 @@ class TestAltitudePersistence(TestCase):
         fly2, alt2 = _should_fly_over([30.0, 50.025], [30.1, 50.025], HOLE_POLYGON, 1, config, 25)
         self.assertTrue(fly2)
         self.assertEqual(alt2, 25)  # stays at 25, no additional climb
+
+
+# ===================================================================
+# Corner cases and stress tests
+# ===================================================================
+class TestCornerCases(TestCase):
+    """Corner cases: ceiling bounds, B2 thresholds, direction, field shapes."""
+
+    def setUp(self):
+        self.drone = _make_drone()
+        self.drone.max_distance_no_load = 100  # generous range for test fields
+
+    def _run_route(self, field, road, holes, config, grid_step=500):
+        grid, waypoints, _, _ = get_route(
+            car_move=[0.5],
+            direction=0,
+            start="ne",
+            field=deepcopy(field),
+            grid_step=grid_step,
+            road=deepcopy(road),
+            drones=[self.drone],
+            pyproj_transformer=PYPROJ_TRANSFORMER,
+            holes=deepcopy(holes),
+            simple_holes_traversal=True,
+            avoidance_config=config,
+        )
+        return grid, waypoints
+
+    def test_obstacle_exactly_at_ceiling(self):
+        """Obstacle height + margin = ceiling: should fly over at exactly ceiling."""
+        config = dict(BASE_AVOIDANCE_CONFIG, strategy="B1", hole_heights=[115], strategy_params=[1])
+        fly, alt = _should_fly_over([30.0, 50.025], [30.1, 50.025], HOLE_POLYGON, 0, config, 10)
+        self.assertTrue(fly)
+        self.assertEqual(alt, 120)  # exactly at ceiling
+
+    def test_obstacle_above_ceiling_must_go_around(self):
+        """Obstacle height + margin > ceiling: must go around."""
+        config = dict(BASE_AVOIDANCE_CONFIG, strategy="B1", hole_heights=[116], strategy_params=[1])
+        fly, _ = _should_fly_over([30.0, 50.025], [30.1, 50.025], HOLE_POLYGON, 0, config, 10)
+        self.assertFalse(fly)
+
+    def test_zero_height_obstacle_free_flyover(self):
+        """Zero-height obstacle: already above at working altitude."""
+        config = dict(BASE_AVOIDANCE_CONFIG, strategy="B1", hole_heights=[0], strategy_params=[1])
+        fly, alt = _should_fly_over([30.0, 50.025], [30.1, 50.025], HOLE_POLYGON, 0, config, 10)
+        self.assertTrue(fly)
+        self.assertEqual(alt, 10)
+
+    def test_b2_threshold_boundary(self):
+        """B2: gap exactly at threshold should fly over (gap <= threshold)."""
+        # hole_height=20, safety=5, current=10 → gap=15. threshold=15 → fly over
+        config = dict(BASE_AVOIDANCE_CONFIG, strategy="B2", hole_heights=[20], strategy_params=[15])
+        fly, _ = _should_fly_over([30.0, 50.025], [30.1, 50.025], HOLE_POLYGON, 0, config, 10)
+        self.assertTrue(fly)
+
+    def test_b2_threshold_just_below(self):
+        """B2: gap just above threshold should go around."""
+        # gap=15, threshold=14.9 → go around
+        config = dict(BASE_AVOIDANCE_CONFIG, strategy="B2", hole_heights=[20], strategy_params=[14.9])
+        fly, _ = _should_fly_over([30.0, 50.025], [30.1, 50.025], HOLE_POLYGON, 0, config, 10)
+        self.assertFalse(fly)
+
+    def test_narrow_field_hole_blocks_width(self):
+        """Hole covers entire field width — both strategies should produce valid waypoints."""
+        field = [[30.0, 50.0], [30.02, 50.0], [30.02, 50.05], [30.0, 50.05]]
+        road = [[30.0, 49.99], [30.02, 49.99]]
+        hole = [[30.005, 50.02], [30.015, 50.02], [30.015, 50.03], [30.005, 50.03]]
+
+        config_over = dict(BASE_AVOIDANCE_CONFIG, strategy="B1", hole_heights=[20], strategy_params=[1])
+        config_around = dict(BASE_AVOIDANCE_CONFIG, strategy="B1", hole_heights=[20], strategy_params=[0])
+
+        _, wps_over = self._run_route(field, road, [hole], config_over, grid_step=300)
+        _, wps_around = self._run_route(field, road, [hole], config_around, grid_step=300)
+
+        self.assertGreater(len(wps_over), 0)
+        self.assertGreater(len(wps_around), 0)
+
+        # Fly-over should be shorter distance
+        _L, _Lo = lambda x: x["lat"], lambda x: x["lon"]
+        dist_over = sum(waypoints_distance(f, lat_f=_L, lon_f=_Lo) for f in wps_over)
+        dist_around = sum(waypoints_distance(f, lat_f=_L, lon_f=_Lo) for f in wps_around)
+        self.assertLess(dist_over, dist_around)
+
+    def test_three_holes_all_fly_over(self):
+        """Three holes with fly-over: altitude should persist and increase."""
+        from mainapp.service_routing import avoid_obstacle_3d
+
+        hole1 = ShapelyPolygon([[30.02, 50.02], [30.03, 50.02], [30.03, 50.03], [30.02, 50.03]])
+        hole2 = ShapelyPolygon([[30.04, 50.02], [30.05, 50.02], [30.05, 50.03], [30.04, 50.03]])
+        hole3 = ShapelyPolygon([[30.06, 50.02], [30.07, 50.02], [30.07, 50.03], [30.06, 50.03]])
+        config = dict(
+            BASE_AVOIDANCE_CONFIG,
+            strategy="B2",
+            hole_heights=[20, 25, 15],
+            strategy_params=[30, 30, 30],
+        )
+        path, exit_alt = avoid_obstacle_3d([30.0, 50.025], [30.1, 50.025], [hole1, hole2, hole3], config, 10)
+        # Exit altitude should be max required: max(20+5, 25+5, 15+5) = 30
+        self.assertEqual(exit_alt, 30)
+        # All points should have altitude >= 10 and <= 120
+        for pt in path:
+            self.assertGreaterEqual(pt[2], 10)
+            self.assertLessEqual(pt[2], 120)
+
+    def test_altitude_override_when_above(self):
+        """B1=0 (go around) is overridden when drone is already above the obstacle."""
+        config = dict(BASE_AVOIDANCE_CONFIG, strategy="B1", hole_heights=[10], strategy_params=[0])
+        # At 30m, obstacle needs 10+5=15. Already above → fly over regardless of B1=0
+        fly, alt = _should_fly_over([30.0, 50.025], [30.1, 50.025], HOLE_POLYGON, 0, config, 30)
+        self.assertTrue(fly)
+        self.assertEqual(alt, 30)
+
+    def test_b5_json_deserialized_params(self):
+        """B5 with list params (deserialized from JSON) should work like tuples."""
+        config = dict(BASE_AVOIDANCE_CONFIG, strategy="B5", hole_heights=[20], strategy_params=[[20, 5000]])
+        fly, _ = _should_fly_over([30.0, 50.025], [30.1, 50.025], HOLE_POLYGON, 0, config, 10)
+        self.assertTrue(fly)  # gap=15 <= 20, width < 5000
+
+    def test_mutation_preserves_float_type(self):
+        """B2 mutation should produce floats, not ints when clamped to 0."""
+        from scripts.ga_common import mutate_avoidance_gene
+
+        gene = [0.1, 0.1, 0.1]  # very small values likely to get clamped to 0
+        for _ in range(100):
+            mutate_avoidance_gene(gene[:], "B2", 1.0)
+        # Even after many mutations, max(0.0, ...) should keep float type
+        mutated = mutate_avoidance_gene([0.001], "B2", 1.0)
+        self.assertIsInstance(mutated[0], float)
+
+    def test_all_strategies_no_crash(self):
+        """Every strategy should run without error on standard inputs."""
+        strategies = {
+            "2d": None,
+            "greedy": None,
+            "B1": [1],
+            "B1s": [1],
+            "B2": [20],
+            "B2s": [20],
+            "B3": [5000],
+            "B3s": [5000],
+            "B4": [(350, 10)],
+            "B4s": [(350, 10)],
+            "B5": [(20, 5000)],
+            "B5s": [(20, 5000)],
+            "B6": [(350, 10, 20)],
+            "B6s": [(350, 10, 20)],
+        }
+        for strategy, params in strategies.items():
+            config = dict(BASE_AVOIDANCE_CONFIG, strategy=strategy, strategy_params=params)
+            try:
+                _should_fly_over([30.0, 50.025], [30.1, 50.025], HOLE_POLYGON, 0, config, 10)
+            except Exception as e:
+                self.fail(f"Strategy {strategy} crashed: {e}")

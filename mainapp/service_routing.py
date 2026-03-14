@@ -230,7 +230,9 @@ def _should_fly_over(start_pt, end_pt, hole, hole_idx, avoidance_config, current
     if required_alt > height_max:
         return False, 0
 
-    # Already above obstacle — always fly over (free)
+    # Already above obstacle — always fly over (free, no climb needed).
+    # This overrides per-hole strategy params (e.g. B1=0) intentionally:
+    # going around when already above would waste distance for zero benefit.
     if current_altitude >= required_alt:
         return True, current_altitude
 

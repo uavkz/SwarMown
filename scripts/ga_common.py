@@ -267,21 +267,21 @@ def mutate_avoidance_gene(gene, strategy, mutation_chance):
         if base == "B1":
             gene[i] = 1 - gene[i]  # flip bit
         elif base == "B2":
-            gene[i] = max(0, gene[i] + random.gauss(0, 10))
+            gene[i] = max(0.0, gene[i] + random.gauss(0, 10))
         elif base == "B3":
-            gene[i] = max(0, gene[i] + random.gauss(0, 50))
+            gene[i] = max(0.0, gene[i] + random.gauss(0, 50))
         elif base == "B4":
             a, b = gene[i]
             gene[i] = ((a + random.gauss(0, 30)) % 360, (b + random.gauss(0, 30)) % 360)
         elif base == "B5":
             mc, wt = gene[i]
-            gene[i] = (max(0, mc + random.gauss(0, 10)), max(0, wt + random.gauss(0, 50)))
+            gene[i] = (max(0.0, mc + random.gauss(0, 10)), max(0.0, wt + random.gauss(0, 50)))
         elif base == "B6":
             a, b, mc = gene[i]
             gene[i] = (
                 (a + random.gauss(0, 30)) % 360,
                 (b + random.gauss(0, 30)) % 360,
-                max(0, mc + random.gauss(0, 10)),
+                max(0.0, mc + random.gauss(0, 10)),
             )
     return gene
 
