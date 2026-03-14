@@ -1104,3 +1104,16 @@ class TestCornerCases(TestCase):
                 _should_fly_over([30.0, 50.025], [30.1, 50.025], HOLE_POLYGON, 0, config, 10)
             except Exception as e:
                 self.fail(f"Strategy {strategy} crashed: {e}")
+
+    def test_flyto_crosses_hole_applies_detour(self):
+        """Fly-to crossing a hole should apply detour (more than just car→grid_pt)."""
+        from mainapp.service_routing import generate_fly_to
+
+        car = [30.02, 49.999]
+        grid_pt = [30.037827, 50.019729]
+        hole = ShapelyPolygon([[30.025, 50.01], [30.03, 50.01], [30.03, 50.015], [30.025, 50.015]])
+        wps = []
+        _dist, _alt = generate_fly_to(wps, car, grid_pt, self.drone, [hole])
+        self.assertGreater(len(wps), 1, "Fly-to should add detour when crossing hole")
+        self.assertAlmostEqual(wps[-1]["lon"], grid_pt[0], places=4)
+        self.assertAlmostEqual(wps[-1]["lat"], grid_pt[1], places=4)
