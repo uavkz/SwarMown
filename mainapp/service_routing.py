@@ -414,6 +414,11 @@ def add_3d_path(drone_waypoints, path_3d, drone):
         if idx > 0:
             prev = path_3d[idx - 1]
             total_distance += calc_vincenty([prev[0], prev[1]], [point[0], point[1]], lon_first=True)
+        # Skip first point if it duplicates the last waypoint already added
+        if idx == 0 and drone_waypoints:
+            last = drone_waypoints[-1]
+            if abs(last["lon"] - point[0]) < 1e-10 and abs(last["lat"] - point[1]) < 1e-10:
+                continue
         height = point[2] if len(point) > 2 else 10
         spray_on = idx == len(path_3d) - 1
         add_waypoint(drone_waypoints, [point[0], point[1]], drone, height=height, spray_on=spray_on)
@@ -448,16 +453,27 @@ def get_waypoints(grid, car_waypoints, drones, start, holes=None, avoidance_conf
                         drone.max_distance_no_load - total_drone_distance
                     ):
                         continue
+                    fly_to_target = last_point or point
                     fly_to_dist, current_alt = generate_fly_to(
                         drone_waypoints,
                         car_waypoint,
-                        last_point or point,
+                        fly_to_target,
                         drone,
                         hole_polygons,
                         avoidance_config=avoidance_config,
                         current_alt=current_alt,
                     )
                     total_drone_distance += fly_to_dist
+                    if last_point is None and drone_waypoints:
+                        last_wp = drone_waypoints[-1]
+                        if abs(last_wp["lon"] - point[0]) < 1e-10 and abs(last_wp["lat"] - point[1]) < 1e-10:
+                            # fly-to already added `point` (via hole-crossing 3D path)
+                            last_point = point
+                            if calc_vincenty(point, next_car_waypoint, lon_first=True) > (
+                                drone.max_distance_no_load - total_drone_distance
+                            ):
+                                break
+                            continue
 
                 # If there's an untraversed point from previous drone - traverse it
                 if last_point and first_run and path_crosses_holes(last_point, point, hole_polygons):
@@ -651,6 +667,11 @@ def add_adjusted_path(drone_waypoints, adjusted_path, drone, height=10):
     for idx, point in enumerate(adjusted_path):
         if idx > 0:
             total_distance += calc_vincenty(adjusted_path[idx - 1], point, lon_first=True)
+        # Skip first point if it duplicates the last waypoint already added
+        if idx == 0 and drone_waypoints:
+            last = drone_waypoints[-1]
+            if abs(last["lon"] - point[0]) < 1e-10 and abs(last["lat"] - point[1]) < 1e-10:
+                continue
         spray_on = idx == len(adjusted_path) - 1
         add_waypoint(drone_waypoints, point, drone, height=height, spray_on=spray_on)
     return total_distance
