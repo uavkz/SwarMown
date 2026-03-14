@@ -107,6 +107,14 @@ def waypoints_flight_time(
                 slowdown_ratio = slowdown_ratio_f(waypoint)
                 min_slowdown_ratio = min_slowdown_ratio_f(waypoint)
                 if lat_f(waypoint) == lat_f(prev_waypoint) and lon_f(waypoint) == lon_f(prev_waypoint):
+                    # Same horizontal position — skip for horizontal time but still count vertical
+                    if height_f is not None:
+                        delta_h = height_f(waypoint) - height_f(prev_waypoint)
+                        if delta_h > 0:
+                            total_time += delta_h / climb_rate / 3600
+                        elif delta_h < 0:
+                            total_time += abs(delta_h) / descent_rate / 3600
+                    # Don't update prev_prev_waypoint — keep it valid for angle calculation
                     continue
                 angle = angle_lat_lon_vectors(prev_prev_waypoint, prev_waypoint, waypoint, lat_f, lon_f)
                 if angle:

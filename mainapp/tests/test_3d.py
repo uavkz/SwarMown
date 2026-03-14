@@ -215,6 +215,29 @@ class TestFlightTime3D(TestCase):
         t_climb = waypoints_flight_time(wps_climb, **kwargs)
         self.assertGreater(t_climb, t_flat)
 
+    def test_pure_vertical_climb(self):
+        """Same horizontal position but different altitude should still count time."""
+        wps = [
+            {"lat": 50, "lon": 30, "height": 10, "drone": MOCK_DRONE_DICT, "spray_on": False},
+            {"lat": 50, "lon": 30, "height": 10, "drone": MOCK_DRONE_DICT, "spray_on": False},
+            {"lat": 50, "lon": 30, "height": 100, "drone": MOCK_DRONE_DICT, "spray_on": False},
+        ]
+        t = waypoints_flight_time(
+            wps,
+            lat_f=lambda x: x["lat"],
+            lon_f=lambda x: x["lon"],
+            max_speed_f=lambda x: x["drone"]["max_speed"],
+            slowdown_ratio_f=lambda x: x["drone"]["slowdown_ratio_per_degree"],
+            min_slowdown_ratio_f=lambda x: x["drone"]["min_slowdown_ratio"],
+            spray_on_f=lambda x: x["spray_on"],
+            height_f=lambda x: x["height"],
+            climb_rate=3.0,
+            descent_rate=2.0,
+        )
+        # 90m climb at 3 m/s = 30 seconds = 30/3600 hours
+        expected = 90 / 3.0 / 3600
+        self.assertAlmostEqual(t, expected, places=6)
+
     def test_descent_time(self):
         """Descending adds time too (vertical limited)."""
         wps = [
@@ -511,6 +534,49 @@ class TestAvoidObstacle3D(TestCase):
         path, _exit_alt = avoid_obstacle_3d([30.0, 50.0], [30.1, 50.0], [HOLE_POLYGON], config, 10)
         # No crossing → direct path
         self.assertLessEqual(len(path), 3)
+
+    def test_multi_hole_no_duplicates(self):
+        """Two holes in sequence: end point should appear only once."""
+        hole1 = ShapelyPolygon([[30.02, 50.02], [30.04, 50.02], [30.04, 50.03], [30.02, 50.03]])
+        hole2 = ShapelyPolygon([[30.06, 50.02], [30.08, 50.02], [30.08, 50.03], [30.06, 50.03]])
+        config = dict(BASE_AVOIDANCE_CONFIG, strategy="B1", hole_heights=[20, 20], strategy_params=[1, 1])
+        path, exit_alt = avoid_obstacle_3d([30.0, 50.025], [30.1, 50.025], [hole1, hole2], config, 10)
+        # End point should not be duplicated
+        end_count = sum(1 for pt in path if abs(pt[0] - 30.1) < 1e-8 and abs(pt[1] - 50.025) < 1e-8)
+        self.assertEqual(end_count, 1, f"End point duplicated {end_count} times in path")
+        self.assertGreaterEqual(exit_alt, 25)
+
+    def test_multi_hole_ordered_by_intersection(self):
+        """Holes are processed in intersection order, not list order."""
+        # hole_far is listed first but hole_near is encountered first along the segment
+        hole_near = ShapelyPolygon([[30.02, 50.02], [30.04, 50.02], [30.04, 50.03], [30.02, 50.03]])
+        hole_far = ShapelyPolygon([[30.06, 50.02], [30.08, 50.02], [30.08, 50.03], [30.06, 50.03]])
+        config = dict(
+            BASE_AVOIDANCE_CONFIG,
+            strategy="B1",
+            hole_heights=[20, 20],
+            strategy_params=[1, 1],
+        )
+        # List holes in reverse order (far first)
+        path1, _ = avoid_obstacle_3d([30.0, 50.025], [30.1, 50.025], [hole_far, hole_near], config, 10)
+        path2, _ = avoid_obstacle_3d([30.0, 50.025], [30.1, 50.025], [hole_near, hole_far], config, 10)
+        # Both should produce similar paths regardless of list order
+        self.assertEqual(len(path1), len(path2))
+
+    def test_2d_detour_then_another_hole(self):
+        """After 2D detour for hole 1, hole 2 should still be processed."""
+        hole1 = ShapelyPolygon([[30.02, 50.02], [30.04, 50.02], [30.04, 50.03], [30.02, 50.03]])
+        hole2 = ShapelyPolygon([[30.06, 50.02], [30.08, 50.02], [30.08, 50.03], [30.06, 50.03]])
+        config = dict(
+            BASE_AVOIDANCE_CONFIG,
+            strategy="B1",
+            hole_heights=[20, 20],
+            strategy_params=[0, 1],  # around hole1, over hole2
+        )
+        _path, exit_alt = avoid_obstacle_3d([30.0, 50.025], [30.1, 50.025], [hole1, hole2], config, 10)
+        # Should have detour around hole1 AND fly-over for hole2
+        # Exit altitude should be elevated from flying over hole2
+        self.assertGreaterEqual(exit_alt, 25)
 
 
 # ===================================================================
