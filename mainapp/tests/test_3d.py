@@ -239,6 +239,38 @@ class TestFlightTime3D(TestCase):
         expected = 90 / 3.0 / 3600
         self.assertAlmostEqual(t, expected, places=6)
 
+    def test_no_double_count_vertical_time(self):
+        """Consecutive same-coords waypoints with different height should not double-count."""
+        # wp1 and wp2 share coords, wp2 climbs from 10 to 50. wp3 moves horizontally at 50.
+        # Vertical time should be 40m climb (wp1->wp2) only, NOT 40m again for wp2->wp3.
+        wps = [
+            {"lat": 50, "lon": 30, "height": 10, "drone": MOCK_DRONE_DICT, "spray_on": False},
+            {"lat": 51, "lon": 31, "height": 10, "drone": MOCK_DRONE_DICT, "spray_on": False},
+            {"lat": 51, "lon": 31, "height": 50, "drone": MOCK_DRONE_DICT, "spray_on": False},
+            {"lat": 52, "lon": 32, "height": 50, "drone": MOCK_DRONE_DICT, "spray_on": False},
+        ]
+        kwargs = dict(
+            lat_f=lambda x: x["lat"],
+            lon_f=lambda x: x["lon"],
+            max_speed_f=lambda x: x["drone"]["max_speed"],
+            slowdown_ratio_f=lambda x: x["drone"]["slowdown_ratio_per_degree"],
+            min_slowdown_ratio_f=lambda x: x["drone"]["min_slowdown_ratio"],
+            spray_on_f=lambda x: x["spray_on"],
+            height_f=lambda x: x["height"],
+            climb_rate=3.0,
+            descent_rate=2.0,
+        )
+        t = waypoints_flight_time(wps, **kwargs)
+        # The climb is 40m at 3 m/s = 13.33 seconds
+        # Should NOT be 80m (double-counted)
+        # Compute expected: horizontal time for wp0->wp1, vertical time for wp1->wp2,
+        # horizontal time for wp2->wp3 (no vertical since both at 50)
+        t_01 = calc_vincenty([50, 30], [51, 31]) / 15  # horizontal only
+        t_12 = 40 / 3.0 / 3600  # pure vertical climb
+        t_23 = calc_vincenty([51, 31], [52, 32]) / 15  # horizontal, no vertical
+        expected = t_01 + t_12 + t_23
+        self.assertAlmostEqual(t, expected, places=4)
+
     def test_descent_time(self):
         """Descending adds time too (vertical limited)."""
         wps = [

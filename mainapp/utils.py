@@ -114,7 +114,9 @@ def waypoints_flight_time(
                             total_time += delta_h / climb_rate / 3600
                         elif delta_h < 0:
                             total_time += abs(delta_h) / descent_rate / 3600
-                    # Don't update prev_prev_waypoint — keep it valid for angle calculation
+                    # Update prev_waypoint for correct height tracking on next segment,
+                    # but keep prev_prev_waypoint valid for angle calculation
+                    prev_waypoint = waypoint
                     continue
                 angle = angle_lat_lon_vectors(prev_prev_waypoint, prev_waypoint, waypoint, lat_f, lon_f)
                 if angle:

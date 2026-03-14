@@ -221,7 +221,7 @@ def evaluate_individual(
         drone_price += drone_flight_price(
             drone_waypoints[0]["drone"], new_distance, new_time, climb_meters, energy_per_meter
         )
-        grid_traversed += max(0, len(drone_waypoints) - 2)
+        grid_traversed += sum(1 for wp in drone_waypoints if wp["spray_on"])
 
     if not drone_flight_time:
         return 0, 0, 0, 0, 1_000_000, 0

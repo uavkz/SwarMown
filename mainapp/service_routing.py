@@ -646,11 +646,11 @@ def adjust_path_around_holes(start_point, end_point, hole_polygons):
     return final_coords
 
 
-def add_adjusted_path(drone_waypoints, adjusted_path, drone):
+def add_adjusted_path(drone_waypoints, adjusted_path, drone, height=10):
     total_distance = 0
     for idx, point in enumerate(adjusted_path):
         if idx > 0:
             total_distance += calc_vincenty(adjusted_path[idx - 1], point, lon_first=True)
         spray_on = idx == len(adjusted_path) - 1
-        add_waypoint(drone_waypoints, point, drone, spray_on=spray_on)
+        add_waypoint(drone_waypoints, point, drone, height=height, spray_on=spray_on)
     return total_distance
