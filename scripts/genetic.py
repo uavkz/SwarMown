@@ -23,7 +23,7 @@ pyproj_transformer = make_pyproj_transformer()
 # 3D avoidance setup
 num_holes = len(mission_data["holes"])
 hole_heights = parse_obstacle_heights(args, num_holes)
-avoidance_config = build_avoidance_config(args, hole_heights) if args.avoidance_strategy != "2d" else None
+avoidance_config = build_avoidance_config(args, hole_heights)
 
 
 def evaluate(individual):

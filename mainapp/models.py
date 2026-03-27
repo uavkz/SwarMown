@@ -209,3 +209,44 @@ class Waypoint(models.Model):
     @property
     def status_verbose(self):
         return dict(self.STATUSES)[self.status]
+
+
+class Campaign(models.Model):
+    class Meta:
+        verbose_name = "Кампания"
+        verbose_name_plural = "Кампании"
+        constraints = [models.UniqueConstraint(fields=["owner", "name"], name="unique_campaign_name_per_owner")]
+
+    name = models.CharField(max_length=250, verbose_name="Название")
+    owner = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="campaigns",
+        null=True,
+        blank=True,
+        verbose_name="Владелец",
+    )
+    description = models.TextField(null=True, blank=True, verbose_name="Описание")
+    datetime = models.DateTimeField(auto_now_add=True, verbose_name="Время создания")
+
+    fields = models.ManyToManyField("Field", through="CampaignField", verbose_name="Поля")
+    drones = models.ManyToManyField("Drone", blank=True, verbose_name="Дроны")
+    grid_step = models.FloatField(default=100, verbose_name="Шаг решетки (м)")
+    start_price = models.FloatField(default=3, verbose_name="Цена за один старт ($)")
+    hourly_price = models.FloatField(default=10, verbose_name="Цена за один час ($)")
+    truck_speed_kmh = models.FloatField(default=40, verbose_name="Скорость машины (км/ч)")
+
+    def __str__(self):
+        return f"{self.name}"
+
+
+class CampaignField(models.Model):
+    class Meta:
+        verbose_name = "Поле кампании"
+        verbose_name_plural = "Поля кампании"
+        ordering = ["default_order"]
+        unique_together = ("campaign", "field")
+
+    campaign = models.ForeignKey(Campaign, on_delete=models.CASCADE, related_name="campaign_fields")
+    field = models.ForeignKey("Field", on_delete=models.CASCADE)
+    default_order = models.PositiveIntegerField(default=0, verbose_name="Порядок по умолчанию")

@@ -431,7 +431,7 @@ def get_waypoints(grid, car_waypoints, drones, start, holes=None, avoidance_conf
 
     hole_polygons = [Polygon(hole) for hole in holes] if holes else []
     use_3d = avoidance_config is not None and avoidance_config.get("strategy", "2d") != "2d"
-    working_alt = avoidance_config["height_min"] if use_3d else 10
+    working_alt = avoidance_config["height_min"] if avoidance_config else 10
 
     last_point = None
     for car_waypoint, next_car_waypoint in iterate_car_waypoints(car_waypoints):
@@ -484,7 +484,9 @@ def get_waypoints(grid, car_waypoints, drones, start, holes=None, avoidance_conf
                         total_drone_distance += add_3d_path(drone_waypoints, path_3d, drone)
                     else:
                         adjusted_path = adjust_path_around_holes(last_point, point, hole_polygons)
-                        total_drone_distance += add_adjusted_path(drone_waypoints, adjusted_path, drone)
+                        total_drone_distance += add_adjusted_path(
+                            drone_waypoints, adjusted_path, drone, height=current_alt
+                        )
                     last_point = point
                     first_run = False
                     continue
@@ -497,7 +499,9 @@ def get_waypoints(grid, car_waypoints, drones, start, holes=None, avoidance_conf
                         total_drone_distance += add_3d_path(drone_waypoints, path_3d, drone)
                     else:
                         adjusted_path = adjust_path_around_holes(last_point, point, hole_polygons)
-                        total_drone_distance += add_adjusted_path(drone_waypoints, adjusted_path, drone)
+                        total_drone_distance += add_adjusted_path(
+                            drone_waypoints, adjusted_path, drone, height=current_alt
+                        )
                     last_point = point
                     continue
 
@@ -540,8 +544,8 @@ def generate_fly_to(
             path_3d, exit_alt = avoid_obstacle_3d(drones_init, coord_to, hole_polygons, avoidance_config, current_alt)
             return add_3d_path(drone_waypoints, path_3d, drone), exit_alt
         adjusted_path = adjust_path_around_holes(drones_init, coord_to, hole_polygons)
-        return add_adjusted_path(drone_waypoints, adjusted_path, drone), current_alt
-    add_waypoint(drone_waypoints, drones_init, drone, height=current_alt if use_3d else 10)
+        return add_adjusted_path(drone_waypoints, adjusted_path, drone, height=current_alt), current_alt
+    add_waypoint(drone_waypoints, drones_init, drone, height=current_alt)
     return calc_vincenty(drones_init, coord_to, lon_first=True), current_alt
 
 
@@ -554,8 +558,8 @@ def generate_fly_back(drone_waypoints, drones_init, drone, hole_polygons=None, a
                 path_3d, _ = avoid_obstacle_3d(start_point, drones_init, hole_polygons, avoidance_config, current_alt)
                 return add_3d_path(drone_waypoints, path_3d, drone)
             adjusted_path = adjust_path_around_holes(start_point, drones_init, hole_polygons)
-            return add_adjusted_path(drone_waypoints, adjusted_path, drone)
-    add_waypoint(drone_waypoints, drones_init, drone, height=current_alt if use_3d else 10)
+            return add_adjusted_path(drone_waypoints, adjusted_path, drone, height=current_alt)
+    add_waypoint(drone_waypoints, drones_init, drone, height=current_alt)
     if len(drone_waypoints) >= 2:
         return calc_vincenty(drones_init, [drone_waypoints[-2]["lon"], drone_waypoints[-2]["lat"]], lon_first=True)
     return 0

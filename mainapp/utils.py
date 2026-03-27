@@ -55,6 +55,19 @@ def add_waypoint(waypoints, point, drone, height=10, speed=30, acceleration=0, s
     )
 
 
+def transit_time_hours(road_a, road_b, truck_speed_kmh):
+    """Truck transit time from last point of road_a to first point of road_b.
+
+    Roads are [[lat, lon], ...]. Returns time in hours.
+    """
+    exit_point = road_a[-1]
+    entry_point = road_b[0]
+    distance_km = calc_vincenty(exit_point, entry_point)
+    if distance_km is None or distance_km == 0:
+        return 0.0
+    return distance_km / truck_speed_kmh
+
+
 def calc_vincenty(p1, p2, lon_first=False):
     if lon_first:
         try:

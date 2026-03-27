@@ -1117,3 +1117,218 @@ class TestCornerCases(TestCase):
         self.assertGreater(len(wps), 1, "Fly-to should add detour when crossing hole")
         self.assertAlmostEqual(wps[-1]["lon"], grid_pt[0], places=4)
         self.assertAlmostEqual(wps[-1]["lat"], grid_pt[1], places=4)
+
+
+# ===================================================================
+# 2D backward compatibility
+# ===================================================================
+class TestBackwardCompatibility2D(TestCase):
+    """Ensure 2D mode works correctly: configurable height, never flies over."""
+
+    def setUp(self):
+        self.drone = _make_drone()
+
+    def _all_heights(self, waypoints):
+        return [wp["height"] for segment in waypoints for wp in segment]
+
+    # --- No avoidance_config (web app path) ---
+
+    def test_no_config_all_heights_default_10(self):
+        """Without avoidance_config (web app), all heights should be 10."""
+        _, waypoints, _, _ = get_route(
+            car_move=[0.5],
+            direction=0,
+            start="ne",
+            field=deepcopy(RECT_FIELD),
+            grid_step=500,
+            road=deepcopy(ROAD),
+            drones=[self.drone],
+            pyproj_transformer=PYPROJ_TRANSFORMER,
+        )
+        self.assertTrue(len(waypoints) > 0)
+        for h in self._all_heights(waypoints):
+            self.assertEqual(h, 10)
+
+    def test_no_config_with_holes_all_heights_10(self):
+        """Web app + holes: detour waypoints should also have height=10."""
+        _, waypoints, _, _ = get_route(
+            car_move=[0.5],
+            direction=0,
+            start="ne",
+            field=deepcopy(RECT_FIELD),
+            grid_step=500,
+            road=deepcopy(ROAD),
+            drones=[self.drone],
+            pyproj_transformer=PYPROJ_TRANSFORMER,
+            holes=[HOLE_COORDS],
+            simple_holes_traversal=True,
+        )
+        self.assertTrue(len(waypoints) > 0)
+        for h in self._all_heights(waypoints):
+            self.assertEqual(h, 10)
+
+    # --- 2D strategy with custom height_min ---
+
+    def test_2d_strategy_uses_height_min(self):
+        """strategy='2d' + height_min=15 → all waypoints at 15."""
+        config = dict(BASE_AVOIDANCE_CONFIG, strategy="2d", height_min=15)
+        _, waypoints, _, _ = get_route(
+            car_move=[0.5],
+            direction=0,
+            start="ne",
+            field=deepcopy(RECT_FIELD),
+            grid_step=500,
+            road=deepcopy(ROAD),
+            drones=[self.drone],
+            pyproj_transformer=PYPROJ_TRANSFORMER,
+            avoidance_config=config,
+        )
+        self.assertTrue(len(waypoints) > 0)
+        for h in self._all_heights(waypoints):
+            self.assertEqual(h, 15)
+
+    def test_2d_with_holes_uses_height_min(self):
+        """2D detour waypoints around holes should also use height_min."""
+        config = dict(BASE_AVOIDANCE_CONFIG, strategy="2d", height_min=20)
+        _, waypoints, _, _ = get_route(
+            car_move=[0.5],
+            direction=0,
+            start="ne",
+            field=deepcopy(RECT_FIELD),
+            grid_step=500,
+            road=deepcopy(ROAD),
+            drones=[self.drone],
+            pyproj_transformer=PYPROJ_TRANSFORMER,
+            holes=[HOLE_COORDS],
+            simple_holes_traversal=True,
+            avoidance_config=config,
+        )
+        self.assertTrue(len(waypoints) > 0)
+        for h in self._all_heights(waypoints):
+            self.assertEqual(h, 20)
+
+    def test_2d_constant_altitude_with_holes(self):
+        """In 2D mode with holes, no altitude variation should occur."""
+        config = dict(BASE_AVOIDANCE_CONFIG, strategy="2d", height_min=12)
+        _, waypoints, _, _ = get_route(
+            car_move=[0.5],
+            direction=0,
+            start="ne",
+            field=deepcopy(RECT_FIELD),
+            grid_step=500,
+            road=deepcopy(ROAD),
+            drones=[self.drone],
+            pyproj_transformer=PYPROJ_TRANSFORMER,
+            holes=[HOLE_COORDS],
+            simple_holes_traversal=True,
+            avoidance_config=config,
+        )
+        for segment in waypoints:
+            heights = {wp["height"] for wp in segment}
+            self.assertEqual(heights, {12}, "2D mode must have constant altitude")
+
+    # --- avoid_obstacle_3d guard ---
+
+    def test_avoid_obstacle_3d_with_2d_strategy_always_detours(self):
+        """avoid_obstacle_3d with strategy='2d' should return 2D detour, unchanged alt."""
+        config = dict(BASE_AVOIDANCE_CONFIG, strategy="2d", hole_heights=[20])
+        path, exit_alt = avoid_obstacle_3d([30.0, 50.025], [30.1, 50.025], [HOLE_POLYGON], config, 15)
+        self.assertEqual(exit_alt, 15, "2D mode must not change altitude")
+        # Path from adjust_path_around_holes is list of [lon, lat] 2-element points
+        for pt in path:
+            self.assertEqual(len(pt), 2, "2D path should have [lon, lat] only")
+
+    def test_avoid_obstacle_3d_with_none_config_always_detours(self):
+        """avoid_obstacle_3d with config=None should return 2D detour."""
+        path, exit_alt = avoid_obstacle_3d([30.0, 50.025], [30.1, 50.025], [HOLE_POLYGON], None, 10)
+        self.assertEqual(exit_alt, 10)
+        for pt in path:
+            self.assertEqual(len(pt), 2)
+
+    # --- generate_fly_to / generate_fly_back ---
+
+    def test_fly_to_uses_current_alt_in_2d(self):
+        """generate_fly_to should use current_alt for height, not hardcoded 10."""
+        from mainapp.service_routing import generate_fly_to
+
+        wps = []
+        _dist, exit_alt = generate_fly_to(wps, [30.0, 50.0], [30.05, 50.025], self.drone, current_alt=25)
+        self.assertEqual(wps[0]["height"], 25)
+        self.assertEqual(exit_alt, 25)
+
+    def test_fly_to_default_alt_still_10(self):
+        """generate_fly_to without explicit current_alt should default to 10."""
+        from mainapp.service_routing import generate_fly_to
+
+        wps = []
+        _dist, exit_alt = generate_fly_to(
+            wps,
+            [30.0, 50.0],
+            [30.05, 50.025],
+            self.drone,
+        )
+        self.assertEqual(wps[0]["height"], 10)
+        self.assertEqual(exit_alt, 10)
+
+    def test_fly_back_uses_current_alt_in_2d(self):
+        """generate_fly_back should use current_alt for height, not hardcoded 10."""
+        from mainapp.service_routing import generate_fly_back
+
+        wps = [{"lon": 30.0, "lat": 50.0, "height": 25, "drone": MOCK_DRONE_DICT, "spray_on": True}]
+        generate_fly_back(wps, [30.05, 50.025], self.drone, current_alt=25)
+        self.assertEqual(wps[-1]["height"], 25)
+
+    def test_fly_to_detour_uses_current_alt(self):
+        """Fly-to crossing hole in 2D: detour points should use current_alt."""
+        from mainapp.service_routing import generate_fly_to
+
+        car = [30.02, 49.999]
+        grid_pt = [30.037827, 50.019729]
+        hole = ShapelyPolygon([[30.025, 50.01], [30.03, 50.01], [30.03, 50.015], [30.025, 50.015]])
+        wps = []
+        _dist, exit_alt = generate_fly_to(wps, car, grid_pt, self.drone, [hole], current_alt=18)
+        self.assertGreater(len(wps), 1)
+        for wp in wps:
+            self.assertEqual(wp["height"], 18)
+        self.assertEqual(exit_alt, 18)
+
+    # --- build_avoidance_config for 2D ---
+
+    def test_build_avoidance_config_2d_strategy(self):
+        """build_avoidance_config should work for '2d' strategy (GA always builds it now)."""
+        from scripts.ga_common import build_avoidance_config
+
+        class Args:
+            height_min = 15
+            height_max = 120
+            safety_margin = 5
+            climb_rate = 3
+            descent_rate = 2
+            energy_per_meter_climb = 1.5
+            avoidance_strategy = "2d"
+
+        config = build_avoidance_config(Args(), [0.0])
+        self.assertEqual(config["strategy"], "2d")
+        self.assertEqual(config["height_min"], 15)
+        self.assertEqual(config["hole_heights"], [0.0])
+
+    # --- 3D mode still varies altitude (sanity) ---
+
+    def test_3d_mode_does_vary_altitude(self):
+        """3D mode with fly-overs should produce altitude changes (unlike 2D)."""
+        config = dict(BASE_AVOIDANCE_CONFIG, strategy="B1", hole_heights=[20], strategy_params=[1])
+        _, waypoints, _, _ = get_route(
+            car_move=[0.5],
+            direction=0,
+            start="ne",
+            field=deepcopy(RECT_FIELD),
+            grid_step=500,
+            road=deepcopy(ROAD),
+            drones=[self.drone],
+            pyproj_transformer=PYPROJ_TRANSFORMER,
+            holes=[HOLE_COORDS],
+            simple_holes_traversal=True,
+            avoidance_config=config,
+        )
+        all_h = self._all_heights(waypoints)
+        self.assertGreater(len(set(all_h)), 1, "3D fly-over should produce altitude variation")

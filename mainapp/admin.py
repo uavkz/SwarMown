@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Drone, Field, Mission, Waypoint
+from .models import Campaign, CampaignField, Drone, Field, Mission, Waypoint
 
 
 class FieldAdmin(admin.ModelAdmin):
@@ -77,7 +77,21 @@ class WaypointAdmin(admin.ModelAdmin):
     list_select_related = ("drone",)
 
 
+class CampaignFieldInline(admin.TabularInline):
+    model = CampaignField
+    extra = 1
+
+
+class CampaignAdmin(admin.ModelAdmin):
+    list_display = ("name", "owner", "truck_speed_kmh", "grid_step", "datetime")
+    list_filter = ("owner",)
+    search_fields = ("name",)
+    inlines = [CampaignFieldInline]
+    filter_horizontal = ("drones",)
+
+
 admin.site.register(Field, FieldAdmin)
 admin.site.register(Mission, MissionAdmin)
 admin.site.register(Drone, DroneAdmin)
 admin.site.register(Waypoint, WaypointAdmin)
+admin.site.register(Campaign, CampaignAdmin)
