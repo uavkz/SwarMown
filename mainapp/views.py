@@ -17,7 +17,7 @@ from django.views import View
 from django.views.decorators.http import require_http_methods
 from django.views.generic import ListView, TemplateView
 
-from mainapp.models import Drone, Field, Mission, Waypoint
+from mainapp.models import Campaign, CampaignField, Drone, Field, Mission, Waypoint
 from mainapp.service_routing import get_route
 from mainapp.services_export import export_csv, export_mavlink_json
 from mainapp.utils import flatten_grid
@@ -351,3 +351,188 @@ def import_kml_fields(request):
             {"polygons_json": json.dumps(polygons, ensure_ascii=False)},
         )
     return render(request, "mainapp/field_kml_import.html")
+
+
+# --- Campaign views ---------------------------------------------------------
+
+
+class CampaignCreateView(TemplateView):
+    template_name = "mainapp/add_campaign.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["fields"] = (
+            Field.objects.all() if self.request.user.is_staff else Field.objects.filter(owner=self.request.user)
+        )
+        context["drones"] = Drone.objects.all()
+        return context
+
+    def post(self, request, **kwargs):
+        campaign = Campaign.objects.create(
+            owner=request.user,
+            name=request.POST["name"],
+            description=request.POST.get("description", ""),
+            grid_step=float(request.POST.get("grid_step", 100)),
+            truck_speed_kmh=float(request.POST.get("truck_speed", 40)),
+            start_price=float(request.POST.get("start_price", 3)),
+            hourly_price=float(request.POST.get("hourly_price", 10)),
+        )
+        campaign.drones.add(*request.POST.getlist("drones"))
+        for idx, field_id in enumerate(request.POST.getlist("fields")):
+            CampaignField.objects.create(campaign=campaign, field_id=int(field_id), default_order=idx)
+        return HttpResponseRedirect(reverse_lazy("mainapp:list_campaign"))
+
+
+class CampaignListView(ListView):
+    template_name = "mainapp/list_campaign.html"
+
+    def get_queryset(self):
+        qs = Campaign.objects.all().order_by("-id").prefetch_related("campaign_fields__field", "drones")
+        return qs if self.request.user.is_staff else qs.filter(owner=self.request.user)
+
+
+class ManageMultiRouteView(TemplateView):
+    template_name = "mainapp/manage_multi_route.html"
+
+    def _pick_python(self):
+        candidates = []
+        env_py = os.environ.get("GA_PYTHON")
+        if env_py:
+            candidates.append(env_py)
+        candidates.append(sys.executable)
+        candidates.append(os.path.join(settings.BASE_DIR, "venv39", "Scripts", "python.exe"))
+        candidates.append("python")
+        for py in candidates:
+            with contextlib.suppress(Exception):
+                subprocess.run([py, "--version"], capture_output=True, check=True)
+                return py
+        return "python"
+
+    def _optimize_now(self, campaign):
+        script = os.path.join("scripts", "genetic_multi.py")
+        ncores = int(self.request.GET.get("cores", 8))
+        ngen = int(self.request.GET.get("ngen", 5))
+        population_size = int(self.request.GET.get("population_size", 30))
+        max_time = float(self.request.GET.get("max_time", 12))
+        borderline_time = float(self.request.GET.get("borderline_time", 4))
+        max_working_speed = float(self.request.GET.get("max_working_speed", 7))
+        mutation_chance = float(self.request.GET.get("mutation_chance", 0.1))
+        order_crossover = self.request.GET.get("order_crossover", "ox")
+        order_mutation = self.request.GET.get("order_mutation", "swap")
+
+        media_dir = os.path.join(settings.MEDIA_ROOT, "opt_results")
+        os.makedirs(media_dir, exist_ok=True)
+        slug = slugify(campaign.name, allow_unicode=True)
+        base = f"multi_{slug}_{campaign.id}_{int(time.time())}"
+        filename_no_ext = os.path.join(media_dir, base)
+
+        python_bin = self._pick_python()
+        cmd = [
+            python_bin,
+            "-m",
+            "scoop",
+            "-n",
+            str(ncores),
+            script,
+            "--campaign_id",
+            str(campaign.id),
+            "--ngen",
+            str(ngen),
+            "--population_size",
+            str(population_size),
+            "--filename",
+            filename_no_ext,
+            "--max-time",
+            str(max_time),
+            "--borderline_time",
+            str(borderline_time),
+            "--max_working_speed",
+            str(max_working_speed),
+            "--mutation_chance",
+            str(mutation_chance),
+            "--order_crossover",
+            order_crossover,
+            "--order_mutation",
+            order_mutation,
+        ]
+        subprocess.run(cmd, cwd=settings.BASE_DIR, capture_output=True, text=True)
+
+        json_path = f"{filename_no_ext}.json"
+        if os.path.isfile(json_path):
+            with open(json_path, encoding="utf-8") as f:
+                data = json.load(f)
+            serialized = json.dumps(data.get("serialized", {}))
+            q = {"serialized": serialized, "excel": base}
+            qs = "&".join(f"{k}={urllib.parse.quote(str(v))}" for k, v in q.items())
+            return HttpResponseRedirect(f"{self.request.path}?{qs}")
+        return HttpResponse("Optimization failed", status=500)
+
+    def get(self, request, *args, **kwargs):
+        if "optimize" in request.GET:
+            context = self.get_context_data(**kwargs)
+            return self._optimize_now(context["campaign"])
+        return super().get(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        if self.request.user.is_staff:
+            campaign = get_object_or_404(Campaign, id=kwargs["campaign_id"])
+        else:
+            campaign = get_object_or_404(Campaign, id=kwargs["campaign_id"], owner=self.request.user)
+        context["campaign"] = campaign
+
+        campaign_fields = campaign.campaign_fields.select_related("field").order_by("default_order")
+        drones = list(campaign.drones.all().order_by("id"))
+
+        serialized_raw = self.request.GET.get("serialized")
+        serialized = json.loads(serialized_raw) if serialized_raw else None
+
+        all_field_routes = []
+        for idx, cf in enumerate(campaign_fields):
+            field_obj = cf.field
+            field = [[y, x] for x, y in json.loads(field_obj.points_serialized)]
+            road = [[y, x] for x, y in json.loads(field_obj.road_serialized)]
+            holes_raw = json.loads(field_obj.holes_serialized)
+            holes = [[[y, x] for x, y in hole] for hole in holes_raw if len(hole) >= 3]
+
+            direction = serialized["directions"][idx] if serialized else "simple"
+            start = serialized["starts"][idx] if serialized else "ne"
+            car_move = serialized["car_points"][idx] if serialized else "no"
+            field_drones = drones
+            if serialized:
+                field_drones = [drones[i] for i in serialized["drones"][idx] if i < len(drones)]
+                if not field_drones:
+                    field_drones = drones
+
+            route_kwargs = dict(
+                car_move=car_move,
+                direction=direction,
+                start=start,
+                field=field,
+                grid_step=campaign.grid_step,
+                road=road,
+                drones=field_drones,
+            )
+            if holes:
+                route_kwargs["holes"] = holes
+                route_kwargs["simple_holes_traversal"] = True
+
+            grid, waypoints, car_wps, initial = get_route(**route_kwargs)
+            all_field_routes.append(
+                {
+                    "field": json.loads(field_obj.points_serialized),
+                    "road": json.loads(field_obj.road_serialized),
+                    "holes": holes_raw,
+                    "grid": list(flatten_grid(grid)),
+                    "waypoints": waypoints,
+                    "car_waypoints": car_wps,
+                    "initial": initial,
+                    "field_name": field_obj.name,
+                }
+            )
+
+        field_order = serialized["field_order"] if serialized else list(range(len(all_field_routes)))
+        context["field_order"] = json.dumps(field_order)
+        context["all_field_routes"] = json.dumps(all_field_routes, default=str)
+        context["excel_base"] = self.request.GET.get("excel", "")
+        return context

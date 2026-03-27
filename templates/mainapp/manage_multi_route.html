@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+
+{% load static %}
+
+{% block head %}
+    <link rel="stylesheet" href="{% static 'css/leaflet.css' %}"/>
+    <script src="{% static 'js/leaflet.js' %}"></script>
+{% endblock %}
+
+{% block title %}
+    Кампания: {{ campaign.name }}
+{% endblock %}
+
+{% block content %}
+    <div class="row" style="margin-top: 10px;">
+        <div class="col-12">
+            <h5>{{ campaign.name }} ({{ campaign.campaign_fields.count }} полей)</h5>
+        </div>
+    </div>
+
+    <div class="row" style="margin-top: 5px;">
+        <div class="col-12">
+            <div id="map" style="height: 700px; width: 100%;"></div>
+        </div>
+    </div>
+
+    <div class="row" style="margin-top: 10px;">
+        <div class="col">
+            <a href="?optimize" class="btn btn-primary">Оптимизировать</a>
+            <a href="{% url 'mainapp:list_campaign' %}" class="btn btn-secondary">Назад к списку</a>
+        </div>
+    </div>
+
+    <div class="row" style="margin-top: 10px;">
+        <div class="col-12">
+            <div id="info"></div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block foot %}
+<script>
+    var allFieldRoutes = {{ all_field_routes|safe }};
+    var fieldOrder = {{ field_order|safe }};
+
+    var fieldColors = [
+        "#e6194B", "#3cb44b", "#4363d8", "#f58231", "#911eb4",
+        "#42d4f4", "#f032e6", "#bfef45", "#fabed4", "#469990"
+    ];
+    var droneColors = [
+        "#0072B2", "#D55E00", "#009E73", "#CC79A7",
+        "#E69F00", "#56B4E9", "#F0E442", "#000000",
+        "#FF4136", "#3D9970", "#7FDBFF", "#85144B",
+        "#FF851B", "#1F77B4", "#2CA02C", "#9467BD"
+    ];
+
+    var canvasRenderer = L.canvas({padding: 0.5});
+    var map = L.map('map', {renderer: canvasRenderer}).setView([50.0, 30.0], 10);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 18,
+    }).addTo(map);
+
+    var allBounds = [];
+    var infoHtml = '<table class="table table-sm"><thead><tr><th>#</th><th>Поле</th><th>Маршрутов</th></tr></thead><tbody>';
+
+    for (var visitIdx = 0; visitIdx < fieldOrder.length; visitIdx++) {
+        var fieldIdx = fieldOrder[visitIdx];
+        var route = allFieldRoutes[fieldIdx];
+        var fColor = fieldColors[fieldIdx % fieldColors.length];
+
+        // Field polygon
+        var fieldCoords = route.field.map(function(p) { return [p[0], p[1]]; });
+        fieldCoords.push(fieldCoords[0]);
+        var fieldPoly = L.polyline(fieldCoords, {color: fColor, weight: 3}).addTo(map);
+        allBounds.push(fieldPoly.getBounds());
+
+        // Visit order label at centroid
+        var sumLat = 0, sumLon = 0;
+        for (var k = 0; k < route.field.length; k++) {
+            sumLat += route.field[k][0];
+            sumLon += route.field[k][1];
+        }
+        var centroid = [sumLat / route.field.length, sumLon / route.field.length];
+        L.marker(centroid, {
+            icon: L.divIcon({
+                html: '<b style="background:' + fColor + ';color:#fff;padding:2px 6px;border-radius:50%;font-size:14px;">' + (visitIdx + 1) + '</b>',
+                className: '',
+                iconSize: [24, 24],
+                iconAnchor: [12, 12]
+            })
+        }).addTo(map);
+
+        // Holes (blue)
+        if (route.holes) {
+            for (var h = 0; h < route.holes.length; h++) {
+                var hole = route.holes[h];
+                if (hole.length >= 3) {
+                    var holeCoords = hole.map(function(p) { return [p[0], p[1]]; });
+                    holeCoords.push(holeCoords[0]);
+                    L.polyline(holeCoords, {color: 'blue', weight: 2}).addTo(map);
+                }
+            }
+        }
+
+        // Road (yellow)
+        if (route.road && route.road.length >= 2) {
+            var roadCoords = route.road.map(function(p) { return [p[0], p[1]]; });
+            L.polyline(roadCoords, {color: '#FFDC00', weight: 3}).addTo(map);
+        }
+
+        // Drone routes
+        var numRoutes = 0;
+        if (route.waypoints) {
+            for (var d = 0; d < route.waypoints.length; d++) {
+                var droneWps = route.waypoints[d];
+                if (droneWps.length > 1) {
+                    var wpCoords = droneWps.map(function(wp) { return [wp.lat, wp.lon]; });
+                    L.polyline(wpCoords, {
+                        color: droneColors[d % droneColors.length],
+                        weight: 2,
+                        renderer: canvasRenderer
+                    }).addTo(map);
+                    numRoutes++;
+                }
+            }
+        }
+
+        // Transit line to next field
+        if (visitIdx < fieldOrder.length - 1) {
+            var nextFieldIdx = fieldOrder[visitIdx + 1];
+            var nextRoute = allFieldRoutes[nextFieldIdx];
+            if (route.road && route.road.length > 0 && nextRoute.road && nextRoute.road.length > 0) {
+                var exitPt = route.road[route.road.length - 1];
+                var entryPt = nextRoute.road[0];
+                L.polyline(
+                    [[exitPt[0], exitPt[1]], [entryPt[0], entryPt[1]]],
+                    {color: 'gray', weight: 2, dashArray: '10,10'}
+                ).addTo(map);
+            }
+        }
+
+        infoHtml += '<tr><td>' + (visitIdx + 1) + '</td><td>' + route.field_name + '</td><td>' + numRoutes + '</td></tr>';
+    }
+
+    infoHtml += '</tbody></table>';
+    document.getElementById('info').innerHTML = infoHtml;
+
+    // Fit map to all fields
+    if (allBounds.length > 0) {
+        var combinedBounds = allBounds[0];
+        for (var b = 1; b < allBounds.length; b++) {
+            combinedBounds.extend(allBounds[b]);
+        }
+        map.fitBounds(combinedBounds, {padding: [20, 20]});
+    }
+</script>
+{% endblock %}

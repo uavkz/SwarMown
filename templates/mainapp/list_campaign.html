@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% load static %}
+
+{% block head %}
+{% endblock %}
+
+{% block title %}
+    Список кампаний
+{% endblock %}
+
+{% block content %}
+    <div class="row">
+        <div class="col-10 col-centered">
+            <a href="{% url 'mainapp:add_campaign' %}" class="btn btn-sm btn-success mb-2">+ Добавить кампанию</a>
+            <table class="table">
+                <thead>
+                <tr>
+                    <th scope="col">ID</th>
+                    <th scope="col">Название</th>
+                    <th scope="col">Поля</th>
+                    <th scope="col">Дроны</th>
+                    <th scope="col">Скорость машины</th>
+                    <th scope="col">Шаг решетки</th>
+                    <th scope="col">Действия</th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for campaign in object_list %}
+                    <tr>
+                        <th scope="row">{{ campaign.id }}</th>
+                        <td>{{ campaign.name }}</td>
+                        <td>
+                            {% for cf in campaign.campaign_fields.all %}
+                                {{ cf.field.name }}{% if not forloop.last %}, {% endif %}
+                            {% endfor %}
+                            ({{ campaign.campaign_fields.count }} шт)
+                        </td>
+                        <td>
+                            {% for d in campaign.drones.all %}
+                                {{ d.name }}{% if not forloop.last %}, {% endif %}
+                            {% endfor %}
+                        </td>
+                        <td>{{ campaign.truck_speed_kmh }} км/ч</td>
+                        <td>{{ campaign.grid_step }} м</td>
+                        <td>
+                            <a href="{% url 'mainapp:manage_multi_route' campaign.id %}" data-toggle="tooltip" title="Управление маршрутом"><i style="color: blue;" class="fas fa-route"></i></a>
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+{% endblock %}
+
+{% block foot %}
+    <script>
+        $('[data-toggle="tooltip"]').tooltip()
+    </script>
+{% endblock %}
