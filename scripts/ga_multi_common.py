@@ -10,15 +10,6 @@ import random
 from collections import defaultdict
 from copy import deepcopy
 
-from mainapp.service_routing import get_route
-from mainapp.utils import (
-    drone_flight_price,
-    flight_penalty,
-    transit_time_hours,
-    waypoints_distance,
-    waypoints_flight_time,
-)
-from mainapp.utils_excel import log_excel
 from scripts.ga_common import (
     _WP_LAT,
     _WP_LON,
@@ -29,7 +20,13 @@ from scripts.ga_common import (
     MAX_DRONES_ON_CAR,
     SETUP_TIME_PER_FLIGHT_HOURS,
     TARGET_WEIGHTS,
+    bootstrap_django,  # noqa: F401 — re-exported for genetic_multi.py
+    make_pyproj_transformer,  # noqa: F401 — re-exported
 )
+
+# mainapp imports are deferred to function bodies because Django must
+# be bootstrapped first (bootstrap_django() hasn't been called yet
+# when this module is imported at script startup).
 
 # --- Argument parsing -------------------------------------------------------
 
@@ -374,6 +371,15 @@ def evaluate_multi_individual(individual, campaign_data, args, pyproj_transforme
     Calls get_route() once per field in visit order, sums costs, adds transit.
     Returns: (distance, time, drone_price, salary, penalty, starts, transit_time)
     """
+    from mainapp.service_routing import get_route
+    from mainapp.utils import (
+        drone_flight_price,
+        flight_penalty,
+        transit_time_hours,
+        waypoints_distance,
+        waypoints_flight_time,
+    )
+
     field_order = individual[0]
     directions = individual[1]
     starts = individual[2]
@@ -587,11 +593,15 @@ def run_multi_ga(toolbox, population_size, ngen):
 
 def save_multi_results(iterations, args, campaign_data, filename=None):
     """Save Excel report and best individual JSON for multi-field GA."""
+    from mainapp.utils_excel import log_excel
+
     campaign = campaign_data["campaign"]
     fname = filename or args.filename
 
     field_names = [fd["field_obj"].name for fd in campaign_data["fields_data"]]
     info = {
+        "mission": f"Campaign {campaign.id} - {campaign.name}",
+        "field": ", ".join(field_names),
         "campaign": f"{campaign.id} - {campaign.name}",
         "fields": ", ".join(field_names),
         "num_fields": campaign_data["num_fields"],
