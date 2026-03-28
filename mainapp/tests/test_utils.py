@@ -19,6 +19,7 @@ from mainapp.utils import (
     angle_between_vectors_degrees,
     angle_lat_lon_vectors,
     calc_vincenty,
+    calc_vincenty_lonlat,
     drone_flight_price,
     flatten_grid,
     flight_penalty,
@@ -224,19 +225,20 @@ class TestCalcVincenty(TestCase):
         d_km = calc_vincenty(moscow, spb)
         self.assertAlmostEqual(d_km, 634, delta=20)
 
-    def test_lon_first_flag(self):
-        """With lon_first=True the order of coords in the tuple is (lon, lat)."""
-        # Using plain tuples (list path in code)
-        d_normal = calc_vincenty((50, 30), (51, 31))
-        d_swapped = calc_vincenty((30, 50), (31, 51), lon_first=True)
-        self.assertAlmostEqual(d_normal, d_swapped, places=3)
+    def test_lonlat_variant(self):
+        """calc_vincenty_lonlat accepts [lon, lat] and matches calc_vincenty [lat, lon]."""
+        d_latlon = calc_vincenty((50, 30), (51, 31))
+        d_lonlat = calc_vincenty_lonlat((30, 50), (31, 51))
+        self.assertAlmostEqual(d_latlon, d_lonlat, places=3)
 
-    def test_lon_first_dict(self):
-        """lon_first=True with a dict-like first point."""
+    def test_dict_input(self):
+        """Both calc_vincenty variants handle dict with lat/lon keys."""
         p1 = {"lat": 50, "lon": 30}
-        p2 = (31, 51)
-        d = calc_vincenty(p1, p2, lon_first=True)
-        self.assertGreater(d, 0)
+        p2 = {"lat": 51, "lon": 31}
+        d1 = calc_vincenty(p1, p2)
+        d2 = calc_vincenty_lonlat(p1, p2)
+        self.assertAlmostEqual(d1, d2, places=3)
+        self.assertGreater(d1, 0)
 
     def test_distance_always_non_negative(self):
         d = calc_vincenty((10, 20), (30, 40))

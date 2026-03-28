@@ -68,14 +68,30 @@ def transit_time_hours(road_a, road_b, truck_speed_kmh):
     return distance_km / truck_speed_kmh
 
 
-def calc_vincenty(p1, p2, lon_first=False):
-    if lon_first:
-        try:
-            p1 = [p1[1], p1[0]]
-        except (TypeError, KeyError):
-            p1 = [p1["lat"], p1["lon"]]
-        p2 = [p2[1], p2[0]]
-    return vincenty(p1, p2)
+def _to_latlon(p):
+    """Convert any coordinate to [lat, lon] for vincenty.
+
+    Accepts: [lat, lon] list/tuple, or dict with 'lat'/'lon' keys.
+    """
+    if isinstance(p, dict):
+        return [p["lat"], p["lon"]]
+    return [p[0], p[1]]
+
+
+def calc_vincenty(p1, p2):
+    """Vincenty distance in km. Both args must be [lat, lon], or dicts with lat/lon keys."""
+    return vincenty(_to_latlon(p1), _to_latlon(p2))
+
+
+def calc_vincenty_lonlat(p1, p2):
+    """Vincenty distance in km. Both args are [lon, lat] (grid/internal format).
+
+    Use this for grid points, Shapely coords, and any internal [lon, lat] data.
+    Handles dicts with lat/lon keys as well (extracts correctly).
+    """
+    a = [p1["lat"], p1["lon"]] if isinstance(p1, dict) else [p1[1], p1[0]]
+    b = [p2["lat"], p2["lon"]] if isinstance(p2, dict) else [p2[1], p2[0]]
+    return vincenty(a, b)
 
 
 def waypoints_distance(waypoints, lat_f=lambda x: x.lat, lon_f=lambda x: x.lon):
@@ -208,13 +224,13 @@ def angle_between_vectors_degrees(u, v):
     return degrees
 
 
-def calc_distance_3d(p1, p2, h1, h2, lon_first=False):
+def calc_distance_3d(p1, p2, h1, h2):
     """3D distance: Vincenty horizontal + Euclidean vertical.
 
-    Returns distance in km (consistent with calc_vincenty).
+    p1, p2 are [lat, lon] or dicts. Returns distance in km.
     h1, h2 are altitudes in meters.
     """
-    d_horizontal_km = calc_vincenty(p1, p2, lon_first=lon_first)
+    d_horizontal_km = calc_vincenty(p1, p2)
     if d_horizontal_km is None:
         return None
     d_horizontal_m = d_horizontal_km * 1000

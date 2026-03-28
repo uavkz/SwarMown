@@ -5,7 +5,13 @@ from shapely.geometry import Point
 from shapely.geometry.polygon import Polygon
 from shapely.prepared import prep
 
-from mainapp.utils import calc_vincenty, rotate, transform_to_equidistant, transform_to_lat_lon, waypoints_distance
+from mainapp.utils import (
+    calc_vincenty_lonlat,
+    rotate,
+    transform_to_equidistant,
+    transform_to_lat_lon,
+    waypoints_distance,
+)
 
 
 def get_grid(field, step, angle=0, do_transform=True, trans=None):
@@ -61,7 +67,7 @@ def get_car_waypoints(grid, road, how):
         prev_point = None
         for point in road:
             if prev_point:
-                new_dist = calc_vincenty([point[1], point[0]], [prev_point[1], prev_point[0]]) * 1000
+                new_dist = calc_vincenty_lonlat(point, prev_point) * 1000
                 if dist + new_dist >= middle:
                     d_x = point[0] - prev_point[0]
                     d_y = point[1] - prev_point[1]
@@ -85,7 +91,7 @@ def get_car_waypoints_by_ratio_list(road, ratio_list):
     # Precompute cumulative distances once
     cumulative = [0.0]
     for j in range(1, len(road)):
-        seg = calc_vincenty([road[j][1], road[j][0]], [road[j - 1][1], road[j - 1][0]]) * 1000
+        seg = calc_vincenty_lonlat(road[j], road[j - 1]) * 1000
         cumulative.append(cumulative[-1] + seg)
     total_distance = cumulative[-1]
 

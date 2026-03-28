@@ -92,6 +92,12 @@ python -m scoop -n 8 scripts/genetic_multi.py \
   --ablation single_direction --filename ablation_test
 ```
 
+## Important: Cost Unit Convention
+
+The `price_per_kilometer` field on Drone models is misleadingly named. Throughout the codebase, `waypoints_distance()` returns **meters** and `drone_flight_price()` multiplies `price_per_kilometer * distance_in_meters`. So the effective unit is **price per meter**, not per kilometer. A drone with `price_per_kilometer=0.019` costs $19/km or $0.019/m.
+
+This is consistent across the entire system — single-field and multi-field. All **relative** comparisons (GA fitness ranking, operator comparison, ablation deltas) are valid. Absolute dollar values need this factor applied to interpret.
+
 ## Output Files
 
 Each run produces:

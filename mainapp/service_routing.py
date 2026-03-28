@@ -7,7 +7,7 @@ from shapely.geometry import LineString, Polygon
 from shapely.geometry import Point as ShapelyPoint
 
 from mainapp.services_draw import get_car_waypoints, get_car_waypoints_by_ratio_list, get_grid
-from mainapp.utils import add_waypoint, calc_vincenty, transform_to_equidistant
+from mainapp.utils import add_waypoint, calc_vincenty_lonlat, transform_to_equidistant
 from mainapp.utils_triangulation_pode import divide_polygon_with_holes
 from pode import Requirement
 
@@ -413,7 +413,7 @@ def add_3d_path(drone_waypoints, path_3d, drone):
     for idx, point in enumerate(path_3d):
         if idx > 0:
             prev = path_3d[idx - 1]
-            total_distance += calc_vincenty([prev[0], prev[1]], [point[0], point[1]], lon_first=True)
+            total_distance += calc_vincenty_lonlat([prev[0], prev[1]], [point[0], point[1]])
         # Skip first point if it duplicates the last waypoint already added
         if idx == 0 and drone_waypoints:
             last = drone_waypoints[-1]
@@ -449,9 +449,7 @@ def get_waypoints(grid, car_waypoints, drones, start, holes=None, avoidance_conf
 
                 # Generate fly_to, if it's the first point to traverse by a drone
                 if total_drone_distance == 0:
-                    if calc_vincenty(point, car_waypoint, lon_first=True) > (
-                        drone.max_distance_no_load - total_drone_distance
-                    ):
+                    if calc_vincenty_lonlat(point, car_waypoint) > (drone.max_distance_no_load - total_drone_distance):
                         continue
                     fly_to_target = last_point or point
                     fly_to_dist, current_alt = generate_fly_to(
@@ -469,7 +467,7 @@ def get_waypoints(grid, car_waypoints, drones, start, holes=None, avoidance_conf
                         if abs(last_wp["lon"] - point[0]) < 1e-10 and abs(last_wp["lat"] - point[1]) < 1e-10:
                             # fly-to already added `point` (via hole-crossing 3D path)
                             last_point = point
-                            if calc_vincenty(point, next_car_waypoint, lon_first=True) > (
+                            if calc_vincenty_lonlat(point, next_car_waypoint) > (
                                 drone.max_distance_no_load - total_drone_distance
                             ):
                                 break
@@ -479,7 +477,7 @@ def get_waypoints(grid, car_waypoints, drones, start, holes=None, avoidance_conf
                         add_waypoint(drone_waypoints, point, drone, height=current_alt, spray_on=True)
                         last_point = point
                         first_run = False
-                        if calc_vincenty(point, next_car_waypoint, lon_first=True) > (
+                        if calc_vincenty_lonlat(point, next_car_waypoint) > (
                             drone.max_distance_no_load - total_drone_distance
                         ):
                             break
@@ -516,14 +514,12 @@ def get_waypoints(grid, car_waypoints, drones, start, holes=None, avoidance_conf
                     continue
 
                 # Normal waypoint addition
-                total_drone_distance += calc_vincenty(last_point or drone_waypoints[-1], point, lon_first=True)
+                total_drone_distance += calc_vincenty_lonlat(last_point or drone_waypoints[-1], point)
                 add_waypoint(drone_waypoints, point, drone, height=current_alt, spray_on=True)
                 last_point = point
 
                 # If you will not be able to return - break
-                if calc_vincenty(point, next_car_waypoint, lon_first=True) > (
-                    drone.max_distance_no_load - total_drone_distance
-                ):
+                if calc_vincenty_lonlat(point, next_car_waypoint) > (drone.max_distance_no_load - total_drone_distance):
                     break
 
             if drone_waypoints:
@@ -540,7 +536,8 @@ def get_waypoints(grid, car_waypoints, drones, start, holes=None, avoidance_conf
                 break
         if point is None:
             break
-    waypoints = list(filter(lambda x: len(x) > 3, waypoints))
+    # Filter empty segments but keep even short ones (fly-to + 1 spray + fly-back = 3)
+    waypoints = [seg for seg in waypoints if any(wp["spray_on"] for wp in seg)]
     return waypoints
 
 
@@ -556,7 +553,7 @@ def generate_fly_to(
         adjusted_path = adjust_path_around_holes(drones_init, coord_to, hole_polygons)
         return add_adjusted_path(drone_waypoints, adjusted_path, drone, height=current_alt), current_alt
     add_waypoint(drone_waypoints, drones_init, drone, height=current_alt)
-    return calc_vincenty(drones_init, coord_to, lon_first=True), current_alt
+    return calc_vincenty_lonlat(drones_init, coord_to), current_alt
 
 
 def generate_fly_back(drone_waypoints, drones_init, drone, hole_polygons=None, avoidance_config=None, current_alt=10):
@@ -571,7 +568,7 @@ def generate_fly_back(drone_waypoints, drones_init, drone, hole_polygons=None, a
             return add_adjusted_path(drone_waypoints, adjusted_path, drone, height=current_alt)
     add_waypoint(drone_waypoints, drones_init, drone, height=current_alt)
     if len(drone_waypoints) >= 2:
-        return calc_vincenty(drones_init, [drone_waypoints[-2]["lon"], drone_waypoints[-2]["lat"]], lon_first=True)
+        return calc_vincenty_lonlat(drones_init, [drone_waypoints[-2]["lon"], drone_waypoints[-2]["lat"]])
     return 0
 
 
@@ -680,7 +677,7 @@ def add_adjusted_path(drone_waypoints, adjusted_path, drone, height=10):
     total_distance = 0
     for idx, point in enumerate(adjusted_path):
         if idx > 0:
-            total_distance += calc_vincenty(adjusted_path[idx - 1], point, lon_first=True)
+            total_distance += calc_vincenty_lonlat(adjusted_path[idx - 1], point)
         # Skip first point if it duplicates the last waypoint already added
         if idx == 0 and drone_waypoints:
             last = drone_waypoints[-1]

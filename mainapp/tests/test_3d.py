@@ -132,8 +132,9 @@ class TestCalcDistance3D(TestCase):
         d_down = calc_distance_3d((50, 30), (51, 31), 100, 0)
         self.assertAlmostEqual(d_up, d_down, places=5)
 
-    def test_lon_first(self):
-        d = calc_distance_3d((30, 50), (31, 51), 0, 100, lon_first=True)
+    def test_with_swapped_input(self):
+        # Pass [lat, lon] format directly (no lon_first needed)
+        d = calc_distance_3d((50, 30), (51, 31), 0, 100)
         self.assertIsNotNone(d)
         self.assertGreater(d, 0)
 
