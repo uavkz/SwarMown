@@ -474,6 +474,16 @@ def get_waypoints(grid, car_waypoints, drones, start, holes=None, avoidance_conf
                             ):
                                 break
                             continue
+                        # fly-to landed at car, not at point — add point as first spray
+                        # (fly_to_dist already covers car→point distance, don't re-add)
+                        add_waypoint(drone_waypoints, point, drone, height=current_alt, spray_on=True)
+                        last_point = point
+                        first_run = False
+                        if calc_vincenty(point, next_car_waypoint, lon_first=True) > (
+                            drone.max_distance_no_load - total_drone_distance
+                        ):
+                            break
+                        continue
 
                 # If there's an untraversed point from previous drone - traverse it
                 if last_point and first_run and path_crosses_holes(last_point, point, hole_polygons):
