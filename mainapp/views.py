@@ -485,7 +485,16 @@ class ManageMultiRouteView(TemplateView):
         drones = list(campaign.drones.all().order_by("id"))
 
         serialized_raw = self.request.GET.get("serialized")
-        serialized = json.loads(serialized_raw) if serialized_raw else None
+        serialized = None
+        if serialized_raw:
+            try:
+                s = json.loads(serialized_raw)
+                if isinstance(s, dict) and all(
+                    k in s for k in ("field_order", "directions", "starts", "drones", "car_points")
+                ):
+                    serialized = s
+            except (json.JSONDecodeError, TypeError):
+                pass
 
         all_field_routes = []
         for idx, cf in enumerate(campaign_fields):

@@ -8,7 +8,6 @@ GA loop, and result saving.
 import json
 import random
 from collections import defaultdict
-from copy import deepcopy
 
 from scripts.ga_common import (
     _WP_LAT,
@@ -108,6 +107,11 @@ def generate_multi_individual(num_fields, num_drones, ablation="full"):
         [3] drones:         list[list[int]]   — drone indices per field
         [4] car_points:     list[list[float]] — car stop ratios per field
     """
+    if num_drones < 1:
+        num_drones = 1
+    if num_fields < 1:
+        num_fields = 1
+
     # Field order
     if ablation == "fixed_order":
         field_order = list(range(num_fields))
@@ -210,9 +214,13 @@ def cx_pmx(ind1, ind2):
     seg1 = set(order1[a : b + 1])
 
     for i in list(range(0, a)) + list(range(b + 1, size)):
-        while child1[i] in seg2:
+        for _ in range(size):  # cycle guard
+            if child1[i] not in seg2:
+                break
             child1[i] = mapping1[child1[i]]
-        while child2[i] in seg1:
+        for _ in range(size):
+            if child2[i] not in seg1:
+                break
             child2[i] = mapping2[child2[i]]
 
     ind1[0], ind2[0] = child1, child2
@@ -247,6 +255,13 @@ def cx_cycle(ind1, ind2):
                 child2[idx] = order1[idx]
             idx = order1.index(order2[idx])
         cycle_num += 1
+
+    # Safety: fill any None gaps (shouldn't happen, but guard)
+    for i in range(size):
+        if child1[i] is None:
+            child1[i] = order1[i]
+        if child2[i] is None:
+            child2[i] = order2[i]
 
     ind1[0], ind2[0] = child1, child2
     return ind1, ind2
@@ -426,15 +441,15 @@ def evaluate_multi_individual(individual, campaign_data, args, pyproj_transforme
             car_move=car_points_map[field_idx],
             direction=directions[field_idx],
             start=starts[field_idx],
-            field=deepcopy(fd["field"]),
+            field=[pt[:] for pt in fd["field"]],
             grid_step=campaign.grid_step,
-            road=deepcopy(fd["road"]),
+            road=[pt[:] for pt in fd["road"]],
             drones=drones,
             pyproj_transformer=pyproj_transformer,
             avoidance_config=avoidance_config,
         )
         if fd["holes"]:
-            route_kwargs["holes"] = deepcopy(fd["holes"])
+            route_kwargs["holes"] = [[pt[:] for pt in hole] for hole in fd["holes"]]
             route_kwargs["simple_holes_traversal"] = True
 
         grid, waypoints, _, _ = get_route(**route_kwargs)

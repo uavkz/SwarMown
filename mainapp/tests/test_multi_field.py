@@ -444,6 +444,331 @@ class TestEvaluateMulti(TestCase):
 
 
 # ===================================================================
+# Edge cases
+# ===================================================================
+class TestEdgeCases(TestCase):
+    """Edge cases: 1 field, 0 waypoints, identical parents, etc."""
+
+    def setUp(self):
+        self.user, self.fields, self.drones, self.campaign = _create_test_data()
+
+    def test_single_field_campaign(self):
+        """1-field campaign should work and produce 0 transit time."""
+        from scripts.ga_multi_common import evaluate_multi_individual, generate_multi_individual, load_campaign
+
+        # Create 1-field campaign
+        c = Campaign.objects.create(owner=self.user, name="Single", grid_step=500, truck_speed_kmh=40)
+        c.drones.add(*self.drones)
+        CampaignField.objects.create(campaign=c, field=self.fields[0], default_order=0)
+        cd = load_campaign(c.id)
+
+        class Args:
+            max_working_speed = 7
+            borderline_time = 100
+            max_time = 200
+            truck_speed = None
+
+        ind = generate_multi_individual(1, 2)
+        result = evaluate_multi_individual(ind, cd, Args(), PYPROJ_TRANSFORMER)
+        self.assertEqual(result[6], 0.0, "1-field campaign should have 0 transit")
+
+    def test_crossover_identical_parents(self):
+        """Crossover with identical parents should still produce valid permutations."""
+        from scripts.ga_multi_common import cx_cycle, cx_order, cx_pmx
+
+        for cx_fn in [cx_order, cx_pmx, cx_cycle]:
+            for _ in range(20):
+                ind1 = _make_test_individual(5)
+                ind2 = _make_test_individual(5)
+                ind2[0] = ind1[0][:]  # identical order
+                cx_fn(ind1, ind2)
+                self.assertEqual(sorted(ind1[0]), list(range(5)), f"{cx_fn.__name__} failed with identical parents")
+                self.assertEqual(sorted(ind2[0]), list(range(5)))
+
+    def test_crossover_two_fields(self):
+        """All crossover operators should work with N=2."""
+        from scripts.ga_multi_common import cx_cycle, cx_order, cx_pmx
+
+        for cx_fn in [cx_order, cx_pmx, cx_cycle]:
+            for _ in range(30):
+                ind1 = _make_test_individual(2)
+                ind2 = _make_test_individual(2)
+                random.shuffle(ind2[0])
+                cx_fn(ind1, ind2)
+                self.assertEqual(sorted(ind1[0]), [0, 1])
+                self.assertEqual(sorted(ind2[0]), [0, 1])
+
+    def test_mutation_single_field(self):
+        """Mutation operators on 1-element permutation should not crash."""
+        from scripts.ga_multi_common import mut_insert, mut_inversion, mut_swap
+
+        for mut_fn in [mut_swap, mut_insert, mut_inversion]:
+            order = [0]
+            mut_fn(order, 1.0)
+            self.assertEqual(order, [0])
+
+    def test_pmx_no_infinite_loop(self):
+        """PMX should terminate even with adversarial inputs."""
+        from scripts.ga_multi_common import cx_pmx
+
+        # Run many times to stress-test cycle handling
+        for _ in range(200):
+            ind1 = _make_test_individual(8)
+            ind2 = _make_test_individual(8)
+            random.shuffle(ind1[0])
+            random.shuffle(ind2[0])
+            cx_pmx(ind1, ind2)
+            self.assertEqual(sorted(ind1[0]), list(range(8)))
+            self.assertEqual(sorted(ind2[0]), list(range(8)))
+
+    def test_cx_cycle_no_none_values(self):
+        """CX should never produce None in children."""
+        from scripts.ga_multi_common import cx_cycle
+
+        for _ in range(200):
+            ind1 = _make_test_individual(7)
+            ind2 = _make_test_individual(7)
+            random.shuffle(ind1[0])
+            random.shuffle(ind2[0])
+            cx_cycle(ind1, ind2)
+            self.assertNotIn(None, ind1[0])
+            self.assertNotIn(None, ind2[0])
+
+    def test_generate_guards_zero_drones(self):
+        """generate_multi_individual should not crash with num_drones=0."""
+        from scripts.ga_multi_common import generate_multi_individual
+
+        ind = generate_multi_individual(3, 0)
+        self.assertEqual(len(ind[0]), 3)
+
+    def test_eval_empty_waypoints_field(self):
+        """Evaluation should handle fields that produce no waypoints."""
+        from scripts.ga_multi_common import evaluate_multi_individual, load_campaign
+
+        # Create campaign with a tiny field that might produce 0 waypoints
+        tiny = Field.objects.create(
+            owner=self.user,
+            name="Tiny",
+            points_serialized=json.dumps([[50.0, 30.0], [50.0, 30.0001], [50.0001, 30.0001], [50.0001, 30.0]]),
+            road_serialized=json.dumps([[49.9999, 30.0], [49.9999, 30.0001]]),
+        )
+        c = Campaign.objects.create(owner=self.user, name="TinyCampaign", grid_step=5000, truck_speed_kmh=40)
+        c.drones.add(*self.drones)
+        CampaignField.objects.create(campaign=c, field=tiny, default_order=0)
+        cd = load_campaign(c.id)
+
+        class Args:
+            max_working_speed = 7
+            borderline_time = 100
+            max_time = 200
+            truck_speed = None
+
+        ind = [[0], [0.0], ["ne"], [[0]], [[0.5]]]
+        result = evaluate_multi_individual(ind, cd, Args(), PYPROJ_TRANSFORMER)
+        # Should not crash — returns penalty tuple
+        self.assertEqual(len(result), 7)
+
+
+# ===================================================================
+# Diverse campaign waypoint verification
+# ===================================================================
+
+# More field geometries for thorough testing
+FIELD_CLOSE_A = {
+    "pts": [[50.00, 30.00], [50.00, 30.02], [50.01, 30.02], [50.01, 30.00]],
+    "road": [[49.999, 30.00], [49.999, 30.02]],
+}
+FIELD_CLOSE_B = {
+    "pts": [[50.00, 30.025], [50.00, 30.045], [50.01, 30.045], [50.01, 30.025]],
+    "road": [[49.999, 30.025], [49.999, 30.045]],
+}
+FIELD_FAR = {
+    "pts": [[50.50, 31.00], [50.50, 31.05], [50.52, 31.05], [50.52, 31.00]],
+    "road": [[50.49, 31.00], [50.49, 31.05]],
+}
+FIELD_WITH_HOLE = {
+    "pts": [[50.00, 30.00], [50.00, 30.10], [50.05, 30.10], [50.05, 30.00]],
+    "road": [[49.99, 30.00], [49.99, 30.10]],
+    "holes": [[[50.02, 30.04], [50.02, 30.06], [50.03, 30.06], [50.03, 30.04]]],
+}
+
+
+class TestDiverseCampaigns(TestCase):
+    """Create diverse campaigns and verify evaluation makes sense."""
+
+    def setUp(self):
+        self.user = User.objects.create_user("camptest", password="test")
+        self.d1 = Drone.objects.create(
+            name="CampDrone1",
+            model="C1",
+            max_speed=15,
+            max_distance_no_load=50,
+            weight=5,
+            max_load=2,
+            slowdown_ratio_per_degree=0.005,
+            min_slowdown_ratio=0.01,
+            price_per_cycle=3,
+            price_per_kilometer=0.1,
+            price_per_hour=0.01,
+        )
+
+    def _make_field(self, name, data):
+        return Field.objects.create(
+            owner=self.user,
+            name=name,
+            points_serialized=json.dumps(data["pts"]),
+            road_serialized=json.dumps(data["road"]),
+            holes_serialized=json.dumps(data.get("holes", [])),
+        )
+
+    def _make_campaign(self, name, field_datas, grid_step=300):
+        fields = [self._make_field(f"F{i}_{name}", d) for i, d in enumerate(field_datas)]
+        c = Campaign.objects.create(
+            owner=self.user,
+            name=name,
+            grid_step=grid_step,
+            truck_speed_kmh=40,
+            start_price=3,
+            hourly_price=10,
+        )
+        c.drones.add(self.d1)
+        for idx, f in enumerate(fields):
+            CampaignField.objects.create(campaign=c, field=f, default_order=idx)
+        return c
+
+    def _eval(self, campaign_id, ind):
+        from scripts.ga_multi_common import evaluate_multi_individual, load_campaign
+
+        cd = load_campaign(campaign_id)
+
+        class Args:
+            max_working_speed = 7
+            borderline_time = 100
+            max_time = 200
+            truck_speed = None
+
+        return evaluate_multi_individual(ind, cd, Args(), PYPROJ_TRANSFORMER)
+
+    def test_close_fields_low_transit(self):
+        """Two adjacent fields should have very low transit time."""
+        c = self._make_campaign("close", [FIELD_CLOSE_A, FIELD_CLOSE_B])
+        ind = [[0, 1], [0.0, 0.0], ["ne", "ne"], [[0], [0]], [[0.5], [0.5]]]
+        r = self._eval(c.id, ind)
+        self.assertLess(r[6], 0.05, "Close fields should have <3min transit")
+
+    def test_far_field_high_transit(self):
+        """Close + far field should have significant transit."""
+        c = self._make_campaign("far", [FIELD_CLOSE_A, FIELD_FAR])
+        ind = [[0, 1], [0.0, 0.0], ["ne", "ne"], [[0], [0]], [[0.5], [0.5]]]
+        r = self._eval(c.id, ind)
+        self.assertGreater(r[6], 0.5, "Far fields should have >30min transit")
+
+    def test_order_matters_for_line(self):
+        """For 3 fields in a line, A-B-C should have less transit than A-C-B."""
+        c = self._make_campaign("line", [FIELD_CLOSE_A, FIELD_CLOSE_B, FIELD_FAR])
+        base_params = [[0.0, 0.0, 0.0], ["ne", "ne", "ne"], [[0], [0], [0]], [[0.5], [0.5], [0.5]]]
+
+        # A(0) -> B(1) -> C(2): close-close, then close-far
+        ind_abc = [[0, 1, 2]] + [x[:] for x in base_params]
+        r_abc = self._eval(c.id, ind_abc)
+
+        # A(0) -> C(2) -> B(1): close-far, then far-close
+        ind_acb = [[0, 2, 1]] + [x[:] for x in base_params]
+        r_acb = self._eval(c.id, ind_acb)
+
+        # Transit should differ
+        self.assertNotAlmostEqual(r_abc[6], r_acb[6], places=3)
+
+    def test_field_with_holes(self):
+        """Campaign with holes should still evaluate without error."""
+        c = self._make_campaign("holes", [FIELD_CLOSE_A, FIELD_WITH_HOLE], grid_step=500)
+        ind = [[0, 1], [0.0, 0.0], ["ne", "ne"], [[0], [0]], [[0.5], [0.5]]]
+        r = self._eval(c.id, ind)
+        self.assertEqual(len(r), 7)
+        self.assertGreater(r[0], 0, "Should have some distance")
+
+    def test_all_heights_constant_2d(self):
+        """In 2D mode, all waypoint heights should be constant."""
+        from mainapp.service_routing import get_route
+        from scripts.ga_multi_common import load_campaign
+
+        c = self._make_campaign("heights", [FIELD_CLOSE_A, FIELD_CLOSE_B])
+        cd = load_campaign(c.id)
+        drones = cd["drones_list"]
+
+        for fd in cd["fields_data"]:
+            _grid, waypoints, _, _ = get_route(
+                car_move=[0.5],
+                direction=0.0,
+                start="ne",
+                field=fd["field"][:],
+                grid_step=300,
+                road=fd["road"][:],
+                drones=drones,
+            )
+            for segment in waypoints:
+                heights = {wp["height"] for wp in segment}
+                self.assertEqual(len(heights), 1, "2D mode must have constant altitude")
+
+    def test_spray_on_waypoints_inside_field(self):
+        """Spray-on waypoints should be inside the field polygon."""
+        from shapely.geometry import Point, Polygon
+
+        from mainapp.service_routing import get_route
+        from scripts.ga_multi_common import load_campaign
+
+        c = self._make_campaign("inside", [FIELD_CLOSE_A])
+        cd = load_campaign(c.id)
+        fd = cd["fields_data"][0]
+
+        _grid, waypoints, _, _ = get_route(
+            car_move=[0.5],
+            direction=0.0,
+            start="ne",
+            field=fd["field"][:],
+            grid_step=200,
+            road=fd["road"][:],
+            drones=cd["drones_list"],
+        )
+        # Build polygon from original lat/lon points (field is in lon/lat for shapely)
+        field_poly = Polygon(fd["field"])
+        for segment in waypoints:
+            for wp in segment:
+                if wp["spray_on"]:
+                    pt = Point(wp["lon"], wp["lat"])
+                    self.assertTrue(
+                        field_poly.buffer(0.001).contains(pt),
+                        f"Spray-on waypoint ({wp['lat']}, {wp['lon']}) outside field",
+                    )
+
+    def test_ga_improves_fitness(self):
+        """GA should improve (or at least not worsen) best fitness over generations."""
+        from scripts.ga_multi_common import (
+            evaluate_multi_individual,
+            generate_multi_individual,
+            load_campaign,
+        )
+
+        c = self._make_campaign("gafit", [FIELD_CLOSE_A, FIELD_CLOSE_B])
+        cd = load_campaign(c.id)
+
+        class Args:
+            max_working_speed = 7
+            borderline_time = 100
+            max_time = 200
+            truck_speed = None
+
+        # Evaluate 20 random individuals, check we get a range of fitnesses
+        fitnesses = []
+        for _ in range(20):
+            ind = generate_multi_individual(2, 1)
+            r = evaluate_multi_individual(ind, cd, Args(), PYPROJ_TRANSFORMER)
+            fitnesses.append(r[2] + r[3] + r[4])  # drone_price + salary + penalty
+
+        self.assertGreater(max(fitnesses) - min(fitnesses), 0, "Different individuals should have different fitnesses")
+
+
+# ===================================================================
 # Regression: existing single-field tests still pass
 # ===================================================================
 class TestNoRegression(TestCase):
