@@ -346,12 +346,17 @@ class FullPipelineTests(TestCase):
     # -- 7. Multiple drones --------------------------------------------------
 
     def test_multiple_drones(self):
-        """With 2 drones, waypoints should reference both drones (at least
-        some segments use each)."""
+        """With 2 short-range drones, waypoints should reference both drones
+        (at least some segments use each)."""
+        drone1 = _make_drone(
+            name="TestDrone-Short1",
+            model="DJI-T30",
+            max_distance_no_load=4,  # short range forces handoff
+        )
         drone2 = _make_drone(
-            name="TestDrone-2",
+            name="TestDrone-Short2",
             model="DJI-T40",
-            max_distance_no_load=30,
+            max_distance_no_load=4,
         )
 
         _, waypoints, _, _ = get_route(
@@ -361,7 +366,7 @@ class FullPipelineTests(TestCase):
             field=deepcopy(FIELD_POINTS),
             grid_step=500,
             road=deepcopy(ROAD_POINTS),
-            drones=[self.drone, drone2],
+            drones=[drone1, drone2],
             pyproj_transformer=TRANSFORMER,
         )
 
@@ -371,7 +376,7 @@ class FullPipelineTests(TestCase):
                 drone_ids_seen.add(wp["drone"]["id"])
 
         self.assertIn(
-            self.drone.id,
+            drone1.id,
             drone_ids_seen,
             "First drone should appear in waypoints",
         )

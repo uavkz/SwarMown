@@ -73,7 +73,7 @@ def calc_vincenty(p1, p2, lon_first=False):
         try:
             p1 = [p1[1], p1[0]]
         except (TypeError, KeyError):
-            p1 = [p1["lon"], p1["lat"]]
+            p1 = [p1["lat"], p1["lon"]]
         p2 = [p2[1], p2[0]]
     return vincenty(p1, p2)
 
