@@ -5,7 +5,7 @@
 {% block head %}
     <link rel="stylesheet" href="{% static 'css/leaflet.css' %}"/>
     <script src="{% static 'js/leaflet.js' %}"></script>
-    <script src="{% static 'js/pixi.min.js' %}"></script>
+    <script src="{% static 'js/pixi-legacy.min.js' %}"></script>
     <script src="{% static 'js/L.PixiOverlay.min.js' %}"></script>
     <script src="https://unpkg.com/leaflet-image/leaflet-image.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dom-to-image/2.6.0/dom-to-image.min.js"></script>
@@ -238,7 +238,7 @@
             {#waypoints = waypoints.slice(1); // TODO, remove first#}
             {#waypoints = waypoints.slice(0, -1); // TODO, remvoe last#}
             road = {{ road|safe }};
-            
+
             for (i = 0; i < fieldPolygon.length; i++) {
                 tmp = fieldPolygon[i][0];
                 fieldPolygon[i][0] = fieldPolygon[i][1];
@@ -254,7 +254,7 @@
                 }
                 holesPolygons[i].push(holesPolygons[i][0]);
             }
-            
+
             gridStep = {{ grid_step|safe }};
 
             // prepare circle texture, that will be our brush
@@ -359,7 +359,7 @@
             for (let hole of holesPolygons) {
                 var polyline = L.polyline(hole, {color: 'blue'}).addTo(map);
             }
-            
+
             // Draw road
             for (let i = 0; i < road.length - 1; i++) {
                 let cur = road[i].slice();
