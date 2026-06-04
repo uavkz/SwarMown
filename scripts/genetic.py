@@ -6,6 +6,7 @@ from scripts.ga_common import (
     build_avoidance_config,
     custom_mutate,
     evaluate_individual,
+    export_agroscope_optimal_route,
     load_mission,
     make_pyproj_transformer,
     parse_obstacle_heights,
@@ -53,6 +54,16 @@ toolbox = setup_toolbox(
 def run():
     iterations = run_ga(toolbox, args.population_size, args.ngen)
     save_results(iterations, args, mission_data["mission"])
+    # If the field was imported from an AgroScope KML, also emit the optimal
+    # route as a MAVLink plan with an agroScopeMeta block (US-3). No-op otherwise.
+    export_agroscope_optimal_route(
+        mission_data,
+        args,
+        iterations,
+        pyproj_transformer,
+        avoidance_config=avoidance_config,
+        simple_holes_traversal=True,
+    )
 
 
 if __name__ == "__main__":

@@ -10,6 +10,7 @@ from collections import defaultdict
 from pathlib import Path
 
 from mainapp.service_routing import get_route
+from mainapp.services_agroscope import build_agroscope_plan
 from mainapp.utils import (
     drone_flight_price,
     flight_penalty,
@@ -490,6 +491,81 @@ def save_results(iterations, args, mission, filename=None, extra_info=None, **ex
             json.dump({"serialized": serialized}, f)
     except Exception:
         pass
+
+
+def build_optimal_agroscope_plan(
+    mission_data,
+    iterations,
+    pyproj_transformer,
+    avoidance_config=None,
+    simple_holes_traversal=False,
+    triangulation_requirements=None,
+    route_generated_at=None,
+):
+    """Build a MAVLink plan with agroScopeMeta for the GA's best route (US-3).
+
+    Returns the plan dict, or None if the mission's field did not come from an
+    AgroScope KML (no agroscope_meta_serialized). The best individual's route is
+    reconstructed exactly as evaluate_individual() does, so the exported route is
+    the cost-optimal one the GA converged on.
+    """
+    mission = mission_data["mission"]
+    meta_raw = getattr(mission.field, "agroscope_meta_serialized", "")
+    if not meta_raw:
+        return None
+
+    best = iterations[-1]["best_ind"]
+    drones = [mission_data["drones_list"][i] for i in best[2]]
+    route_kwargs = dict(
+        car_move=best[3],
+        direction=best[0],
+        start=best[1],
+        field=mission_data["field"],
+        grid_step=mission.grid_step,
+        road=mission_data["road"],
+        drones=drones,
+        pyproj_transformer=pyproj_transformer,
+    )
+    holes = mission_data.get("holes", [])
+    if holes:
+        route_kwargs["holes"] = holes
+    if triangulation_requirements is not None:
+        route_kwargs["triangulation_requirements"] = triangulation_requirements
+    if simple_holes_traversal:
+        route_kwargs["simple_holes_traversal"] = True
+    if avoidance_config is not None:
+        ac = dict(avoidance_config)
+        if len(best) > 4:
+            ac["strategy_params"] = best[4]
+        route_kwargs["avoidance_config"] = ac
+
+    _, waypoints, _, _ = get_route(**route_kwargs)
+
+    meta = json.loads(meta_raw)
+    flat = [{"lat": wp["lat"], "lon": wp["lon"], "height": wp["height"]} for flight in waypoints for wp in flight]
+    zone = {
+        "zone_id": meta.get("zone_id"),
+        "zone_name": meta.get("zone_name") or mission.field.name,
+        "waypoints": flat,
+    }
+    if route_generated_at is None:
+        from datetime import datetime, timezone
+
+        route_generated_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return build_agroscope_plan([zone], meta, route_generated_at)
+
+
+def export_agroscope_optimal_route(mission_data, args, iterations, pyproj_transformer, filename=None, **kwargs):
+    """Write the GA's optimal route as {filename}_agroscope.json if the field is
+    from AgroScope. No-op (returns None) otherwise. See build_optimal_agroscope_plan."""
+    plan = build_optimal_agroscope_plan(mission_data, iterations, pyproj_transformer, **kwargs)
+    if plan is None:
+        return None
+    fname = filename or args.filename
+    out_path = f"{fname}_agroscope.json"
+    with open(out_path, "w", encoding="utf-8") as f:
+        json.dump(plan, f, ensure_ascii=False, indent=2)
+    return out_path
 
 
 def _serialize_avoidance_gene(gene):
