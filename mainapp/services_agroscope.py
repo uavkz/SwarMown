@@ -168,23 +168,33 @@ def build_agroscope_plan(zones, meta, route_generated_at, altitude_world=855):
     ``meta``: the dict from parse_agroscope_kml()["meta"].
     ``route_generated_at``: ISO-8601 timestamp string (e.g. "2026-06-03T10:00:00Z").
 
-    Items are laid out as: [home] + [all zone waypoints, in zone order]. Each
-    zone's ``waypointIndices`` are the contiguous mission.items indices it owns,
-    so AgroScope can split the polyline back into zones.
+    Items match the standard QGroundControl layout (== utils_mavlink.create_plan_file):
+    items[0] = home/settings (command 530), items[1] = takeoff (command 22), the
+    rest = waypoints (command 16). Each zone's ``waypointIndices`` are contiguous
+    mission.items indices starting at 2 — items 0 (home) and 1 (takeoff) are
+    service items and belong to no zone, exactly like the integration example.
     """
-    items = []
-    agro_zones = []
-    first_point = None
-    next_idx = 1  # items[0] is the home placeholder; real waypoints start at 1
-
+    # Flatten all zone waypoints in order, remembering how many belong to each zone.
+    flat = []
+    zone_counts = []
     for zone in zones:
         wps = zone["waypoints"]
         if not wps:
             continue
-        if first_point is None:
-            first_point = wps[0]
-        zone_indices = list(range(next_idx, next_idx + len(wps)))
-        next_idx += len(wps)
+        zone_counts.append((zone, len(wps)))
+        flat.extend(wps)
+
+    first_point = flat[0] if flat else None
+    altitude = first_point["height"] if first_point else 80
+    # item i corresponds to flat[i]; item 0 hides coords (home), item 1 is takeoff.
+    plan_items = [_mission_item(i, wp["lat"], wp["lon"], wp.get("height", altitude)) for i, wp in enumerate(flat)]
+
+    agro_zones = []
+    cursor = 0
+    for zone, count in zone_counts:
+        # Skip service items 0 (home) and 1 (takeoff); they belong to no zone.
+        zone_indices = [i for i in range(cursor, cursor + count) if i >= 2]
+        cursor += count
         agro_zones.append(
             {
                 "zoneId": _to_int(zone["zone_id"]),
@@ -192,12 +202,6 @@ def build_agroscope_plan(zones, meta, route_generated_at, altitude_world=855):
                 "waypointIndices": zone_indices,
             }
         )
-        items.extend(wps)
-
-    altitude = first_point["height"] if first_point else 80
-    plan_items = [_mission_item(0, None, None, altitude)]
-    for i, wp in enumerate(items, start=1):
-        plan_items.append(_mission_item(i, wp["lat"], wp["lon"], wp.get("height", altitude)))
 
     home_lat = first_point["lat"] if first_point else 0
     home_lon = first_point["lon"] if first_point else 0

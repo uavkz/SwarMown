@@ -48,8 +48,8 @@ class OptimizerAgroscopeExportTests(TestCase):
         self.assertEqual(len(m["zones"]), 1)
         self.assertEqual(m["zones"][0]["zoneId"], 1)
         self.assertTrue(m["zones"][0]["waypointIndices"])
-        # waypointIndices must reference real mission items (1..N).
-        self.assertEqual(m["zones"][0]["waypointIndices"][0], 1)
+        # Zones start at item 2 (items 0=home, 1=takeoff are service items).
+        self.assertEqual(m["zones"][0]["waypointIndices"][0], 2)
         self.assertLess(m["zones"][0]["waypointIndices"][-1], len(plan["mission"]["items"]))
 
     def test_returns_none_for_non_agroscope_field(self):

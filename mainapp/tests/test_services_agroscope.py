@@ -112,9 +112,9 @@ class BuildAgroscopePlanTests(TestCase):
         self.assertEqual(self.plan["groundStation"], "QGroundControl")
         self.assertIn("items", self.plan["mission"])
 
-    def test_item_count_is_waypoints_plus_home(self):
-        # 5 + 3 waypoints + 1 home placeholder.
-        self.assertEqual(len(self.plan["mission"]["items"]), 9)
+    def test_item_count_matches_waypoints(self):
+        # Standard QGC layout: item i == waypoint i (item 0 home, item 1 takeoff).
+        self.assertEqual(len(self.plan["mission"]["items"]), 8)  # 5 + 3
 
     def test_home_and_takeoff_commands(self):
         items = self.plan["mission"]["items"]
@@ -133,16 +133,18 @@ class BuildAgroscopePlanTests(TestCase):
     def test_waypoint_indices_contiguous_complete_and_disjoint(self):
         zones = self.plan["agroScopeMeta"]["zones"]
         self.assertEqual(zones[0]["zoneId"], 1)
-        self.assertEqual(zones[0]["waypointIndices"], [1, 2, 3, 4, 5])
-        self.assertEqual(zones[1]["waypointIndices"], [6, 7, 8])
+        # Items 0 (home) and 1 (takeoff) are service items, excluded from zones.
+        self.assertEqual(zones[0]["waypointIndices"], [2, 3, 4])
+        self.assertEqual(zones[1]["waypointIndices"], [5, 6, 7])
         all_idx = [i for z in zones for i in z["waypointIndices"]]
         n_items = len(self.plan["mission"]["items"])
-        # Every non-home item belongs to exactly one zone.
-        self.assertEqual(sorted(all_idx), list(range(1, n_items)))
+        # Every non-service item (index >= 2) belongs to exactly one zone.
+        self.assertEqual(sorted(all_idx), list(range(2, n_items)))
 
     def test_indices_reference_correct_coordinates(self):
         items = self.plan["mission"]["items"]
         first_idx = self.plan["agroScopeMeta"]["zones"][0]["waypointIndices"][0]
-        wp = self.zones[0]["waypoints"][0]
+        # item i corresponds to flat waypoint i, so item 2 == zone0 waypoint index 2.
+        wp = self.zones[0]["waypoints"][first_idx]
         self.assertAlmostEqual(items[first_idx]["params"][4], wp["lat"])
         self.assertAlmostEqual(items[first_idx]["params"][5], wp["lon"])

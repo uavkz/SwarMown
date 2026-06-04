@@ -139,8 +139,13 @@ class ManageRouteViewTests(ViewsSmokeTestCase):
             {"task_id": "TASK-2026-053", "task_number": "53", "zone_id": "1", "zone_name": "Зона 1"}
         )
         self.field.save()
-        mock_wp = {"lat": 50.0, "lon": 30.0, "height": 100, "spray_on": True, "drone": {"id": self.drone.id}}
-        mock_get_route.return_value = ([[[50.0, 30.0]]], [[mock_wp]], [], [50.0, 30.0])
+
+        def wp(lat, lon):
+            return {"lat": lat, "lon": lon, "height": 100, "spray_on": True, "drone": {"id": self.drone.id}}
+
+        # 3+ waypoints so the zone keeps points after the service items (home, takeoff).
+        flight = [wp(50.0, 30.0), wp(50.001, 30.001), wp(50.002, 30.002)]
+        mock_get_route.return_value = ([[[50.0, 30.0]]], [flight], [], [50.0, 30.0])
         url = reverse("mainapp:manage_route", kwargs={"mission_id": self.mission.id})
         # height_absolute set so export skips the terrain-elevation network lookup.
         response = self.client.get(url, {"getJson": "1", "height_absolute": "100"})
