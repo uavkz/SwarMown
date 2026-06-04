@@ -5,13 +5,13 @@ import subprocess
 import sys
 import time
 import urllib.parse
-import xml.etree.ElementTree as ET
 
 from django.conf import settings
 from django.db import transaction
 from django.http import FileResponse, HttpResponse, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse_lazy
+from django.utils import timezone
 from django.utils.text import slugify
 from django.views import View
 from django.views.decorators.http import require_http_methods
@@ -19,7 +19,8 @@ from django.views.generic import ListView, TemplateView
 
 from mainapp.models import Campaign, CampaignField, Drone, Field, Mission, Waypoint
 from mainapp.service_routing import get_route
-from mainapp.services_export import export_csv, export_mavlink_json
+from mainapp.services_agroscope import parse_agroscope_kml
+from mainapp.services_export import export_agroscope_json, export_csv, export_mavlink_json
 from mainapp.utils import flatten_grid
 
 
@@ -239,6 +240,23 @@ class ManageRouteView(TemplateView):
     def _handle_export_json(self, context):
         height_offset = float(self.request.GET.get("height", 450.0))
         height_absolute = self.request.GET.get("height_absolute")
+        meta_raw = context["mission"].field.agroscope_meta_serialized
+        if meta_raw:
+            # AgroScope field (US-3): emit one plan with an agroScopeMeta block for this zone.
+            meta = json.loads(meta_raw)
+            flat = [
+                {"lat": wp["lat"], "lon": wp["lon"], "height": wp["height"]}
+                for flight in context["waypoints"]
+                for wp in flight
+            ]
+            zone = {
+                "zone_id": meta.get("zone_id"),
+                "zone_name": meta.get("zone_name") or context["mission"].field.name,
+                "waypoints": flat,
+            }
+            return export_agroscope_json(
+                [zone], meta, timezone.now().strftime("%Y-%m-%dT%H:%M:%SZ"), height_offset, height_absolute
+            )
         return export_mavlink_json(context["waypoints"], height_offset, height_absolute)
 
     def get(self, request, *args, **kwargs):
@@ -312,32 +330,41 @@ class MissionsListView(ListView):
 
 
 def _extract_polygons_from_kml(uploaded_file):
-    ns = {"kml": "http://www.opengis.net/kml/2.2"}
-    tree = ET.parse(uploaded_file)
-    root = tree.getroot()
+    """Extract field polygons from an AgroScope task KML for the import UI.
+
+    Carries through AgroScope task/zone metadata (US-2). Points are returned as
+    [lat, lon] for Leaflet. Backward compatible with plain polygon KMLs.
+    """
+    parsed = parse_agroscope_kml(uploaded_file)
+    meta = parsed["meta"]
+    field_name = meta.get("field_name")
     items = []
-    for pm in root.findall(".//kml:Placemark", ns):
-        name = (pm.findtext("kml:name", default="", namespaces=ns) or "").strip()
-        poly = pm.find(".//kml:Polygon", ns)
-        if poly is None:
-            continue
-        coords_el = poly.find(".//kml:outerBoundaryIs/kml:LinearRing/kml:coordinates", ns)
-        if coords_el is None or not (coords_el.text or "").strip():
-            continue
-        pts = []
-        for token in (coords_el.text or "").strip().split():
-            parts = token.split(",")
-            if len(parts) >= 2:
-                try:
-                    lon = float(parts[0])
-                    lat = float(parts[1])
-                except ValueError:
-                    continue
-                pts.append([lat, lon])
-        if len(pts) >= 3 and pts[0] == pts[-1]:
-            pts = pts[:-1]
-        if len(pts) >= 3:
-            items.append({"name": name or f"Поле {len(items) + 1}", "points": pts})
+    for zone in parsed["zones"]:
+        pts = [[lat, lon] for lon, lat in zone["points"]]  # [lon, lat] -> [lat, lon]
+        name = f"{field_name} — {zone['name']}" if field_name else zone["name"]
+        # Per-zone metadata to store on the Field, so the JSON export can emit agroScopeMeta.
+        zone_meta = {
+            "task_id": zone["task_id"],
+            "task_number": meta.get("task_number"),
+            "field_id": meta.get("field_id"),
+            "field_name": meta.get("field_name"),
+            "crop": meta.get("crop"),
+            "planned_date": meta.get("planned_date"),
+            "created_at": meta.get("created_at"),
+            "zone_id": zone["zone_id"],
+            "zone_name": zone["name"],
+        }
+        items.append(
+            {
+                "name": name,
+                "points": pts,
+                "zone_id": zone["zone_id"],
+                "task_id": zone["task_id"],
+                "task_number": meta.get("task_number"),
+                "description": zone["description"],
+                "agroscope_meta": zone_meta,
+            }
+        )
     return items
 
 

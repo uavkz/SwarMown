@@ -131,7 +131,8 @@
         name: $('#fieldName').val(),
         points_serialized: JSON.stringify(currentField),
         road_serialized: JSON.stringify(currentRoad),
-        holes_serialized: JSON.stringify([])
+        holes_serialized: JSON.stringify([]),
+        agroscope_meta_serialized: polygons[idx].agroscope_meta ? JSON.stringify(polygons[idx].agroscope_meta) : ''
       },
       beforeSend: function (request) {
         request.setRequestHeader('X-CSRFToken', '{{ csrf_token }}');

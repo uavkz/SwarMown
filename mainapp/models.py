@@ -25,6 +25,12 @@ class Field(models.Model):
     holes_serialized = models.TextField(
         default="[]", verbose_name="Препятствия (Serialized)"
     )  # Json Serialized [# First hole # [[lat, lon], [lat, lon], ...], # Second hole # [[lat, lon], [lat, lon], ...], ...]
+    # AgroScope task/zone metadata (Json) when the field was imported from an AgroScope KML.
+    # Keys: task_id, task_number, field_id, field_name, crop, planned_date, created_at, zone_id, zone_name.
+    # Empty for fields not originating from AgroScope.
+    agroscope_meta_serialized = models.TextField(
+        default="", blank=True, verbose_name="AgroScope метаданные (Serialized)"
+    )
 
     def __str__(self):
         return f"{self.name}"

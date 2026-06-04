@@ -8,6 +8,7 @@ from io import BytesIO
 
 from django.http import HttpResponse
 
+from mainapp.services_agroscope import build_agroscope_plan
 from mainapp.utils_gis import get_elevations_for_points_dict
 from mainapp.utils_mavlink import create_plan_file
 
@@ -112,4 +113,31 @@ def export_mavlink_json(waypoints_list, height_offset=450.0, height_absolute_ove
         response = HttpResponse(buf, content_type="application/zip")
         response["Content-Disposition"] = 'attachment; filename="plans.zip"'
 
+    return response
+
+
+def export_agroscope_json(zones, meta, route_generated_at, height_offset=None, height_absolute_override=None):
+    """AgroScope response export (US-3): one MAVLink Plan with an agroScopeMeta block.
+
+    ``zones``: list of {"zone_id", "zone_name", "waypoints": [{"lat","lon","height"}, ...]}
+    already ordered per zone. ``meta``: dict from parse_agroscope_kml()["meta"].
+
+    Unlike export_mavlink_json (which splits by drone), this returns a single JSON
+    covering all zones so AgroScope can re-attach it to the task and split the
+    route back into zones via agroScopeMeta.zones[].waypointIndices.
+    """
+    if height_absolute_override is not None:
+        for zone in zones:
+            for wp in zone["waypoints"]:
+                wp["height"] = float(height_absolute_override)
+    elif height_offset is not None:
+        elevations = _resolve_elevations([zone["waypoints"] for zone in zones])
+        for zone in zones:
+            for wp in zone["waypoints"]:
+                wp["height"] = elevations[(round(wp["lat"], 3), round(wp["lon"], 3))] + height_offset
+
+    plan = build_agroscope_plan(zones, meta, route_generated_at)
+    task_num = meta.get("task_number") or "x"
+    response = HttpResponse(json.dumps(plan, ensure_ascii=False), content_type="application/json")
+    response["Content-Disposition"] = f'attachment; filename="task_{task_num}_route.json"'
     return response

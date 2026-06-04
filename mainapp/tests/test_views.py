@@ -130,6 +130,28 @@ class ManageRouteViewTests(ViewsSmokeTestCase):
         self.assertEqual(response.status_code, 200)
         mock_get_route.assert_called_once()
 
+    @patch("mainapp.views.get_route")
+    def test_export_json_emits_agroscope_meta_for_agroscope_field(self, mock_get_route):
+        """getJson on an AgroScope-imported field returns a plan with agroScopeMeta (US-3)."""
+        import json
+
+        self.field.agroscope_meta_serialized = json.dumps(
+            {"task_id": "TASK-2026-053", "task_number": "53", "zone_id": "1", "zone_name": "Зона 1"}
+        )
+        self.field.save()
+        mock_wp = {"lat": 50.0, "lon": 30.0, "height": 100, "spray_on": True, "drone": {"id": self.drone.id}}
+        mock_get_route.return_value = ([[[50.0, 30.0]]], [[mock_wp]], [], [50.0, 30.0])
+        url = reverse("mainapp:manage_route", kwargs={"mission_id": self.mission.id})
+        # height_absolute set so export skips the terrain-elevation network lookup.
+        response = self.client.get(url, {"getJson": "1", "height_absolute": "100"})
+        self.assertEqual(response.status_code, 200)
+        plan = json.loads(response.content)
+        self.assertIn("agroScopeMeta", plan)
+        self.assertEqual(plan["agroScopeMeta"]["taskId"], "TASK-2026-053")
+        self.assertEqual(plan["agroScopeMeta"]["taskNumber"], 53)
+        self.assertEqual(plan["agroScopeMeta"]["zones"][0]["zoneId"], 1)
+        self.assertTrue(plan["agroScopeMeta"]["zones"][0]["waypointIndices"])
+
 
 class LoginPageTests(TestCase):
     """Tests for the login page."""

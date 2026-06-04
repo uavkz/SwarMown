@@ -30,6 +30,7 @@ class FieldViewSet(viewsets.ViewSet):
                 holes_serialized=json.dumps(
                     [hole for hole in json.loads(self.request.POST.get("holes_serialized", "[]")) if len(hole) >= 3]
                 ),
+                agroscope_meta_serialized=self.request.POST.get("agroscope_meta_serialized", ""),
             )
         except Exception as e:
             return Response({"status": 500, "error": str(e)})
