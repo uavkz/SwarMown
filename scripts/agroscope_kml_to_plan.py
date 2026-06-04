@@ -38,18 +38,28 @@ def _synth_road(points):
     return [[min(lons), min(lats)], [max(lons), min(lats)]]
 
 
-def plan_zone(zone, drone, grid_step, altitude, direction="simple", start="ne"):
+def _coerce_direction(direction):
+    """Allow 'simple'/'horizontal'/'vertical' or a numeric angle (also as a string)."""
+    if isinstance(direction, str) and direction not in ("simple", "horizontal", "vertical"):
+        try:
+            return float(direction)
+        except ValueError:
+            pass
+    return direction
+
+
+def plan_zone(zone, drones, grid_step, altitude, direction="simple", start="ne", car_move="no"):
     """Plan a coverage route for one zone. Returns an ordered list of waypoints."""
     field = [p[:] for p in zone["points"]]  # [lon, lat]
     road = _synth_road(zone["points"])
     _grid, flights, _car_wps, _init = get_route(
-        car_move="no",
-        direction=direction,
+        car_move=car_move,
+        direction=_coerce_direction(direction),
         start=start,
         field=field,
         grid_step=grid_step,
         road=road,
-        drones=[drone],
+        drones=drones,
         holes=[],
     )
     waypoints = []
@@ -57,6 +67,32 @@ def plan_zone(zone, drone, grid_step, altitude, direction="simple", start="ne"):
         for wp in flight:
             waypoints.append({"lat": wp["lat"], "lon": wp["lon"], "height": altitude})
     return waypoints, len(flights)
+
+
+def resolve_route_params(args):
+    """Resolve routing params from --serialized (URL-style) or the individual flags.
+
+    --serialized is a JSON list [direction, start, drone_ids, car_points], matching
+    the manage_route view's `serialized` query param:
+      [0] direction  — number or "simple"/"horizontal"/"vertical"
+      [1] start      — "ne"/"nw"/"se"/"sw"
+      [2] drone_ids  — list of Drone DB ids (empty -> --drone-id)
+      [3] car_points — list of ratios 0..1 along the road, or "no" (empty -> "no")
+    Any element may be omitted; missing elements fall back to the flag defaults.
+    """
+    direction, start, drone_ids, car_move = args.direction, args.start, [args.drone_id], "no"
+    if args.serialized:
+        s = json.loads(args.serialized)
+        if len(s) > 0 and s[0] not in (None, ""):
+            direction = s[0]
+        if len(s) > 1 and s[1]:
+            start = s[1]
+        if len(s) > 2 and s[2]:
+            drone_ids = s[2]
+        if len(s) > 3 and s[3]:
+            car_move = s[3]
+    drones = [Drone.objects.get(id=did) for did in drone_ids]
+    return direction, start, drones, car_move
 
 
 def main():
@@ -67,6 +103,13 @@ def main():
     parser.add_argument("--altitude", type=float, default=100.0, help="Flight altitude AGL, meters")
     parser.add_argument("--direction", default="simple", help="Flight line direction ('simple' or degrees)")
     parser.add_argument("--start", default="ne", help="Start corner: ne/nw/se/sw")
+    parser.add_argument(
+        "--serialized",
+        default=None,
+        help="URL-style route params JSON: [direction, start, drone_ids, car_points]. "
+        "Overrides the individual flags; omitted parts fall back to defaults. "
+        "e.g. '[45, \"ne\", [214], [0.2, 0.5, 0.8]]'",
+    )
     parser.add_argument("--generated-at", default=None, help="routeGeneratedAt ISO timestamp (UTC)")
     parser.add_argument("--out", default=None, help="Output JSON path")
     args = parser.parse_args()
@@ -76,13 +119,13 @@ def main():
     if not zones:
         sys.exit("No zones with valid polygons found in KML")
 
-    drone = Drone.objects.get(id=args.drone_id)
+    direction, start, drones, car_move = resolve_route_params(args)
     generated_at = args.generated_at or _utcnow_iso()
 
     plan_zones = []
     total_cycles = 0
     for zone in zones:
-        waypoints, n_flights = plan_zone(zone, drone, args.grid_step, args.altitude, args.direction, args.start)
+        waypoints, n_flights = plan_zone(zone, drones, args.grid_step, args.altitude, direction, start, car_move)
         total_cycles += n_flights
         plan_zones.append(
             {
@@ -105,7 +148,7 @@ def main():
     print(
         f"Wrote {out_path}: {len(plan['mission']['items'])} items, "
         f"{len(zones)} zone(s), {total_cycles} takeoff-landing cycles, "
-        f"drone={drone.name}",
+        f"drones={', '.join(d.name for d in drones)}",
         file=sys.stderr,
     )
 
