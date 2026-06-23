@@ -23,6 +23,12 @@ from scripts.ga_common import (
     make_pyproj_transformer,  # noqa: F401 — re-exported
 )
 
+# Cap on truck stops per field. More launch positions than this give no
+# practical benefit (each stop costs start_price and a return leg) and only
+# bloat evaluation cost, so we clamp both generation and mutation. 5 matches the
+# generation upper bound, so generation and mutation stay consistent.
+MAX_CAR_POINTS = 5
+
 # mainapp imports are deferred to function bodies because Django must
 # be bootstrapped first (bootstrap_django() hasn't been called yet
 # when this module is imported at script startup).
@@ -45,7 +51,9 @@ def build_multi_argparser():
     parser.add_argument("--mutation_chance", type=float, default=0.1)
     parser.add_argument("--truck_speed", type=float, default=None, help="Override campaign truck_speed_kmh")
     parser.add_argument("--order_crossover", type=str, default="ox", choices=["ox", "pmx", "cx"])
-    parser.add_argument("--order_mutation", type=str, default="swap", choices=["swap", "insert", "inversion"])
+    # inversion (a 2-opt-like move) reaches the exact TSP optimum far more often than swap on
+    # larger tours; see experiments/multi_field_results.md (Table 5) for the comparison.
+    parser.add_argument("--order_mutation", type=str, default="inversion", choices=["swap", "insert", "inversion"])
     parser.add_argument(
         "--ablation",
         type=str,
@@ -372,7 +380,7 @@ def mutate_multi(ind, num_drones, num_fields, mutation_chance, order_mutation="s
                 del cps[random.randint(0, len(cps) - 1)]
             if random.random() < 0.75:
                 cps = sorted(cps)
-            ind[4][field_idx] = cps
+            ind[4][field_idx] = cps[:MAX_CAR_POINTS]
 
     return (ind,)
 
@@ -513,8 +521,12 @@ def setup_multi_toolbox(num_fields, num_drones, evaluate_fn, mutate_fn, crossove
     from deap import base, creator, tools
     from scoop import futures
 
-    creator.create("FitnessMax", base.Fitness, weights=TARGET_WEIGHTS)
-    creator.create("Individual", list, fitness=creator.FitnessMax)
+    # Guard against re-creation: DEAP's creator uses module-level classes, and
+    # the experiment harness reuses worker processes across many GA runs.
+    if not hasattr(creator, "FitnessMax"):
+        creator.create("FitnessMax", base.Fitness, weights=TARGET_WEIGHTS)
+    if not hasattr(creator, "Individual"):
+        creator.create("Individual", list, fitness=creator.FitnessMax)
 
     toolbox = base.Toolbox()
     toolbox.register(

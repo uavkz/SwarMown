@@ -1,0 +1,10 @@
+{
+  "C2close": 2,
+  "C2far": 3,
+  "C3line": 4,
+  "C3tri": 5,
+  "C5mixed": 6,
+  "C5holes": 7,
+  "C10grid": 8,
+  "C5varied": 9
+}
