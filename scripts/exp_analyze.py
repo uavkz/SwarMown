@@ -51,14 +51,25 @@ N_BY_ROLE = {
     "C2far": 2,
     "C3line": 3,
     "C3tri": 3,
+    "C3big": 3,
     "C5mixed": 5,
     "C5holes": 5,
     "C10grid": 10,
     "C5varied": 5,
+    "C5size": 5,
+    "C15scatter": 15,
 }
 ABLATIONS = ["fixed_order", "single_direction", "single_start", "single_drones"]
-ABL_ROLES = ["C3line", "C5mixed", "C5holes", "C10grid", "C5varied"]
-NN_ROLES = ["C5mixed", "C5holes", "C10grid", "C5varied"]
+ABL_ROLES = ["C3line", "C5mixed", "C5holes", "C10grid", "C5varied", "C5size", "C3big"]
+NN_ROLES = ["C5mixed", "C5holes", "C10grid", "C5varied", "C5size", "C15scatter"]
+ENC_ROLES = ["C10grid", "C15scatter"]
+DRONE_NAMES = {
+    "203": "Phantom 4",
+    "209": "Mavic 2",
+    "215": "Autel Evo II",
+    "221": "Matrice 300",
+    "222": "Mini 4 Pro",
+}
 
 
 def load_recs():
@@ -76,14 +87,29 @@ def load_recs():
     return recs
 
 
+CANON_CX, CANON_MUT = "ox", "inversion"
+
+
 def is_canonical(r):
     return (
         r["method"] == "ga"
         and r["ablation"] == "full"
-        and r["crossover"] == "ox"
-        and r["mutation"] == "swap"
+        and r["crossover"] == CANON_CX
+        and r["mutation"] == CANON_MUT
         and r.get("truck_speed") is None
     )
+
+
+def coverage_pct(rr):
+    """Mean grid coverage (%) over runs, from actual unique-grid-point counts."""
+    vals = []
+    for r in rr:
+        f = r["final"]
+        if f.get("grid_total"):
+            vals.append(100.0 * (f["grid_total"] - f["grid_missed"]) / f["grid_total"])
+        else:  # legacy records without grid counts
+            vals.append(100.0 if f.get("covered_ok") else 0.0)
+    return mean(vals) if vals else float("nan")
 
 
 def fmt_pm(xs):
@@ -157,8 +183,8 @@ def main():
         rsf = [r["best_fit"] for r in rs]
         impr = 100.0 * (mean(rsf) - mean(gaf)) / mean(rsf)
         p = pval(gaf, rsf)
-        ga_cov = 100.0 * sum(r["final"]["covered_ok"] for r in ga) / len(ga)
-        rs_cov = 100.0 * sum(r["final"]["covered_ok"] for r in rs) / len(rs)
+        ga_cov = coverage_pct(ga)
+        rs_cov = coverage_pct(rs)
         md.append(
             f"| {role} | {N_BY_ROLE[role]} | {fmt_pm(gaf)} | {fmt_pm(rsf)} | {impr:+.1f}% | "
             f"{p:.2g} {sig(p)} | {ga_cov:.0f}% | {rs_cov:.0f}% |"
@@ -189,8 +215,8 @@ def main():
                 if r["role"] == role
                 and r["method"] == "ga"
                 and r["ablation"] == abl
-                and r["crossover"] == "ox"
-                and r["mutation"] == "swap"
+                and r["crossover"] == CANON_CX
+                and r["mutation"] == CANON_MUT
                 and r.get("truck_speed") is None
             ]
             if not ab:
@@ -207,9 +233,11 @@ def main():
     # ========================================================================
     # Table 3: Scaling (canonical GA full)
     # ========================================================================
-    md.append("## Table 3 — Scaling with number of fields (canonical GA: full, OX+swap)\n")
-    md.append("| Campaign | N | best_fit | wall (s) | transit (h) | coverage | GA order-gap vs opt |")
-    md.append("|---|---|---|---|---|---|---|")
+    md.append("## Table 3 — Scaling with number of fields (canonical GA: full, OX+inversion)\n")
+    md.append(
+        "| Campaign | N | best_fit | wall (s) | total time (h) | transit (h) | soft pen. % of cost | coverage | GA order-gap vs opt |"
+    )
+    md.append("|---|---|---|---|---|---|---|---|---|")
     t3 = {}
     for role in sorted(N_BY_ROLE, key=lambda x: (N_BY_ROLE[x], x)):
         ga = [r for r in recs if r["role"] == role and is_canonical(r)]
@@ -218,18 +246,22 @@ def main():
         bf = [r["best_fit"] for r in ga]
         wall = [r["wall_s"] for r in ga]
         tr = [r["final"]["transit_time"] for r in ga]
-        cov = 100.0 * sum(r["final"]["covered_ok"] for r in ga) / len(ga)
+        tt = [r["final"]["time"] for r in ga]
+        pen = [100.0 * r["final"]["penalty"] / r["best_fit"] for r in ga]
+        cov = coverage_pct(ga)
         gaps = [ga_order_gap(role, r["best_order"], order_cache) for r in ga if r.get("best_order")]
         gapm = mean(gaps) if gaps else float("nan")
         md.append(
-            f"| {role} | {N_BY_ROLE[role]} | {fmt_pm(bf)} | {mean(wall):.1f} | {mean(tr):.2f} | "
-            f"{cov:.0f}% | {gapm:.1f}% |"
+            f"| {role} | {N_BY_ROLE[role]} | {fmt_pm(bf)} | {mean(wall):.1f} | {mean(tt):.2f} | {mean(tr):.2f} | "
+            f"{mean(pen):.1f}% | {cov:.0f}% | {gapm:.1f}% |"
         )
         t3[role] = {
             "n": N_BY_ROLE[role],
             "best_fit": mean(bf),
             "wall_s": mean(wall),
+            "total_time_h": mean(tt),
             "transit_h": mean(tr),
+            "soft_penalty_pct_of_cost": mean(pen),
             "coverage_pct": cov,
             "ga_order_gap_pct": gapm,
         }
@@ -239,7 +271,7 @@ def main():
     # ========================================================================
     # Table 4: Transit-speed sensitivity
     # ========================================================================
-    md.append("## Table 4 — Truck-speed sensitivity (full GA, OX+swap)\n")
+    md.append("## Table 4 — Truck-speed sensitivity (full GA, OX+inversion)\n")
     md.append("| Campaign | truck km/h | best_fit | transit (h) | GA order-gap vs opt |")
     md.append("|---|---|---|---|---|")
     t4 = defaultdict(dict)
@@ -256,7 +288,7 @@ def main():
                     and r["method"] == "ga"
                     and r["ablation"] == "full"
                     and r["crossover"] == "ox"
-                    and r["mutation"] == "swap"
+                    and r["mutation"] == CANON_MUT
                     and r.get("truck_speed") == ts_key
                 ]
             if not rr:
@@ -274,35 +306,79 @@ def main():
     # Table 5: Operator comparison — JOINT (C10grid) vs TSP subproblem
     # ========================================================================
     md.append("## Table 5 — Ordering operators: joint cost (C10grid) vs TSP-subproblem gap\n")
-    md.append("Joint best_fit barely moves (ordering is a minor cost lever); the TSP gap is the honest signal.\n")
-    md.append("| Operator | C10grid joint best_fit | C10grid TSP gap% | C5* TSP gap% |")
-    md.append("|---|---|---|---|")
+    md.append(
+        "Joint-cost column: n=8 seeds for ox_inversion (canonical) and rk, n=3 for the other operator "
+        "pairs (robustness check only); TSP gaps are 30 repetitions each. C5* = mean over C5mixed, "
+        "C5holes, C5size.\n"
+    )
+    md.append("| Operator | C10grid joint best_fit | C10grid TSP gap% | C15 TSP gap% | C5* TSP gap% |")
+    md.append("|---|---|---|---|---|")
     tsp = json.loads((HERE / "exp_tsp.json").read_text(encoding="utf-8")) if (HERE / "exp_tsp.json").exists() else {}
     t5 = {}
-    for cx in ["ox", "pmx", "cx"]:
-        for mut in ["swap", "insert", "inversion"]:
-            key = f"{cx}_{mut}"
-            joint = [
-                r["best_fit"]
-                for r in recs
-                if r["role"] == "C10grid"
-                and r["method"] == "ga"
-                and r["ablation"] == "full"
-                and r["crossover"] == cx
-                and r["mutation"] == mut
-                and r.get("truck_speed") is None
-            ]
-            jdisp = fmt_pm(joint) if joint else "—"
-            g10 = tsp.get("C10grid", {}).get("ops", {}).get(key, {}).get("mean_gap_pct", float("nan"))
-            c5 = []
-            for role in ["C5mixed", "C5holes"]:
-                v = tsp.get(role, {}).get("ops", {}).get(key, {}).get("mean_gap_pct")
-                if v is not None:
-                    c5.append(v)
-            c5m = mean(c5) if c5 else float("nan")
-            md.append(f"| {key} | {jdisp} | {g10:.2f}% | {c5m:.2f}% |")
-            t5[key] = {"joint_c10": (mean(joint) if joint else None), "tsp_c10_gap": g10, "tsp_c5_gap": c5m}
+    op_pairs = [(cx, mut) for cx in ["ox", "pmx", "cx"] for mut in ["swap", "insert", "inversion"]] + [("rk", "rk")]
+    for cx, mut in op_pairs:
+        key = f"{cx}_{mut}" if cx != "rk" else "rk"
+        joint = [
+            r["best_fit"]
+            for r in recs
+            if r["role"] == "C10grid"
+            and r["method"] == "ga"
+            and r["ablation"] == "full"
+            and r["crossover"] == cx
+            and r["mutation"] == mut
+            and r.get("truck_speed") is None
+        ]
+        jdisp = fmt_pm(joint) if joint else "—"
+        g10 = tsp.get("C10grid", {}).get("ops", {}).get(key, {}).get("mean_gap_pct", float("nan"))
+        g15 = tsp.get("C15scatter", {}).get("ops", {}).get(key, {}).get("mean_gap_pct", float("nan"))
+        c5 = []
+        for role in ["C5mixed", "C5holes", "C5size"]:
+            v = tsp.get(role, {}).get("ops", {}).get(key, {}).get("mean_gap_pct")
+            if v is not None:
+                c5.append(v)
+        c5m = mean(c5) if c5 else float("nan")
+        md.append(f"| {key} | {jdisp} | {g10:.2f}% | {g15:.2f}% | {c5m:.2f}% |")
+        t5[key] = {
+            "joint_c10": (mean(joint) if joint else None),
+            "tsp_c10_gap": g10,
+            "tsp_c15_gap": g15,
+            "tsp_c5_gap": c5m,
+        }
     summary["operators"] = t5
+    md.append("")
+
+    # ========================================================================
+    # Table 5b: Order-gene encoding on the JOINT problem (perm vs random keys)
+    # ========================================================================
+    md.append("## Table 5b — Order encoding on the joint problem: permutation (OX+inversion) vs random keys\n")
+    md.append("| Campaign | N | perm best_fit | rk best_fit | Δ | p (MWU) | perm order-gap | rk order-gap |")
+    md.append("|---|---|---|---|---|---|---|---|")
+    t5b = {}
+    for role in ENC_ROLES:
+        perm = [r for r in recs if r["role"] == role and is_canonical(r)]
+        rk = [
+            r
+            for r in recs
+            if r["role"] == role
+            and r["method"] == "ga"
+            and r["ablation"] == "full"
+            and r["crossover"] == "rk"
+            and r.get("truck_speed") is None
+        ]
+        if not perm or not rk:
+            continue
+        pf = [r["best_fit"] for r in perm]
+        kf = [r["best_fit"] for r in rk]
+        pg = [ga_order_gap(role, r["best_order"], order_cache) for r in perm if r.get("best_order")]
+        kg = [ga_order_gap(role, r["best_order"], order_cache) for r in rk if r.get("best_order")]
+        d = 100.0 * (mean(kf) - mean(pf)) / mean(pf)
+        p = pval(kf, pf)
+        md.append(
+            f"| {role} | {N_BY_ROLE[role]} | {fmt_pm(pf)} | {fmt_pm(kf)} | {d:+.1f}% | {p:.2g} {sig(p)} | "
+            f"{mean(pg):.1f}% | {mean(kg):.1f}% |"
+        )
+        t5b[role] = {"perm_mean": mean(pf), "rk_mean": mean(kf), "delta_pct": d, "p": p}
+    summary["encoding"] = t5b
     md.append("")
 
     # ========================================================================
@@ -327,23 +403,17 @@ def main():
     # ========================================================================
     nn_present = any(r["method"] == "ga_nn" for r in recs)
     if nn_present:
-        md.append("## Table 7 — NN-seeded hybrid vs plain joint GA (full, OX+swap)\n")
+        md.append("## Table 7 — NN-fixed hybrid vs plain joint GA (full, OX+inversion, matched budget)\n")
         md.append(
-            "Seeding the initial order with nearest-neighbour fixes the GA's neglected ordering at no extra budget.\n"
+            "The hybrid freezes the order gene at the nearest-neighbour tour and spends the whole "
+            "(identical) evaluation budget on the per-field coverage parameters.\n"
         )
-        md.append("| Campaign | N | GA best_fit | NN-GA best_fit | Δ cost | GA order-gap | NN-GA order-gap |")
-        md.append("|---|---|---|---|---|---|---|")
+        md.append("| Campaign | N | GA best_fit | NN-GA best_fit | Δ cost | p (MWU) | GA order-gap | NN-GA order-gap |")
+        md.append("|---|---|---|---|---|---|---|---|")
         t7 = {}
         for role in NN_ROLES:
             ga = [r for r in recs if r["role"] == role and is_canonical(r)]
-            nn = [
-                r
-                for r in recs
-                if r["role"] == role
-                and r["method"] == "ga_nn"
-                and r["ablation"] == "full"
-                and r.get("truck_speed") is None
-            ]
+            nn = [r for r in recs if r["role"] == role and r["method"] == "ga_nn" and r.get("truck_speed") is None]
             if not ga or not nn:
                 continue
             gaf = [r["best_fit"] for r in ga]
@@ -351,19 +421,47 @@ def main():
             ga_gap = [ga_order_gap(role, r["best_order"], order_cache) for r in ga if r.get("best_order")]
             nn_gap = [ga_order_gap(role, r["best_order"], order_cache) for r in nn if r.get("best_order")]
             dcost = 100.0 * (mean(nnf) - mean(gaf)) / mean(gaf)
+            p = pval(nnf, gaf)
             md.append(
                 f"| {role} | {N_BY_ROLE[role]} | {fmt_pm(gaf)} | {fmt_pm(nnf)} | {dcost:+.1f}% | "
-                f"{mean(ga_gap):.1f}% | {mean(nn_gap):.1f}% |"
+                f"{p:.2g} {sig(p)} | {mean(ga_gap):.1f}% | {mean(nn_gap):.1f}% |"
             )
             t7[role] = {
                 "ga_mean": mean(gaf),
                 "nn_mean": mean(nnf),
                 "dcost_pct": dcost,
+                "p": p,
                 "ga_order_gap": mean(ga_gap),
                 "nn_order_gap": mean(nn_gap),
             }
         summary["nn_hybrid"] = t7
         md.append("")
+
+    # ========================================================================
+    # Table 8: Fleet composition chosen by the canonical GA (from drone_usage)
+    # ========================================================================
+    md.append("## Table 8 — Fleet composition of the best plans (canonical GA, mean over seeds)\n")
+    md.append("Share of flights performed by each airframe; |D| = distinct airframes used.\n")
+    dkeys = list(DRONE_NAMES)
+    md.append("| Campaign | N | |D| | " + " | ".join(DRONE_NAMES[k] for k in dkeys) + " |")
+    md.append("|---|---|---|" + "---|" * len(dkeys))
+    t8 = {}
+    for role in sorted(N_BY_ROLE, key=lambda x: (N_BY_ROLE[x], x)):
+        ga = [r for r in recs if r["role"] == role and is_canonical(r) and r["final"].get("drone_usage")]
+        if not ga:
+            continue
+        nd = mean(len(r["final"]["drone_usage"]) for r in ga)
+        shares = {k: [] for k in dkeys}
+        for r in ga:
+            du = r["final"]["drone_usage"]
+            tot = sum(v[0] for v in du.values()) or 1
+            for k in dkeys:
+                shares[k].append(100.0 * du.get(k, [0, 0])[0] / tot)
+        row = f"| {role} | {N_BY_ROLE[role]} | {nd:.1f} | " + " | ".join(f"{mean(shares[k]):.0f}%" for k in dkeys)
+        md.append(row + " |")
+        t8[role] = {"mean_distinct": nd, **{DRONE_NAMES[k]: mean(shares[k]) for k in dkeys}}
+    summary["fleet_composition"] = t8
+    md.append("")
 
     (EXP_DIR / "results_tables.md").write_text("\n".join(md), encoding="utf-8")
     (EXP_DIR / "results_summary.json").write_text(json.dumps(summary, indent=2, default=str), encoding="utf-8")
@@ -383,8 +481,8 @@ def _curve_band(curves):
 
 def make_figures(recs, tsp, order_cache=None):
     # Fig 1: GA vs RS convergence (best-so-far) for representative campaigns
-    fig, axes = plt.subplots(1, 3, figsize=(15, 4.2))
-    for ax, role in zip(axes, ["C3line", "C5mixed", "C10grid"]):
+    fig, axes = plt.subplots(1, 4, figsize=(19, 4.2))
+    for ax, role in zip(axes, ["C3line", "C5mixed", "C10grid", "C15scatter"]):
         ga = [r["curve"] for r in recs if r["role"] == role and is_canonical(r)]
         rs = [r["curve"] for r in recs if r["role"] == role and r["method"] == "rs" and r.get("truck_speed") is None]
         if ga:
@@ -400,6 +498,11 @@ def make_figures(recs, tsp, order_cache=None):
         ax.set_title(f"{role} (N={N_BY_ROLE[role]})")
         ax.set_xlabel("generation")
         ax.set_ylabel("best-so-far cost")
+        # Penalty blow-ups (day-limit violations) span orders of magnitude
+        lo = min((min(c) for c in ga + rs), default=1)
+        hi = max((max(c) for c in ga + rs), default=1)
+        if lo > 0 and hi / lo > 50:
+            ax.set_yscale("log")
         ax.legend()
     fig.suptitle("Convergence: joint GA vs matched-budget random search (mean ± SD over seeds)")
     fig.tight_layout()
@@ -421,8 +524,8 @@ def make_figures(recs, tsp, order_cache=None):
                 if r["role"] == role
                 and r["method"] == "ga"
                 and r["ablation"] == abl
-                and r["crossover"] == "ox"
-                and r["mutation"] == "swap"
+                and r["crossover"] == CANON_CX
+                and r["mutation"] == CANON_MUT
                 and r.get("truck_speed") is None
             ]
             deltas.append(100.0 * (mean(ab) - mean(full)) / mean(full) if (ab and full) else 0)
@@ -437,34 +540,35 @@ def make_figures(recs, tsp, order_cache=None):
     fig.savefig(FIG_DIR / "fig2_ablation.png", dpi=130)
     plt.close(fig)
 
-    # Fig 3: Scaling — wall time and best_fit vs N
+    # Fig 3: Scaling — wall time per run vs N (labeled scatter; cost is not
+    # comparable across campaigns of different total area, so it is not plotted)
     roles_sorted = sorted(N_BY_ROLE, key=lambda x: N_BY_ROLE[x])
-    Ns, walls, fits = [], [], []
+    pts = []
     for role in roles_sorted:
         ga = [r for r in recs if r["role"] == role and is_canonical(r)]
         if not ga:
             continue
-        Ns.append(N_BY_ROLE[role])
-        walls.append(mean(r["wall_s"] for r in ga))
-        fits.append(mean(r["best_fit"] for r in ga))
-    if Ns:
-        fig, ax1 = plt.subplots(figsize=(7, 4.5))
-        ax1.plot(Ns, walls, "o-", color="C0", label="wall time (s)")
-        ax1.set_xlabel("number of fields N")
-        ax1.set_ylabel("wall time per run (s)", color="C0")
-        ax2 = ax1.twinx()
-        ax2.plot(Ns, fits, "s--", color="C2", label="best_fit")
-        ax2.set_ylabel("best_fit (cost)", color="C2")
-        ax1.set_title("Scaling with number of fields")
+        pts.append((role, N_BY_ROLE[role], mean(r["wall_s"] for r in ga)))
+    if pts:
+        fig, ax = plt.subplots(figsize=(7, 4.5))
+        ax.scatter([p[1] for p in pts], [p[2] for p in pts], color="C0", zorder=3)
+        for role, n, w in pts:
+            ax.annotate(role, (n, w), textcoords="offset points", xytext=(6, 4), fontsize=9)
+        ax.set_xlabel("number of fields N")
+        ax.set_ylabel("wall time per GA run (s)")
+        ax.set_title("Runtime scaling with number of fields")
+        ax.grid(alpha=0.3)
         fig.tight_layout()
         fig.savefig(FIG_DIR / "fig3_scaling.png", dpi=130)
         plt.close(fig)
 
-    # Fig 4: Transit-speed sensitivity
-    fig, axes = plt.subplots(1, 2, figsize=(11, 4.2))
-    for ax, role in zip(axes, ["C5mixed", "C10grid"]):
+    # Fig 4: Transit-speed sensitivity. Left: C5mixed cost tracks the transit
+    # share. Right: the GA's ordering quality vs the cost of transit -- when
+    # transit is cheap the fitness gradient on the order gene vanishes and the
+    # GA leaves ordering unoptimized (order-gap grows).
+    def _sweep(role):
         speeds = [(20.0, 20), (None, 40), (60.0, 60), (80.0, 80)]
-        sx, sy_fit, sy_tr = [], [], []
+        sx, sy_fit, sy_tr, sy_gap = [], [], [], []
         for ts_key, disp in speeds:
             if ts_key is None:
                 rr = [r for r in recs if r["role"] == role and is_canonical(r)]
@@ -475,8 +579,8 @@ def make_figures(recs, tsp, order_cache=None):
                     if r["role"] == role
                     and r["method"] == "ga"
                     and r["ablation"] == "full"
-                    and r["crossover"] == "ox"
-                    and r["mutation"] == "swap"
+                    and r["crossover"] == CANON_CX
+                    and r["mutation"] == CANON_MUT
                     and r.get("truck_speed") == ts_key
                 ]
             if not rr:
@@ -484,33 +588,81 @@ def make_figures(recs, tsp, order_cache=None):
             sx.append(disp)
             sy_fit.append(mean(r["best_fit"] for r in rr))
             sy_tr.append(mean(r["final"]["transit_time"] for r in rr))
+            gaps = [ga_order_gap(role, r["best_order"], order_cache) for r in rr if r.get("best_order")]
+            sy_gap.append(mean(gaps) if gaps else float("nan"))
+        return sx, sy_fit, sy_tr, sy_gap
+
+    fig, (ax, ax2) = plt.subplots(1, 2, figsize=(12, 4.2))
+    sx, sy_fit, sy_tr, _ = _sweep("C5mixed")
+    if sx:
+        ax.plot(sx, sy_fit, "o-", color="C0")
+        ax.set_xlabel("truck speed (km/h)")
+        ax.set_ylabel("campaign cost ($)", color="C0")
+        axb = ax.twinx()
+        axb.plot(sx, sy_tr, "s--", color="C3")
+        axb.set_ylabel("transit (h)", color="C3")
+        ax.set_title("C5mixed: cost follows the transit share")
+    for role, marker in [("C5mixed", "o"), ("C10grid", "s")]:
+        sx, _, _, sy_gap = _sweep(role)
         if sx:
-            ax.plot(sx, sy_fit, "o-", color="C0", label="best_fit")
-            ax.set_xlabel("truck speed (km/h)")
-            ax.set_ylabel("best_fit", color="C0")
-            axb = ax.twinx()
-            axb.plot(sx, sy_tr, "s--", color="C3", label="transit (h)")
-            axb.set_ylabel("transit (h)", color="C3")
-            ax.set_title(f"{role}")
-    fig.suptitle("Truck-speed sensitivity")
+            ax2.plot(sx, sy_gap, marker + "-", label=role)
+    ax2.set_xlabel("truck speed (km/h)")
+    ax2.set_ylabel("GA order-gap vs exact optimum (%)")
+    ax2.set_title("Cheap transit -> the GA stops optimizing the order")
+    ax2.legend()
+    ax2.grid(alpha=0.3)
     fig.tight_layout()
     fig.savefig(FIG_DIR / "fig4_transit.png", dpi=130)
     plt.close(fig)
 
-    # Fig 5: TSP operator gap (C10grid) bar chart
+    # Fig 5: TSP operator gap bar chart (C10grid and C15scatter side by side)
     if tsp and "C10grid" in tsp:
-        ops = tsp["C10grid"]["ops"]
-        keys = [f"{c}_{m}" for c in ["ox", "pmx", "cx"] for m in ["swap", "insert", "inversion"]]
-        gaps = [ops[k]["mean_gap_pct"] for k in keys]
-        errs = [ops[k]["std_gap_pct"] for k in keys]
-        fig, ax = plt.subplots(figsize=(10, 4.5))
-        colors = ["C0" if "swap" in k else "C1" if "insert" in k else "C2" for k in keys]
-        ax.bar(keys, gaps, yerr=errs, color=colors, capsize=3)
-        ax.set_ylabel("mean optimality gap (%)")
-        ax.set_title("Ordering operators on the C10grid TSP subproblem (vs Held-Karp optimum)")
-        ax.tick_params(axis="x", rotation=45)
+        keys = [f"{c}_{m}" for c in ["ox", "pmx", "cx"] for m in ["swap", "insert", "inversion"]] + ["rk"]
+        panels = [r for r in ["C10grid", "C15scatter"] if r in tsp]
+        fig, axes = plt.subplots(1, len(panels), figsize=(7 * len(panels), 4.5), squeeze=False)
+        for ax, role in zip(axes[0], panels):
+            ops = tsp[role]["ops"]
+            ks = [k for k in keys if k in ops]
+            gaps = [ops[k]["mean_gap_pct"] for k in ks]
+            errs = [ops[k]["std_gap_pct"] for k in ks]
+            colors = ["C3" if k == "rk" else "C0" if "swap" in k else "C1" if "insert" in k else "C2" for k in ks]
+            ax.bar(ks, gaps, yerr=errs, color=colors, capsize=3)
+            ax.set_ylabel("mean optimality gap (%)")
+            ax.set_title(f"{role} (N={tsp[role]['n']})")
+            ax.tick_params(axis="x", rotation=45)
+        fig.suptitle("Ordering operators / encodings on the TSP subproblem (vs Held-Karp optimum)")
         fig.tight_layout()
         fig.savefig(FIG_DIR / "fig5_tsp_operators.png", dpi=130)
+        plt.close(fig)
+
+    # Fig 7: fleet composition per campaign (stacked flight shares, canonical GA)
+    roles_f = [
+        role
+        for role in sorted(N_BY_ROLE, key=lambda x: (N_BY_ROLE[x], x))
+        if any(r["role"] == role and is_canonical(r) and r["final"].get("drone_usage") for r in recs)
+    ]
+    if roles_f:
+        dkeys = list(DRONE_NAMES)
+        bottoms = np.zeros(len(roles_f))
+        fig, ax = plt.subplots(figsize=(10, 4.5))
+        for k in dkeys:
+            vals = []
+            for role in roles_f:
+                ga = [r for r in recs if r["role"] == role and is_canonical(r) and r["final"].get("drone_usage")]
+                share = []
+                for r in ga:
+                    du = r["final"]["drone_usage"]
+                    tot = sum(v[0] for v in du.values()) or 1
+                    share.append(100.0 * du.get(k, [0, 0])[0] / tot)
+                vals.append(mean(share))
+            ax.bar(roles_f, vals, bottom=bottoms, label=DRONE_NAMES[k])
+            bottoms += np.array(vals)
+        ax.set_ylabel("share of flights (%)")
+        ax.set_title("Which airframes the optimizer actually uses (canonical GA best plans)")
+        ax.legend(fontsize=8)
+        ax.tick_params(axis="x", rotation=30)
+        fig.tight_layout()
+        fig.savefig(FIG_DIR / "fig7_fleet.png", dpi=130)
         plt.close(fig)
 
     # Fig 6: NN-seeded hybrid — order-gap before/after (and NN optimum reference)
@@ -533,11 +685,11 @@ def make_figures(recs, tsp, order_cache=None):
         xs = np.arange(len(roles))
         fig, ax = plt.subplots(figsize=(8, 4.5))
         ax.bar(xs - 0.2, ga_gaps, 0.4, label="plain joint GA", color="C0")
-        ax.bar(xs + 0.2, nn_gaps, 0.4, label="NN-seeded GA", color="C2")
+        ax.bar(xs + 0.2, nn_gaps, 0.4, label="NN-fixed GA", color="C2")
         ax.set_xticks(xs)
         ax.set_xticklabels(roles)
         ax.set_ylabel("field-order gap vs optimal (%)")
-        ax.set_title("NN-seeded hybrid removes the GA's ordering deficit")
+        ax.set_title("NN-fixed hybrid removes the GA's ordering deficit")
         ax.legend()
         fig.tight_layout()
         fig.savefig(FIG_DIR / "fig6_nn_hybrid.png", dpi=130)

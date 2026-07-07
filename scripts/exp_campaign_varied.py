@@ -30,9 +30,8 @@ django.setup()
 
 from django.contrib.auth.models import User  # noqa: E402
 
-from mainapp.models import Campaign, CampaignField, Drone, Field  # noqa: E402
+from mainapp.models import Campaign, CampaignField, Field  # noqa: E402
 from scripts.exp_campaigns import (  # noqa: E402
-    DRONE_IDS,
     EXP_USER,
     GRID_STEP,
     HOURLY_PRICE,
@@ -44,6 +43,7 @@ from scripts.exp_campaigns import (  # noqa: E402
     ROAD_GAP,
     START_PRICE,
     TRUCK_SPEED,
+    get_fleet,
 )
 
 
@@ -72,7 +72,7 @@ def main():
     Campaign.objects.filter(owner=user, name="EXP:C5varied").delete()
     Field.objects.filter(owner=user, name__startswith="EXP:c5v-").delete()
 
-    drones = list(Drone.objects.filter(id__in=DRONE_IDS))
+    drones = get_fleet()
 
     # 5 elongated fields, distinct orientations, moderate spread (~3-8 km).
     specs = [

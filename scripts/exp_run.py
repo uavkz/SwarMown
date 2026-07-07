@@ -88,7 +88,7 @@ def _campaign(cid):
 
 def _components(res):
     # Coerce numpy scalars to native Python types for JSON.
-    distance, t, drone_price, salary, penalty, starts, transit = res
+    distance, t, drone_price, salary, penalty, starts, transit, grid_total, grid_missed, drone_usage = res
     return {
         "distance": round(float(distance), 4),
         "time": round(float(t), 4),
@@ -97,7 +97,10 @@ def _components(res):
         "penalty": round(float(penalty), 4),
         "starts": int(starts),
         "transit_time": round(float(transit), 4),
-        "covered_ok": bool(penalty < 1_000_000),
+        "grid_total": int(grid_total),
+        "grid_missed": int(grid_missed),
+        "covered_ok": bool(grid_missed == 0),
+        "drone_usage": {str(k): [int(v[0]), round(float(v[1]), 4)] for k, v in drone_usage.items()},
     }
 
 
@@ -147,17 +150,30 @@ def _run_ga(cd, args, crossover, mutation, ablation, ngen, pop, seed_order=None)
     best_ind = None
     best_res = None
     curve = []
-    for _gen in range(ngen):
+
+    def score(ind):
+        nonlocal best_fit, best_ind, best_res
+        res = ev(ind)
+        total = res[2] + res[3] + res[4]
+        ind.fitness.values = (total,)
+        if total < best_fit:
+            best_fit = total
+            best_ind = tb.clone(ind)
+            best_res = res
+
+    # (mu + lambda) evolution with survivor selection over parents+offspring:
+    # the legacy comma scheme (select over offspring only, mutpb=1, no elitism)
+    # loses its best individual almost every generation and stalls. Evaluating
+    # the initial population counts toward the budget, so the total number of
+    # evaluations is exactly ngen*pop -- identical to random search.
+    for ind in population:
+        score(ind)
+    curve.append(best_fit)
+    for _gen in range(ngen - 1):
         offspring = algorithms.varAnd(population, tb, cxpb=0.5, mutpb=1)
         for ind in offspring:
-            res = ev(ind)
-            total = res[2] + res[3] + res[4]
-            ind.fitness.values = (total,)
-            if total < best_fit:
-                best_fit = total
-                best_ind = tb.clone(ind)
-                best_res = res
-        population = tb.select(offspring, k=len(population))
+            score(ind)
+        population = tb.select(population + offspring, k=len(population))
         curve.append(best_fit)
     return best_fit, curve, best_ind, best_res, ngen * pop
 
@@ -183,8 +199,18 @@ def _run_rs(cd, args, ngen, pop):
 
 
 def run_one(job):
-    """Execute a single job. Returns a result dict (picklable)."""
-    random.seed(job["seed"])
+    """Execute a single job. Returns a result dict (picklable).
+
+    The RNG is seeded with the full job identity (not just the seed index), so
+    e.g. GA seed 0 and RS seed 0 consume independent random streams — otherwise
+    the GA's initial population and RS's first `pop` samples would be identical
+    (common random numbers), undermining the independence assumption of the
+    Mann-Whitney comparison.
+    """
+    random.seed(
+        f"{job['role']}|{job['method']}|{job['crossover']}|{job['mutation']}"
+        f"|{job['ablation']}|{job.get('truck_speed')}|{job['seed']}"
+    )
     cd = _campaign(job["campaign_id"])
     args = _Args(
         max_working_speed=job["max_working_speed"],
@@ -198,8 +224,8 @@ def run_one(job):
         best_fit, curve, best_ind, best_res, n_evals = _run_rs(cd, args, job["ngen"], job["pop"])
     else:
         if job["method"] == "ga_nn":
-            # NN-seeded hybrid: fix the order to the nearest-neighbour tour and spend
-            # the whole GA budget on the dominant per-field coverage parameters.
+            # NN-fixed hybrid: freeze the order gene at the nearest-neighbour tour
+            # and spend the whole GA budget on the per-field coverage parameters.
             seed_order = _nn_order_for(cd)
             ablation = "fixed_order"
         else:
@@ -223,25 +249,57 @@ def run_one(job):
     rec["best_fit"] = round(float(best_fit), 4)
     rec["curve"] = [round(float(c), 3) for c in curve]
     rec["final"] = _components(best_res)
-    rec["best_order"] = [int(x) for x in best_ind[0]] if best_ind is not None else None
+    if best_ind is not None:
+        from scripts.ga_multi_common import decode_order
+
+        rec["best_order"] = [int(x) for x in decode_order(best_ind[0])]
+        rec["best_ind"] = {
+            "order_gene": [round(float(x), 6) for x in best_ind[0]]
+            if best_ind[0] and isinstance(best_ind[0][0], float)
+            else [int(x) for x in best_ind[0]],
+            "directions": [round(float(d), 2) for d in best_ind[1]],
+            "starts": list(best_ind[2]),
+            "drones": [[int(i) for i in dl] for dl in best_ind[3]],
+            "car_points": [[round(float(c), 4) for c in cp] for cp in best_ind[4]],
+        }
+    else:
+        rec["best_order"] = None
+        rec["best_ind"] = None
     return rec
 
 
 # --- Job matrix -------------------------------------------------------------
 
-ALL_ROLES = ["C2close", "C2far", "C3line", "C3tri", "C5mixed", "C5holes", "C10grid", "C5varied"]
+ALL_ROLES = [
+    "C2close",
+    "C2far",
+    "C3line",
+    "C3tri",
+    "C3big",
+    "C5mixed",
+    "C5holes",
+    "C10grid",
+    "C5varied",
+    "C5size",
+    "C15scatter",
+]
 # Joint operator grid only on the most ordering-sensitive campaign (robustness
 # check); the clean operator comparison lives in exp_tsp_operators.py.
 OP_ROLES = ["C10grid"]
+# Random-keys order encoding vs the canonical permutation encoding, on the two
+# campaigns with a real combinatorial tour space.
+ENC_ROLES = ["C10grid", "C15scatter"]
 # Ablation on a spread of regimes: C3line (default order already optimal -> the
 # fixed_order ablation should be harmless), C5holes & C10grid (default order is
-# 21-23% worse than optimal -> fixed_order should hurt), C5mixed (in between),
+# far worse than optimal -> fixed_order should hurt), C5mixed (in between),
 # C5varied (elongated fields at different orientations -> per-field direction
-# genuinely matters, so single_direction should hurt there).
-ABL_ROLES = ["C3line", "C5mixed", "C5holes", "C10grid", "C5varied"]
+# genuinely matters), C5size (field sizes differ 16x -> per-field drone subsets
+# genuinely matter), C3big (very large fields -> within-field parallelism via the
+# drones gene is the dominant lever; single_drones is the money ablation).
+ABL_ROLES = ["C3line", "C5mixed", "C5holes", "C10grid", "C5varied", "C5size", "C3big"]
 # Campaigns where the field tour is a real combinatorial problem -> where the
-# NN-seeded hybrid is worth comparing against the plain GA.
-NN_ROLES = ["C5mixed", "C5holes", "C10grid", "C5varied"]
+# NN-fixed hybrid is worth comparing against the plain GA.
+NN_ROLES = ["C5mixed", "C5holes", "C10grid", "C5varied", "C5size", "C15scatter"]
 # Transit-speed sweep on C5mixed (clean grouping campaign); C10grid transit adds
 # little and is the most expensive campaign, so we omit it from the sweep.
 TRANSIT_ROLES = ["C5mixed"]
@@ -255,7 +313,17 @@ ABLATIONS = ["fixed_order", "single_direction", "single_start", "single_drones"]
 TRANSIT_SPEEDS = [20.0, 60.0, 80.0]  # 40 is canonical
 
 
-def build_jobs(ngen, pop, seeds, base_kwargs, roles_filter=None, nn_seed=False, nn_only=False):
+def build_jobs(
+    ngen,
+    pop,
+    seeds,
+    base_kwargs,
+    roles_filter=None,
+    nn_seed=False,
+    nn_only=False,
+    transit_roles=None,
+    transit_only=False,
+):
     jobs = []
     seen = set()
 
@@ -284,34 +352,47 @@ def build_jobs(ngen, pop, seeds, base_kwargs, roles_filter=None, nn_seed=False, 
         )
         jobs.append(job)
 
+    transit_roles = transit_roles or TRANSIT_ROLES
+
     for s in range(seeds):
+        if transit_only:
+            for role in transit_roles:
+                for spd in TRANSIT_SPEEDS:
+                    add(role, "ga", "ox", "inversion", "full", spd, s)
+            continue
         if not nn_only:
-            # (1) Canonical GA (full, ox+swap) on every campaign -> scaling + baselines + anchors
+            # (1) Canonical GA (full, ox+inversion — the recommended operator pair,
+            # see Table 5) on every campaign -> scaling + baselines + anchors
             for role in ALL_ROLES:
-                add(role, "ga", "ox", "swap", "full", None, s)
+                add(role, "ga", "ox", "inversion", "full", None, s)
             # (1b) Random-search baseline, matched budget, every campaign
             for role in ALL_ROLES:
-                add(role, "rs", "ox", "swap", "full", None, s)
-            # (2) Operator grid (minus ox+swap which is canonical), few seeds only
+                add(role, "rs", "ox", "inversion", "full", None, s)
+            # (2) Operator grid (minus ox+inversion which is canonical), few seeds only
             if s < OP_SEEDS:
                 for role in OP_ROLES:
                     for cx in CROSSOVERS:
                         for mut in MUTATIONS:
-                            if cx == "ox" and mut == "swap":
+                            if cx == "ox" and mut == "inversion":
                                 continue
                             add(role, "ga", cx, mut, "full", None, s)
+            # (2b) Random-keys order encoding, full seeds (the headline encoding
+            # comparison; the pure-TSP encoding study lives in exp_tsp_operators)
+            for role in ENC_ROLES:
+                add(role, "ga", "rk", "rk", "full", None, s)
             # (3) Ablations (full is canonical)
             for role in ABL_ROLES:
                 for abl in ABLATIONS:
-                    add(role, "ga", "ox", "swap", abl, None, s)
+                    add(role, "ga", "ox", "inversion", abl, None, s)
             # (4) Transit-speed sensitivity (40 is canonical)
-            for role in TRANSIT_ROLES:
+            for role in transit_roles:
                 for spd in TRANSIT_SPEEDS:
-                    add(role, "ga", "ox", "swap", "full", spd, s)
-        # (5) NN-seeded hybrid: full, ox+swap, NN initial order
+                    add(role, "ga", "ox", "inversion", "full", spd, s)
+        # (5) NN-fixed hybrid: order gene frozen at the NN tour (recorded as
+        # ablation=fixed_order, which is what actually runs)
         if nn_seed or nn_only:
             for role in NN_ROLES:
-                add(role, "ga_nn", "ox", "swap", "full", None, s)
+                add(role, "ga_nn", "ox", "inversion", "fixed_order", None, s)
 
     return jobs
 
@@ -324,13 +405,24 @@ def main():
     ap.add_argument("--workers", type=int, default=8)
     ap.add_argument("--out", type=str, default=str(Path(__file__).resolve().parent / "exp_results.jsonl"))
     ap.add_argument("--max_working_speed", type=float, default=7)
-    ap.add_argument("--borderline_time", type=float, default=4)
-    ap.add_argument("--max_time", type=float, default=12)
+    # Campaign-scale working-day limits: soft overtime penalty beyond 8 h,
+    # hard limit 14 h. (The single-field defaults 4/12 are too tight for a
+    # sequential multi-field campaign, whose duration is the sum of per-field
+    # makespans plus transit.)
+    ap.add_argument("--borderline_time", type=float, default=8)
+    ap.add_argument("--max_time", type=float, default=14)
     ap.add_argument("--mutation_chance", type=float, default=0.1)
     ap.add_argument("--smoke", action="store_true", help="tiny run: 2 seeds, ngen=5, pop=10, 4 campaigns")
     ap.add_argument("--roles", type=str, default=None, help="comma-separated subset of campaign roles")
     ap.add_argument("--nn_seed", action="store_true", help="also run NN-seeded hybrid jobs on ordering-sensitive roles")
     ap.add_argument("--nn_only", action="store_true", help="run ONLY NN-seeded hybrid jobs (no full matrix)")
+    ap.add_argument("--transit_roles", type=str, default=None, help="comma-separated roles for the truck-speed sweep")
+    ap.add_argument("--transit_only", action="store_true", help="run ONLY truck-speed sweep jobs (no full matrix)")
+    ap.add_argument(
+        "--resume",
+        action="store_true",
+        help="append to --out, skipping jobs whose (role,method,cx,mut,ablation,speed,seed) is already present",
+    )
     args = ap.parse_args()
 
     base_kwargs = dict(
@@ -352,7 +444,7 @@ def main():
                         campaign_id=MANIFEST[role],
                         method=method,
                         crossover="ox",
-                        mutation="swap",
+                        mutation="inversion",
                         ablation="full",
                         truck_speed=None,
                         seed=s,
@@ -370,13 +462,47 @@ def main():
             roles_filter=roles_filter,
             nn_seed=args.nn_seed,
             nn_only=args.nn_only,
+            transit_roles=[r.strip() for r in args.transit_roles.split(",")] if args.transit_roles else None,
+            transit_only=args.transit_only,
         )
 
     out_path = Path(args.out)
+    mode = "w"
+    if args.resume and out_path.exists():
+        done_keys = set()
+        with open(out_path, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                r = json.loads(line)
+                if "error" in r:
+                    continue
+                done_keys.add(
+                    (
+                        r["role"],
+                        r["method"],
+                        r["crossover"],
+                        r["mutation"],
+                        r["ablation"],
+                        r.get("truck_speed"),
+                        r["seed"],
+                    )
+                )
+        before = len(jobs)
+        jobs = [
+            j
+            for j in jobs
+            if (j["role"], j["method"], j["crossover"], j["mutation"], j["ablation"], j.get("truck_speed"), j["seed"])
+            not in done_keys
+        ]
+        mode = "a"
+        print(f"resume: {before - len(jobs)} jobs already done, {len(jobs)} remaining")
+
     print(f"Total jobs: {len(jobs)}  workers={args.workers}  -> {out_path}")
     t0 = time.time()
     done = 0
-    with open(out_path, "w", encoding="utf-8") as fout, ProcessPoolExecutor(max_workers=args.workers) as ex:
+    with open(out_path, mode, encoding="utf-8") as fout, ProcessPoolExecutor(max_workers=args.workers) as ex:
         futs = {ex.submit(run_one, j): j for j in jobs}
         for fut in as_completed(futs):
             try:

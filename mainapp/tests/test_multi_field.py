@@ -382,10 +382,11 @@ class TestEvaluateMulti(TestCase):
 
         ind = generate_multi_individual(3, 2)
         result = evaluate_multi_individual(ind, campaign_data, Args(), PYPROJ_TRANSFORMER)
-        self.assertEqual(len(result), 7)
-        distance, time, _drone_price, _salary, _penalty, _starts, _transit_time = result
+        self.assertEqual(len(result), 10)
+        distance, time, _dp, _sal, _pen, _starts, _transit, grid_total, grid_missed, _usage = result
         self.assertGreater(distance, 0)
         self.assertGreater(time, 0)
+        self.assertGreaterEqual(grid_total, grid_missed)
 
     def test_transit_adds_time(self):
         """Total time should include transit between fields."""
@@ -566,7 +567,7 @@ class TestEdgeCases(TestCase):
         ind = [[0], [0.0], ["ne"], [[0]], [[0.5]]]
         result = evaluate_multi_individual(ind, cd, Args(), PYPROJ_TRANSFORMER)
         # Should not crash — returns penalty tuple
-        self.assertEqual(len(result), 7)
+        self.assertEqual(len(result), 10)
 
 
 # ===================================================================
@@ -684,7 +685,7 @@ class TestDiverseCampaigns(TestCase):
         c = self._make_campaign("holes", [FIELD_CLOSE_A, FIELD_WITH_HOLE], grid_step=500)
         ind = [[0, 1], [0.0, 0.0], ["ne", "ne"], [[0], [0]], [[0.5], [0.5]]]
         r = self._eval(c.id, ind)
-        self.assertEqual(len(r), 7)
+        self.assertEqual(len(r), 10)
         self.assertGreater(r[0], 0, "Should have some distance")
 
     def test_all_heights_constant_2d(self):

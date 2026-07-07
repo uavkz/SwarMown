@@ -50,10 +50,14 @@ def build_multi_argparser():
     parser.add_argument("--max_working_speed", type=float, default=7)
     parser.add_argument("--mutation_chance", type=float, default=0.1)
     parser.add_argument("--truck_speed", type=float, default=None, help="Override campaign truck_speed_kmh")
-    parser.add_argument("--order_crossover", type=str, default="ox", choices=["ox", "pmx", "cx"])
+    # "rk" selects random-keys order encoding (uniform key crossover + Gaussian
+    # key mutation); use it for BOTH --order_crossover and --order_mutation.
+    parser.add_argument("--order_crossover", type=str, default="ox", choices=["ox", "pmx", "cx", "rk"])
     # inversion (a 2-opt-like move) reaches the exact TSP optimum far more often than swap on
     # larger tours; see experiments/multi_field_results.md (Table 5) for the comparison.
-    parser.add_argument("--order_mutation", type=str, default="inversion", choices=["swap", "insert", "inversion"])
+    parser.add_argument(
+        "--order_mutation", type=str, default="inversion", choices=["swap", "insert", "inversion", "rk"]
+    )
     parser.add_argument(
         "--ablation",
         type=str,
@@ -105,11 +109,25 @@ def load_campaign(campaign_id):
 # --- Individual generation --------------------------------------------------
 
 
-def generate_multi_individual(num_fields, num_drones, ablation="full"):
+def decode_order(gene):
+    """Decode the order gene to a visit permutation.
+
+    Permutation encoding stores the permutation directly (list of ints);
+    random-keys encoding stores one float key per field and visits fields in
+    ascending key order (argsort).
+    """
+    if gene and isinstance(gene[0], float):
+        return sorted(range(len(gene)), key=lambda i: gene[i])
+    return gene
+
+
+def generate_multi_individual(num_fields, num_drones, ablation="full", order_encoding="perm"):
     """Generate a random multi-field individual.
 
     Individual structure:
-        [0] field_order:    list[int]         — permutation of 0..N-1
+        [0] field_order:    list[int] (permutation of 0..N-1) or, with
+                            order_encoding="rk", list[float] random keys
+                            decoded via argsort at evaluation time
         [1] directions:     list[float]       — direction per field (indexed by field_idx)
         [2] starts:         list[str]         — start corner per field
         [3] drones:         list[list[int]]   — drone indices per field
@@ -123,6 +141,8 @@ def generate_multi_individual(num_fields, num_drones, ablation="full"):
     # Field order
     if ablation == "fixed_order":
         field_order = list(range(num_fields))
+    elif order_encoding == "rk":
+        field_order = [random.random() for _ in range(num_fields)]
     else:
         field_order = list(range(num_fields))
         random.shuffle(field_order)
@@ -141,14 +161,15 @@ def generate_multi_individual(num_fields, num_drones, ablation="full"):
     else:
         starts = [random.choice(["ne", "nw", "se", "sw"]) for _ in range(num_fields)]
 
-    # Drones per field
+    # Drones per field (length capped at MAX_DRONES_ON_CAR so generation and
+    # mutation sample the same space)
+    max_len = min(num_drones * 3, MAX_DRONES_ON_CAR)
     if ablation == "single_drones":
-        shared = [random.randint(0, num_drones - 1) for _ in range(random.randint(1, num_drones * 3))]
+        shared = [random.randint(0, num_drones - 1) for _ in range(random.randint(1, max_len))]
         drones = [shared[:] for _ in range(num_fields)]
     else:
         drones = [
-            [random.randint(0, num_drones - 1) for _ in range(random.randint(1, num_drones * 3))]
-            for _ in range(num_fields)
+            [random.randint(0, num_drones - 1) for _ in range(random.randint(1, max_len))] for _ in range(num_fields)
         ]
 
     # Car points per field
@@ -319,55 +340,78 @@ def mut_inversion(order, mutation_chance):
     return order
 
 
+def mut_rk(keys, mutation_chance):
+    """Random-keys mutation: perturb one key with Gaussian noise (wrapped).
+
+    Moving one key is the random-keys analogue of a single insert move, so the
+    per-gene mutation pressure matches the permutation operators (one move with
+    probability mutation_chance per generation).
+    """
+    if random.random() <= mutation_chance and len(keys) >= 2:
+        i = random.randrange(len(keys))
+        keys[i] = (keys[i] + random.gauss(0, 0.3)) % 1.0
+    return keys
+
+
+def cx_rk_uniform(ind1, ind2):
+    """Uniform crossover on random-keys order genes: swap each key with p=0.5."""
+    k1, k2 = ind1[0], ind2[0]
+    for i in range(min(len(k1), len(k2))):
+        if random.random() < 0.5:
+            k1[i], k2[i] = k2[i], k1[i]
+    return ind1, ind2
+
+
 def mutate_multi(ind, num_drones, num_fields, mutation_chance, order_mutation="swap", ablation="full"):
     """Mutate a multi-field individual in-place.
 
     Mutates field ordering (gene[0]) with the selected operator,
     then independently mutates per-field parameters (genes 1-4).
     """
-    MUT_ORDER = {"swap": mut_swap, "insert": mut_insert, "inversion": mut_inversion}
+    MUT_ORDER = {"swap": mut_swap, "insert": mut_insert, "inversion": mut_inversion, "rk": mut_rk}
 
     # Mutate field ordering
     if ablation != "fixed_order":
         ind[0] = MUT_ORDER[order_mutation](ind[0], mutation_chance)
 
+    def _mutate_drones(drones):
+        if not drones:
+            drones = [random.randint(0, num_drones - 1)]
+        if random.random() < 0.5:
+            drones.insert(random.randint(0, len(drones) - 1), random.randint(0, num_drones - 1))
+        if random.random() < 0.5 and len(drones) > 1:
+            del drones[random.randint(0, len(drones) - 1)]
+        if random.random() < 0.5:
+            random.shuffle(drones)
+        return drones[:MAX_DRONES_ON_CAR]
+
+    # Shared (collapsed) genes are mutated ONCE per generation with the same
+    # per-gene chance as an individual field gene, so single_* ablations get
+    # the same mutation pressure per gene as the full search — otherwise the
+    # shared gene would be mutated up to num_fields times per generation.
+    if ablation == "single_direction" and random.random() <= mutation_chance:
+        d = (ind[1][0] + random.gauss(0, 45)) % 360
+        ind[1] = [d] * num_fields
+    if ablation == "single_start" and random.random() <= mutation_chance:
+        s = random.choice(["ne", "nw", "se", "sw"])
+        ind[2] = [s] * num_fields
+    if ablation == "single_drones" and random.random() <= mutation_chance:
+        drones = _mutate_drones(ind[3][0][:])
+        ind[3] = [drones[:] for _ in range(num_fields)]
+
     # Mutate per-field parameters
     for field_idx in range(num_fields):
         # Direction
-        if random.random() <= mutation_chance:
-            if ablation == "single_direction":
-                d = (ind[1][0] + random.gauss(0, 45)) % 360
-                ind[1] = [d] * num_fields
-            else:
-                ind[1][field_idx] = (ind[1][field_idx] + random.gauss(0, 45)) % 360
+        if ablation != "single_direction" and random.random() <= mutation_chance:
+            ind[1][field_idx] = (ind[1][field_idx] + random.gauss(0, 45)) % 360
 
         # Start corner
-        if random.random() <= mutation_chance:
-            if ablation == "single_start":
-                s = random.choice(["ne", "nw", "se", "sw"])
-                ind[2] = [s] * num_fields
-            else:
-                ind[2][field_idx] = random.choice(["ne", "nw", "se", "sw"])
+        if ablation != "single_start" and random.random() <= mutation_chance:
+            ind[2][field_idx] = random.choice(["ne", "nw", "se", "sw"])
 
         # Drones
-        if random.random() <= mutation_chance:
-            if ablation == "single_drones":  # noqa: SIM108
-                drones = ind[3][0][:]
-            else:
-                drones = ind[3][field_idx]
-            if not drones:
-                drones = [random.randint(0, num_drones - 1)]
-            if random.random() < 0.5:
-                drones.insert(random.randint(0, len(drones) - 1), random.randint(0, num_drones - 1))
-            if random.random() < 0.5 and len(drones) > 1:
-                del drones[random.randint(0, len(drones) - 1)]
-            if random.random() < 0.5:
-                random.shuffle(drones)
-            drones = drones[:MAX_DRONES_ON_CAR]
-            if ablation == "single_drones":
-                ind[3] = [drones[:] for _ in range(num_fields)]
-            else:
-                ind[3][field_idx] = drones
+        if ablation != "single_drones" and random.random() <= mutation_chance:
+            ind[3][field_idx] = _mutate_drones(ind[3][field_idx])
 
         # Car points
         if random.random() <= mutation_chance:
@@ -392,7 +436,19 @@ def evaluate_multi_individual(individual, campaign_data, args, pyproj_transforme
     """Evaluate a multi-field individual.
 
     Calls get_route() once per field in visit order, sums costs, adds transit.
-    Returns: (distance, time, drone_price, salary, penalty, starts, transit_time)
+
+    Time model: within a field the assigned drones fly concurrently, so the
+    field is done when its slowest drone is done (per-field makespan = max over
+    drones of cumulative flight time at that field). The truck visits fields
+    sequentially, so campaign flight time is the SUM of per-field makespans,
+    plus inter-field transit.
+
+    Units: waypoints_distance() returns meters; drone price_per_kilometer is a
+    per-km rate, so distance is converted to km for pricing.
+
+    Returns: (distance_m, time_h, drone_price, salary, penalty, starts,
+              transit_time_h, grid_total, grid_missed, drone_usage)
+    where drone_usage maps drone DB id -> [n_flights, flight_hours].
     """
     from mainapp.service_routing import get_route
     from mainapp.utils import (
@@ -403,7 +459,7 @@ def evaluate_multi_individual(individual, campaign_data, args, pyproj_transforme
         waypoints_flight_time,
     )
 
-    field_order = individual[0]
+    field_order = decode_order(individual[0])
     directions = individual[1]
     starts = individual[2]
     drones_map = individual[3]
@@ -420,7 +476,9 @@ def evaluate_multi_individual(individual, campaign_data, args, pyproj_transforme
     total_transit_time = 0.0
     all_grids_total = 0
     all_grids_traversed = 0
-    drone_cumulative_time = defaultdict(float)
+    field_makespans = []
+    drones_used = set()
+    drone_usage = defaultdict(lambda: [0, 0.0])
 
     for visit_idx, field_idx in enumerate(field_order):
         fd = fields_data[field_idx]
@@ -465,6 +523,8 @@ def evaluate_multi_individual(individual, campaign_data, args, pyproj_transforme
         grid_total = sum(len(line) for line in grid)
         all_grids_total += grid_total
 
+        field_drone_time = defaultdict(float)
+        field_covered = set()
         for drone_waypoints in waypoints:
             new_distance = waypoints_distance(drone_waypoints, lat_f=_WP_LAT, lon_f=_WP_LON)
             new_time = waypoints_flight_time(
@@ -479,18 +539,25 @@ def evaluate_multi_individual(individual, campaign_data, args, pyproj_transforme
             )
             total_distance += new_distance
             drone_id = drone_waypoints[0]["drone"]["id"]
-            drone_cumulative_time[drone_id] += new_time + SETUP_TIME_PER_FLIGHT_HOURS
-            total_drone_price += drone_flight_price(drone_waypoints[0]["drone"], new_distance, new_time)
-            all_grids_traversed += sum(1 for wp in drone_waypoints if wp["spray_on"])
+            field_drone_time[drone_id] += new_time + SETUP_TIME_PER_FLIGHT_HOURS
+            drones_used.add(drone_id)
+            drone_usage[drone_id][0] += 1
+            drone_usage[drone_id][1] += new_time
+            total_drone_price += drone_flight_price(drone_waypoints[0]["drone"], new_distance / 1000.0, new_time)
+            field_covered.update(
+                (round(_WP_LAT(wp), 9), round(_WP_LON(wp), 9)) for wp in drone_waypoints if wp["spray_on"]
+            )
             total_starts += 1
+        if field_drone_time:
+            field_makespans.append(max(field_drone_time.values()))
+        all_grids_traversed += len(field_covered)
 
-    if not drone_cumulative_time:
-        return 0, 0, 0, 0, 1_000_000, 0, 0
+    if not drones_used:
+        return 0, 0, 0, 0, 1_000_000, 0, 0, all_grids_total, all_grids_total, {}
 
-    max_drone_time = max(drone_cumulative_time.values())
-    total_time = max_drone_time + total_transit_time
+    total_time = sum(field_makespans) + total_transit_time
 
-    total_salary = campaign.hourly_price * total_time * len(drone_cumulative_time) + campaign.start_price * total_starts
+    total_salary = campaign.hourly_price * total_time * len(drones_used) + campaign.start_price * total_starts
 
     total_penalty = flight_penalty(
         total_time,
@@ -510,13 +577,18 @@ def evaluate_multi_individual(individual, campaign_data, args, pyproj_transforme
         total_penalty,
         total_starts,
         total_transit_time,
+        all_grids_total,
+        max(all_grids_total - all_grids_traversed, 0),
+        dict(drone_usage),
     )
 
 
 # --- Toolbox setup ----------------------------------------------------------
 
 
-def setup_multi_toolbox(num_fields, num_drones, evaluate_fn, mutate_fn, crossover_type="ox", ablation="full"):
+def setup_multi_toolbox(
+    num_fields, num_drones, evaluate_fn, mutate_fn, crossover_type="ox", ablation="full", order_encoding=None
+):
     """Create and configure a DEAP toolbox for multi-field GA."""
     from deap import base, creator, tools
     from scoop import futures
@@ -528,17 +600,20 @@ def setup_multi_toolbox(num_fields, num_drones, evaluate_fn, mutate_fn, crossove
     if not hasattr(creator, "Individual"):
         creator.create("Individual", list, fitness=creator.FitnessMax)
 
+    if order_encoding is None:
+        order_encoding = "rk" if crossover_type == "rk" else "perm"
+
     toolbox = base.Toolbox()
     toolbox.register(
         "individual",
         tools.initIterate,
         creator.Individual,
-        lambda: generate_multi_individual(num_fields, num_drones, ablation),
+        lambda: generate_multi_individual(num_fields, num_drones, ablation, order_encoding),
     )
     toolbox.register("population", tools.initRepeat, list, toolbox.individual)
     toolbox.register("evaluate", evaluate_fn)
 
-    CX_MAP = {"ox": cx_order, "pmx": cx_pmx, "cx": cx_cycle}
+    CX_MAP = {"ox": cx_order, "pmx": cx_pmx, "cx": cx_cycle, "rk": cx_rk_uniform}
     ordering_cx = CX_MAP[crossover_type]
 
     def combined_crossover(ind1, ind2):
@@ -564,6 +639,11 @@ def run_multi_ga(toolbox, population_size, ngen):
     population = toolbox.population(n=population_size)
     iterations = []
 
+    # Evaluate the initial population so it can compete in (mu + lambda)
+    # survivor selection below (elitism: parents survive alongside offspring).
+    for result, ind in zip(toolbox.map(toolbox.evaluate, population), population):
+        ind.fitness.values = (result[2] + result[3] + result[4],)
+
     for gen in range(ngen):
         print(f"{gen + 1}/{ngen}")
         offspring = algorithms.varAnd(population, toolbox, cxpb=0.5, mutpb=1)
@@ -571,7 +651,7 @@ def run_multi_ga(toolbox, population_size, ngen):
         fitness_params = []
 
         for result, ind in zip(fits, offspring):
-            (distance, time, drone_price, salary, penalty, number_of_starts, transit_time) = result
+            (distance, time, drone_price, salary, penalty, number_of_starts, transit_time) = result[:7]
             ind.fitness.values = (drone_price + salary + penalty,)
             fitness_params.append(
                 {
@@ -585,7 +665,7 @@ def run_multi_ga(toolbox, population_size, ngen):
                 }
             )
 
-        population = toolbox.select(offspring, k=len(population))
+        population = toolbox.select(population + offspring, k=len(population))
 
         best = min(fitness_params, key=lambda x: x["drone_price"] + x["salary"] + x["penalty"])
         n = len(fitness_params)

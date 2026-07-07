@@ -1,5 +1,18 @@
 # Multi-Field UAV Coverage Campaigns: Joint Ordering + Per-Field Optimization
 
+> **STALE (2026-07-03): all numbers below predate two model fixes** — (1) campaign time
+> is now the sum of per-field makespans + transit (was: max over drones across fields,
+> which let flights at different fields overlap); (2) drone `price_per_kilometer` is now
+> applied to km (was: to meters, inflating wear cost ×1000 and with it the
+> "ordering is a minor lever" conclusion). Canonical operator is now ox+inversion,
+> GA/RS random streams are independent, the NN hybrid is described as NN-*fixed*
+> (order frozen), day limits are 8/14 h. Additionally (2026-07-07) all campaigns except
+> the C2 controls were rebuilt with realistic irregular parcels (rotated quad/trapezoid/
+> pentagon/wedge/L-shape templates, area-matched) and the matrix fully re-run again;
+> this file is superseded by the regenerated `results_tables.md` and the paper draft in
+> `experiments/paper/`. Old raw data: `experiments/archive/` (square-fields run:
+> `exp_results_square_fields.jsonl`).
+
 *Results for the multi-field track. All numbers are regenerable: `scripts/exp_campaigns.py`
 → `scripts/exp_run.py` → `scripts/exp_analyze.py`. Canonical tables live in
 `experiments/results_tables.md`, machine-readable aggregates in `results_summary.json`,
@@ -152,14 +165,15 @@ degrades with N is ordering optimality (§3.4), which §3.5 addresses.
    deficit at large N for free.
 5. Everything is reproducible end-to-end and penalty-free on coverage throughout.
 
-## 5. Reproduce
+## 5. Reproduce (current pipeline)
 ```bash
-venv39\Scripts\python.exe scripts/exp_campaigns.py          # build 7 base campaigns
+venv39\Scripts\python.exe scripts/exp_campaigns.py          # 9 campaigns + 5-drone fleet
 venv39\Scripts\python.exe scripts/exp_campaign_varied.py    # + C5varied (elongated/rotated)
-venv39\Scripts\python.exe scripts/exp_run.py --ngen 40 --pop 50 --seeds 8 --workers 14
-venv39\Scripts\python.exe scripts/exp_run.py --roles C5varied --nn_seed --out scripts/exp_results_varied.jsonl
-venv39\Scripts\python.exe scripts/exp_run.py --roles C5mixed,C5holes,C10grid --nn_only --out scripts/exp_results_nn.jsonl
-venv39\Scripts\python.exe scripts/exp_tsp_operators.py      # operator vs exact-TSP study
 venv39\Scripts\python.exe scripts/exp_ordering.py           # exact optimal / NN / default tours
+venv39\Scripts\python.exe scripts/exp_tsp_operators.py      # operators + rk encoding vs exact TSP
+venv39\Scripts\python.exe scripts/exp_run.py --ngen 40 --pop 50 --seeds 8 --workers 14 ^
+    --nn_seed --transit_roles C5mixed,C10grid --resume      # full 488-job matrix (resumable)
 venv39\Scripts\python.exe scripts/exp_analyze.py            # tables + figures
+venv39\Scripts\python.exe scripts/exp_figures_maps.py       # campaign gallery + example plan maps
+venv39\Scripts\python.exe scripts/make_paper_docx.py        # render the paper draft
 ```
