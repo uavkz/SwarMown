@@ -10,8 +10,8 @@ This module builds the directed transit matrix per campaign and computes:
   * exact worst open-path tour,
   * nearest-neighbour heuristic tour (best over all start fields),
   * default (as-given) order tour,
-and the resulting cost "lever" = (worst-best) transit * hourly_price * n_drones,
-i.e. how many dollars the ordering decision is worth.
+and the resulting cost "lever" = (worst-best) transit * hourly_price,
+i.e. how many dollars the ordering decision is worth (one crew, paid per hour).
 
 Importable: transit_matrix(cd), held_karp(M, minimize), nn_order(M),
 tour_cost(M, order). Run directly to print a per-campaign table.
@@ -116,7 +116,7 @@ def main():
     hourly = 10.0  # campaigns share hourly_price=10
     print(
         f"{'role':9s} {'N':>2s} {'opt_h':>7s} {'nn_h':>7s} {'dflt_h':>7s} {'worst_h':>8s} "
-        f"{'nn_gap%':>7s} {'dflt_gap%':>9s} {'lever$/drone':>12s}"
+        f"{'nn_gap%':>7s} {'dflt_gap%':>9s} {'lever$':>12s}"
     )
     out = {}
     for role, cid in manifest.items():
@@ -131,7 +131,7 @@ def main():
         dflt_c = tour_cost(M, dflt_o)
         nn_gap = 100 * (nn_c - opt_c) / opt_c if opt_c > 0 else 0
         dflt_gap = 100 * (dflt_c - opt_c) / opt_c if opt_c > 0 else 0
-        lever = (worst_c - opt_c) * hourly  # per drone; multiply by n_drones used
+        lever = (worst_c - opt_c) * hourly  # crew is paid per hour (one crew, any fleet)
         print(
             f"{role:9s} {n:2d} {opt_c:7.3f} {nn_c:7.3f} {dflt_c:7.3f} {worst_c:8.3f} "
             f"{nn_gap:7.1f} {dflt_gap:9.1f} {lever:12.2f}"

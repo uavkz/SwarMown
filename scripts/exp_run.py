@@ -296,7 +296,7 @@ ENC_ROLES = ["C10grid", "C15scatter"]
 # genuinely matters), C5size (field sizes differ 16x -> per-field drone subsets
 # genuinely matter), C3big (very large fields -> within-field parallelism via the
 # drones gene is the dominant lever; single_drones is the money ablation).
-ABL_ROLES = ["C3line", "C5mixed", "C5holes", "C10grid", "C5varied", "C5size", "C3big"]
+ABL_ROLES = ["C3line", "C5mixed", "C5holes", "C10grid", "C5varied", "C5size", "C3big", "C15scatter"]
 # Campaigns where the field tour is a real combinatorial problem -> where the
 # NN-fixed hybrid is worth comparing against the plain GA.
 NN_ROLES = ["C5mixed", "C5holes", "C10grid", "C5varied", "C5size", "C15scatter"]
@@ -309,7 +309,13 @@ OP_SEEDS = 3
 
 CROSSOVERS = ["ox", "pmx", "cx"]
 MUTATIONS = ["swap", "insert", "inversion"]
-ABLATIONS = ["fixed_order", "single_direction", "single_start", "single_drones"]  # 'full' is canonical
+# Primary ablations: one dimension NOT optimized, frozen at a reasonable
+# default (storage order / east-west lines / sw corner / one mid-class drone).
+ABLATIONS = ["fixed_order", "fixed_direction", "fixed_start", "fixed_drones"]  # 'full' is canonical
+# Granularity variants (dimension still optimized, but shared campaign-wide
+# instead of per-field) on a small set of illustrative campaigns.
+GRAN_ABLATIONS = ["single_direction", "single_start", "single_drones"]
+GRAN_ROLES = ["C5size", "C5holes", "C10grid"]
 TRANSIT_SPEEDS = [20.0, 60.0, 80.0]  # 40 is canonical
 
 
@@ -383,6 +389,10 @@ def build_jobs(
             # (3) Ablations (full is canonical)
             for role in ABL_ROLES:
                 for abl in ABLATIONS:
+                    add(role, "ga", "ox", "inversion", abl, None, s)
+            # (3b) Granularity variants: shared-vs-per-field, illustrative roles
+            for role in GRAN_ROLES:
+                for abl in GRAN_ABLATIONS:
                     add(role, "ga", "ox", "inversion", abl, None, s)
             # (4) Transit-speed sensitivity (40 is canonical)
             for role in transit_roles:

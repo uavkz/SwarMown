@@ -1,13 +1,13 @@
 {
-  "C2close": 31,
-  "C2far": 32,
-  "C3line": 33,
-  "C3tri": 34,
-  "C5mixed": 35,
-  "C5holes": 36,
-  "C10grid": 37,
-  "C5size": 38,
-  "C15scatter": 39,
-  "C5varied": 40,
-  "C3big": 41
+  "C2close": 42,
+  "C2far": 43,
+  "C3line": 44,
+  "C3tri": 45,
+  "C5mixed": 46,
+  "C5holes": 47,
+  "C10grid": 48,
+  "C5size": 49,
+  "C15scatter": 50,
+  "C5varied": 51,
+  "C3big": 52
 }

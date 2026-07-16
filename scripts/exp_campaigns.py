@@ -34,52 +34,95 @@ from mainapp.models import Campaign, CampaignField, Drone, Field  # noqa: E402
 EXP_USER = "exp_runner"
 MANIFEST_PATH = Path(__file__).resolve().parent / "exp_manifest.json"
 
-# Drones attached to every campaign (varied range & price so the single_drones
-# ablation has something to optimise). IDs are stable in this DB.
-DRONE_IDS = [203, 209, 215]  # Phantom 4 (range 13.6), Mavic 2 (37.2), Autel Evo II (48)
-
-# Two additional airframes created by this script (get_or_create by name+model)
-# to give the fleet real Pareto structure. The three stock drones all cruise at
-# 72 km/h, so airframe choice never affected makespan; the M300-class machine is
-# faster and long-endurance but expensive per hour, the Mini-class one is the
-# cheapest possible crewed unit but slow and short-ranged.
-EXTRA_DRONES = [
+# Experiment fleet (v2): five drone classes with genuine Pareto structure and
+# NO dominated model under the one-crew cost model (salary is per hour, not per
+# model). Axes, from light to heavy class: agility falls (turn slowdown and its
+# floor worsen), cruise speed and battery range rise, per-launch cost (c_cycle,
+# battery/tank cycle) rises, per-flight-hour cost FALLS (amortized maintenance
+# per hour declines with platform class). Net effect: small/turn-dense parcels
+# favour light models (cheap launches, agile, hourly premium irrelevant on
+# short flights); large parcels favour heavy models (few launches, cheap
+# hours, clumsiness amortized over long straight lines). Stock DB drones are
+# left untouched; these are created by name (get_or_create).
+FLEET_SPECS = [
     dict(
-        name="EXP DJI Matrice 300 RTK",
-        model="M300 RTK",
-        max_speed=82.0,
-        max_distance_no_load=60.0,
-        price_per_cycle=5.2,
-        price_per_kilometer=0.11,
-        price_per_hour=9.0,
-        slowdown_ratio_per_degree=0.005,
-        min_slowdown_ratio=0.01,
-        weight=6.3,
-        max_load=2.7,
-    ),
-    dict(
-        name="EXP DJI Mini 4 Pro",
-        model="Mini 4 Pro",
+        name="EXP Scout (Mini-class)",
+        model="scout",
         max_speed=58.0,
         max_distance_no_load=12.0,
-        price_per_cycle=0.4,
-        price_per_kilometer=0.012,
-        price_per_hour=0.9,
-        slowdown_ratio_per_degree=0.005,
-        min_slowdown_ratio=0.01,
+        slowdown_ratio_per_degree=0.002,
+        min_slowdown_ratio=0.40,
+        price_per_cycle=0.3,
+        price_per_kilometer=0.010,
+        price_per_hour=4.8,
         weight=0.25,
         max_load=0.25,
+    ),
+    dict(
+        name="EXP Light (Phantom-class)",
+        model="light",
+        max_speed=72.0,
+        max_distance_no_load=14.0,
+        slowdown_ratio_per_degree=0.004,
+        min_slowdown_ratio=0.15,
+        price_per_cycle=0.8,
+        price_per_kilometer=0.020,
+        price_per_hour=3.0,
+        weight=1.4,
+        max_load=0.5,
+    ),
+    dict(
+        name="EXP Mid (Mavic-class)",
+        model="mid",
+        max_speed=72.0,
+        max_distance_no_load=37.0,
+        slowdown_ratio_per_degree=0.005,
+        min_slowdown_ratio=0.10,
+        price_per_cycle=1.7,
+        price_per_kilometer=0.045,
+        price_per_hour=2.4,
+        weight=0.9,
+        max_load=0.5,
+    ),
+    dict(
+        name="EXP Long (Evo-class)",
+        model="long",
+        max_speed=72.0,
+        max_distance_no_load=48.0,
+        slowdown_ratio_per_degree=0.0065,
+        min_slowdown_ratio=0.05,
+        price_per_cycle=3.0,
+        price_per_kilometer=0.060,
+        price_per_hour=1.6,
+        weight=1.2,
+        max_load=0.9,
+    ),
+    dict(
+        name="EXP Heavy (M300-class)",
+        model="heavy",
+        max_speed=82.0,
+        max_distance_no_load=60.0,
+        slowdown_ratio_per_degree=0.008,
+        min_slowdown_ratio=0.03,
+        price_per_cycle=6.0,
+        price_per_kilometer=0.080,
+        price_per_hour=1.0,
+        weight=6.3,
+        max_load=2.7,
     ),
 ]
 
 
 def get_fleet():
-    """The three stock drones plus the two EXP airframes (created if missing)."""
-    drones = list(Drone.objects.filter(id__in=DRONE_IDS))
-    if len(drones) != len(DRONE_IDS):
-        print(f"WARNING: expected drones {DRONE_IDS}, found {[d.id for d in drones]}")
-    for spec in EXTRA_DRONES:
-        d, _ = Drone.objects.get_or_create(name=spec["name"], model=spec["model"], defaults=spec)
+    """The five EXP fleet-v2 drones (created if missing), in class order."""
+    drones = []
+    for spec in FLEET_SPECS:
+        d, created = Drone.objects.get_or_create(name=spec["name"], defaults=spec)
+        if not created:
+            # keep DB in sync with the specs above (idempotent redefinition)
+            for k, v in spec.items():
+                setattr(d, k, v)
+            d.save()
         drones.append(d)
     return drones
 

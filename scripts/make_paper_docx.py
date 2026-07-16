@@ -96,15 +96,15 @@ def main():
             continue
         m = re.match(r"^(#{1,4})\s+(.*)$", line)
         if m:
+            # Plain bold black headings (no Word heading styles -> no theme color).
             level = len(m.group(1))
-            if level == 1:
-                p = doc.add_paragraph()
-                add_runs(p, m.group(2))
-                for r in p.runs:
-                    r.bold = True
-                    r.font.size = Pt(14)
-            else:
-                doc.add_heading(m.group(2), level=level - 1)
+            sizes = {1: 14, 2: 12, 3: 11, 4: 11}
+            p = doc.add_paragraph()
+            p.paragraph_format.space_before = Pt(10)
+            add_runs(p, m.group(2))
+            for r in p.runs:
+                r.bold = True
+                r.font.size = Pt(sizes[level])
             i += 1
             continue
         m = re.match(r"^!\[(.*)\]\((.+)\)$", line)
@@ -127,10 +127,13 @@ def main():
             add_runs(p, line[2:])
             i += 1
             continue
-        m = re.match(r"^\d+\.\s+(.*)$", line)
+        m = re.match(r"^(\d+)\.\s+(.*)$", line)
         if m:
-            p = doc.add_paragraph(style="List Number")
-            add_runs(p, m.group(1))
+            # Literal numbering: Word's List Number style shares one counter
+            # across the document, so lists after the first start mid-sequence.
+            p = doc.add_paragraph()
+            p.paragraph_format.left_indent = Inches(0.25)
+            add_runs(p, f"{m.group(1)}. {m.group(2)}")
             i += 1
             continue
         # plain paragraph (join soft-wrapped lines)

@@ -62,7 +62,16 @@ def build_multi_argparser():
         "--ablation",
         type=str,
         default="full",
-        choices=["full", "single_direction", "single_start", "fixed_order", "single_drones"],
+        choices=[
+            "full",
+            "fixed_order",
+            "fixed_direction",
+            "fixed_start",
+            "fixed_drones",
+            "single_direction",
+            "single_start",
+            "single_drones",
+        ],
     )
     return parser
 
@@ -151,6 +160,9 @@ def generate_multi_individual(num_fields, num_drones, ablation="full", order_enc
     if ablation == "single_direction":
         d = random.uniform(0, 360)
         directions = [d] * num_fields
+    elif ablation == "fixed_direction":
+        # Not optimized: east-west flight lines everywhere (naive default).
+        directions = [0.0] * num_fields
     else:
         directions = [random.uniform(0, 360) for _ in range(num_fields)]
 
@@ -158,6 +170,9 @@ def generate_multi_individual(num_fields, num_drones, ablation="full", order_enc
     if ablation == "single_start":
         s = random.choice(["ne", "nw", "se", "sw"])
         starts = [s] * num_fields
+    elif ablation == "fixed_start":
+        # Not optimized: corner nearest the road's western entry (naive default).
+        starts = ["sw"] * num_fields
     else:
         starts = [random.choice(["ne", "nw", "se", "sw"]) for _ in range(num_fields)]
 
@@ -167,6 +182,10 @@ def generate_multi_individual(num_fields, num_drones, ablation="full", order_enc
     if ablation == "single_drones":
         shared = [random.randint(0, num_drones - 1) for _ in range(random.randint(1, max_len))]
         drones = [shared[:] for _ in range(num_fields)]
+    elif ablation == "fixed_drones":
+        # Fleet not optimized: a single mid-class workhorse covers every field
+        # (the reasonable naive default -- also the best single model overall).
+        drones = [[num_drones // 2] for _ in range(num_fields)]
     else:
         drones = [
             [random.randint(0, num_drones - 1) for _ in range(random.randint(1, max_len))] for _ in range(num_fields)
@@ -402,15 +421,15 @@ def mutate_multi(ind, num_drones, num_fields, mutation_chance, order_mutation="s
     # Mutate per-field parameters
     for field_idx in range(num_fields):
         # Direction
-        if ablation != "single_direction" and random.random() <= mutation_chance:
+        if ablation not in ("single_direction", "fixed_direction") and random.random() <= mutation_chance:
             ind[1][field_idx] = (ind[1][field_idx] + random.gauss(0, 45)) % 360
 
         # Start corner
-        if ablation != "single_start" and random.random() <= mutation_chance:
+        if ablation not in ("single_start", "fixed_start") and random.random() <= mutation_chance:
             ind[2][field_idx] = random.choice(["ne", "nw", "se", "sw"])
 
         # Drones
-        if ablation != "single_drones" and random.random() <= mutation_chance:
+        if ablation not in ("single_drones", "fixed_drones") and random.random() <= mutation_chance:
             ind[3][field_idx] = _mutate_drones(ind[3][field_idx])
 
         # Car points
@@ -557,7 +576,12 @@ def evaluate_multi_individual(individual, campaign_data, args, pyproj_transforme
 
     total_time = sum(field_makespans) + total_transit_time
 
-    total_salary = campaign.hourly_price * total_time * len(drones_used) + campaign.start_price * total_starts
+    # One crew operates the whole campaign regardless of how many drone models
+    # fly (drones execute waypoints autonomously; an operator launches one,
+    # then services the next). Crew pay is purely per hour + per launch.
+    # (The legacy single-field scripts multiplied by the number of drones used;
+    # that convention is deliberately NOT carried over here.)
+    total_salary = campaign.hourly_price * total_time + campaign.start_price * total_starts
 
     total_penalty = flight_penalty(
         total_time,

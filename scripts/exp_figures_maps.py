@@ -32,6 +32,8 @@ import matplotlib.pyplot as plt  # noqa: E402
 from matplotlib.lines import Line2D  # noqa: E402
 from matplotlib.patches import Polygon as MplPolygon  # noqa: E402
 
+from scripts.exp_analyze import DISPLAY  # noqa: E402
+
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
 FIG_DIR = ROOT / "experiments" / "figures"
@@ -55,11 +57,11 @@ ROLE_ORDER = [
 ]
 
 DRONE_COLORS = {
-    222: ("#17becf", "Mini 4 Pro"),
-    203: ("#1f77b4", "Phantom 4"),
-    209: ("#ff7f0e", "Mavic 2"),
-    215: ("#2ca02c", "Autel Evo II"),
-    221: ("#d62728", "Matrice 300"),
+    223: ("#17becf", "Scout (Mini-class)"),
+    224: ("#1f77b4", "Light (Phantom-class)"),
+    225: ("#ff7f0e", "Mid (Mavic-class)"),
+    226: ("#2ca02c", "Long (Evo-class)"),
+    227: ("#d62728", "Heavy (M300-class)"),
 }
 
 
@@ -119,7 +121,7 @@ def fig_campaign_gallery():
         cd = load_campaign(MANIFEST[role])
         conv, _, _ = campaign_geo(cd)
         draw_campaign(ax, cd, conv)
-        ax.set_title(f"{role} (N={cd['num_fields']})", fontsize=10)
+        ax.set_title(f"{DISPLAY.get(role, role)} (N={cd['num_fields']})", fontsize=10)
         ax.tick_params(labelsize=7)
         ax.set_xlabel("km", fontsize=8)
         ax.margins(0.08)
@@ -287,7 +289,8 @@ def fig_example_plan(main_role="C5size", zoom_role="C5holes", big_role="C3big"):
     routes = reconstruct_routes(cd, rec_main["best_ind"], rec_main["best_order"])
     used = draw_plan(ax1, cd, conv, routes, rec_main["best_order"])
     ax1.set_title(
-        f"(a) {main_role}: best plan, cost ${rec_main['best_fit']:.0f} (visit order circled, truck transit dashed)",
+        f"(a) {DISPLAY.get(main_role, main_role)}: best plan, cost ${rec_main['best_fit']:.0f} "
+        f"(visit order circled, truck transit dashed)",
         fontsize=10,
     )
     ax1.set_xlabel("km")
@@ -307,7 +310,10 @@ def fig_example_plan(main_role="C5size", zoom_role="C5holes", big_role="C3big"):
     pad = 0.25
     ax2.set_xlim(min(xs) - pad, max(xs) + pad)
     ax2.set_ylim(min(ys) - pad - 0.2, max(ys) + pad)
-    ax2.set_title(f"(b) {zoom_role}: coverage of an obstacle field\n(dotted = ferry/detour legs)", fontsize=10)
+    ax2.set_title(
+        f"(b) {DISPLAY.get(zoom_role, zoom_role)}: coverage of an obstacle field\n(dotted = ferry/detour legs)",
+        fontsize=10,
+    )
     ax2.set_xlabel("km")
 
     # (c) the C3big giant field: several airframes covering one field concurrently
@@ -328,7 +334,9 @@ def fig_example_plan(main_role="C5size", zoom_role="C5holes", big_role="C3big"):
         ax3.set_xlim(min(xs) - pad, max(xs) + pad)
         ax3.set_ylim(min(ys) - pad - 0.25, max(ys) + pad)
         ax3.set_title(
-            f"(c) {big_role}: one ~780 ha field split\nacross several airframes (concurrent sorties)", fontsize=10
+            f"(c) {DISPLAY.get(big_role, big_role)}: one ~780 ha field split\n"
+            f"across several drones (concurrent flights)",
+            fontsize=10,
         )
         ax3.set_xlabel("km")
 

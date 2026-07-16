@@ -59,17 +59,55 @@ N_BY_ROLE = {
     "C5size": 5,
     "C15scatter": 15,
 }
-ABLATIONS = ["fixed_order", "single_direction", "single_start", "single_drones"]
-ABL_ROLES = ["C3line", "C5mixed", "C5holes", "C10grid", "C5varied", "C5size", "C3big"]
+ABLATIONS = ["fixed_order", "fixed_direction", "fixed_start", "fixed_drones"]
+GRAN_ABLATIONS = ["single_direction", "single_start", "single_drones"]
+GRAN_ROLES = ["C5size", "C5holes", "C10grid"]
+ABL_ROLES = ["C3line", "C5mixed", "C5holes", "C10grid", "C5varied", "C5size", "C3big", "C15scatter"]
 NN_ROLES = ["C5mixed", "C5holes", "C10grid", "C5varied", "C5size", "C15scatter"]
 ENC_ROLES = ["C10grid", "C15scatter"]
 DRONE_NAMES = {
-    "203": "Phantom 4",
-    "209": "Mavic 2",
-    "215": "Autel Evo II",
-    "221": "Matrice 300",
-    "222": "Mini 4 Pro",
+    "223": "Scout (Mini-class)",
+    "224": "Light (Phantom-class)",
+    "225": "Mid (Mavic-class)",
+    "226": "Long (Evo-class)",
+    "227": "Heavy (M300-class)",
 }
+
+# Display names for figures/paper: hyphenated, "holes" -> "obstacles".
+DISPLAY = {
+    "C2close": "C2-close",
+    "C2far": "C2-far",
+    "C3line": "C3-line",
+    "C3tri": "C3-tri",
+    "C3big": "C3-big",
+    "C5mixed": "C5-mixed",
+    "C5holes": "C5-obstacles",
+    "C5varied": "C5-varied",
+    "C5size": "C5-size",
+    "C10grid": "C10-grid",
+    "C15scatter": "C15-scatter",
+}
+ABL_LABELS = {
+    "fixed_order": "fixed order",
+    "fixed_direction": "fixed direction",
+    "fixed_start": "fixed start corner",
+    "fixed_drones": "fixed drone (mid-class)",
+    "single_direction": "shared direction",
+    "single_start": "shared start corner",
+    "single_drones": "shared drone sequence",
+}
+OP_LABELS = {"rk": "random keys"}
+
+
+def disp(role):
+    return DISPLAY.get(role, role)
+
+
+def op_label(key):
+    if key in OP_LABELS:
+        return OP_LABELS[key]
+    cx, _, mut = key.partition("_")
+    return f"{cx.upper()}+{mut}"
 
 
 def load_recs():
@@ -196,39 +234,55 @@ def main():
     # ========================================================================
     # Table 2: Ablation study (Δ vs full per dimension)
     # ========================================================================
-    md.append("## Table 2 — Ablation: cost increase when a dimension is disabled\n")
-    md.append("Positive Δ% = disabling that dimension makes the solution *worse* (so that dimension matters).\n")
-    md.append("| Campaign | full | fixed_order | single_direction | single_start | single_drones |")
-    md.append("|---|---|---|---|---|---|")
-    t2 = {}
-    for role in ABL_ROLES:
-        full = [r["best_fit"] for r in recs if r["role"] == role and is_canonical(r)]
-        if not full:
-            continue
-        fm = mean(full)
-        row = [f"| {role} | {fm:.1f} (base) "]
-        t2[role] = {"full_mean": fm}
-        for abl in ABLATIONS:
-            ab = [
-                r["best_fit"]
-                for r in recs
-                if r["role"] == role
-                and r["method"] == "ga"
-                and r["ablation"] == abl
-                and r["crossover"] == CANON_CX
-                and r["mutation"] == CANON_MUT
-                and r.get("truck_speed") is None
-            ]
-            if not ab:
-                row.append("| — ")
+    def _abl_table(title, note, ablations, roles, key):
+        md.append(title + "\n")
+        md.append(note + "\n")
+        md.append("| Campaign | full | " + " | ".join(ABL_LABELS.get(a, a) for a in ablations) + " |")
+        md.append("|---" * (2 + len(ablations)) + "|")
+        tt = {}
+        for role in roles:
+            full = [r["best_fit"] for r in recs if r["role"] == role and is_canonical(r)]
+            if not full:
                 continue
-            d = 100.0 * (mean(ab) - fm) / fm
-            p = pval(ab, full)
-            row.append(f"| {d:+.1f}% {sig(p)} ")
-            t2[role][abl] = {"mean": mean(ab), "delta_pct": d, "p": p}
-        md.append("".join(row) + "|")
-    summary["ablation"] = t2
-    md.append("")
+            fm = mean(full)
+            row = [f"| {role} | {fm:.1f} (base) "]
+            tt[role] = {"full_mean": fm}
+            for abl in ablations:
+                ab = [
+                    r["best_fit"]
+                    for r in recs
+                    if r["role"] == role
+                    and r["method"] == "ga"
+                    and r["ablation"] == abl
+                    and r["crossover"] == CANON_CX
+                    and r["mutation"] == CANON_MUT
+                    and r.get("truck_speed") is None
+                ]
+                if not ab:
+                    row.append("| — ")
+                    continue
+                d = 100.0 * (mean(ab) - fm) / fm
+                p = pval(ab, full)
+                row.append(f"| {d:+.1f}% {sig(p)} ")
+                tt[role][abl] = {"mean": mean(ab), "delta_pct": d, "p": p}
+            md.append("".join(row) + "|")
+        summary[key] = tt
+        md.append("")
+
+    _abl_table(
+        "## Table 2 — Ablation: cost increase when a dimension is not optimized",
+        "Each dimension frozen at a reasonable default. Positive Δ% = freezing hurts (the dimension matters).",
+        ABLATIONS,
+        ABL_ROLES,
+        "ablation",
+    )
+    _abl_table(
+        "## Table 2b — Granularity: shared campaign-wide value vs per-field values",
+        "Dimension still optimized but shared across fields. Positive Δ% = per-field variation matters.",
+        GRAN_ABLATIONS,
+        GRAN_ROLES,
+        "granularity",
+    )
 
     # ========================================================================
     # Table 3: Scaling (canonical GA full)
@@ -495,7 +549,7 @@ def make_figures(recs, tsp, order_cache=None):
             x = np.arange(1, len(m) + 1)
             ax.plot(x, m, label="Random search", color="C3", ls="--")
             ax.fill_between(x, m - s, m + s, alpha=0.2, color="C3")
-        ax.set_title(f"{role} (N={N_BY_ROLE[role]})")
+        ax.set_title(f"{disp(role)} (N={N_BY_ROLE[role]})")
         ax.set_xlabel("generation")
         ax.set_ylabel("best-so-far cost")
         # Penalty blow-ups (day-limit violations) span orders of magnitude
@@ -529,12 +583,25 @@ def make_figures(recs, tsp, order_cache=None):
                 and r.get("truck_speed") is None
             ]
             deltas.append(100.0 * (mean(ab) - mean(full)) / mean(full) if (ab and full) else 0)
-        ax.bar(xs + (k - 1.5) * width, deltas, width, label=abl)
+        # clip extreme bars so the small deltas stay readable; annotate true value
+        y_cap = 12.0
+        shown = [min(d, y_cap) for d in deltas]
+        bars = ax.bar(xs + (k - 1.5) * width, shown, width, label=ABL_LABELS.get(abl, abl))
+        for bar, d in zip(bars, deltas):
+            if d > y_cap:
+                ax.annotate(
+                    f"+{d:.0f}%",
+                    (bar.get_x() + bar.get_width() / 2, y_cap),
+                    ha="center",
+                    va="bottom",
+                    fontsize=9,
+                )
     ax.axhline(0, color="k", lw=0.8)
+    ax.set_ylim(-8, 14)
     ax.set_xticks(xs)
-    ax.set_xticklabels(abl_roles)
-    ax.set_ylabel("cost increase vs full GA (%)")
-    ax.set_title("Ablation: how much each optimization dimension is worth")
+    ax.set_xticklabels([disp(r) for r in abl_roles])
+    ax.set_ylabel("cost change vs full GA (%)")
+    ax.set_title("Ablation: cost change when one decision dimension is collapsed (bars clipped at +12%)")
     ax.legend()
     fig.tight_layout()
     fig.savefig(FIG_DIR / "fig2_ablation.png", dpi=130)
@@ -553,7 +620,7 @@ def make_figures(recs, tsp, order_cache=None):
         fig, ax = plt.subplots(figsize=(7, 4.5))
         ax.scatter([p[1] for p in pts], [p[2] for p in pts], color="C0", zorder=3)
         for role, n, w in pts:
-            ax.annotate(role, (n, w), textcoords="offset points", xytext=(6, 4), fontsize=9)
+            ax.annotate(disp(role), (n, w), textcoords="offset points", xytext=(6, 4), fontsize=9)
         ax.set_xlabel("number of fields N")
         ax.set_ylabel("wall time per GA run (s)")
         ax.set_title("Runtime scaling with number of fields")
@@ -595,19 +662,20 @@ def make_figures(recs, tsp, order_cache=None):
     fig, (ax, ax2) = plt.subplots(1, 2, figsize=(12, 4.2))
     sx, sy_fit, sy_tr, _ = _sweep("C5mixed")
     if sx:
-        ax.plot(sx, sy_fit, "o-", color="C0")
+        (l1,) = ax.plot(sx, sy_fit, "o-", color="C0", label="campaign cost ($, left axis)")
         ax.set_xlabel("truck speed (km/h)")
         ax.set_ylabel("campaign cost ($)", color="C0")
         axb = ax.twinx()
-        axb.plot(sx, sy_tr, "s--", color="C3")
+        (l2,) = axb.plot(sx, sy_tr, "s--", color="C3", label="transit time (h, right axis)")
         axb.set_ylabel("transit (h)", color="C3")
-        ax.set_title("C5mixed: cost follows the transit share")
+        ax.legend(handles=[l1, l2], fontsize=9)
+        ax.set_title("C5-mixed: cost follows the transit share")
     for role, marker in [("C5mixed", "o"), ("C10grid", "s")]:
         sx, _, _, sy_gap = _sweep(role)
         if sx:
-            ax2.plot(sx, sy_gap, marker + "-", label=role)
+            ax2.plot(sx, sy_gap, marker + "-", label=disp(role))
     ax2.set_xlabel("truck speed (km/h)")
-    ax2.set_ylabel("GA order-gap vs exact optimum (%)")
+    ax2.set_ylabel("GA order gap vs exact optimum (%)")
     ax2.set_title("Cheap transit -> the GA stops optimizing the order")
     ax2.legend()
     ax2.grid(alpha=0.3)
@@ -626,9 +694,9 @@ def make_figures(recs, tsp, order_cache=None):
             gaps = [ops[k]["mean_gap_pct"] for k in ks]
             errs = [ops[k]["std_gap_pct"] for k in ks]
             colors = ["C3" if k == "rk" else "C0" if "swap" in k else "C1" if "insert" in k else "C2" for k in ks]
-            ax.bar(ks, gaps, yerr=errs, color=colors, capsize=3)
-            ax.set_ylabel("mean optimality gap (%)")
-            ax.set_title(f"{role} (N={tsp[role]['n']})")
+            ax.bar([op_label(k) for k in ks], gaps, yerr=errs, color=colors, capsize=3)
+            ax.set_ylabel("mean gap vs optimum (%)")
+            ax.set_title(f"{disp(role)} (N={tsp[role]['n']})")
             ax.tick_params(axis="x", rotation=45)
         fig.suptitle("Ordering operators / encodings on the TSP subproblem (vs Held-Karp optimum)")
         fig.tight_layout()
@@ -655,10 +723,10 @@ def make_figures(recs, tsp, order_cache=None):
                     tot = sum(v[0] for v in du.values()) or 1
                     share.append(100.0 * du.get(k, [0, 0])[0] / tot)
                 vals.append(mean(share))
-            ax.bar(roles_f, vals, bottom=bottoms, label=DRONE_NAMES[k])
+            ax.bar([disp(r) for r in roles_f], vals, bottom=bottoms, label=DRONE_NAMES[k])
             bottoms += np.array(vals)
         ax.set_ylabel("share of flights (%)")
-        ax.set_title("Which airframes the optimizer actually uses (canonical GA best plans)")
+        ax.set_title("Fleet composition of the best plans (canonical GA)")
         ax.legend(fontsize=8)
         ax.tick_params(axis="x", rotation=30)
         fig.tight_layout()
@@ -685,11 +753,11 @@ def make_figures(recs, tsp, order_cache=None):
         xs = np.arange(len(roles))
         fig, ax = plt.subplots(figsize=(8, 4.5))
         ax.bar(xs - 0.2, ga_gaps, 0.4, label="plain joint GA", color="C0")
-        ax.bar(xs + 0.2, nn_gaps, 0.4, label="NN-fixed GA", color="C2")
+        ax.bar(xs + 0.2, nn_gaps, 0.4, label="two-stage planner", color="C2")
         ax.set_xticks(xs)
-        ax.set_xticklabels(roles)
-        ax.set_ylabel("field-order gap vs optimal (%)")
-        ax.set_title("NN-fixed hybrid removes the GA's ordering deficit")
+        ax.set_xticklabels([disp(r) for r in roles])
+        ax.set_ylabel("field-order gap vs optimum (%)")
+        ax.set_title("Two-stage planner removes the GA's ordering deficit")
         ax.legend()
         fig.tight_layout()
         fig.savefig(FIG_DIR / "fig6_nn_hybrid.png", dpi=130)
