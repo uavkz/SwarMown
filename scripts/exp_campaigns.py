@@ -196,12 +196,22 @@ def poly(clat, clon, shape, area_ha, rot_deg=0.0):
     return corners
 
 
-def road_south_of(corners):
-    """West->east road just south of the polygon's bounding box. [lat, lon]."""
+def road_beside(corners, side="s"):
+    """West->east road just beside the polygon's bounding box. [lat, lon].
+
+    side="s" (default) puts the road south of the field, side="n" north of it.
+    Both run west -> east so the transit convention (exit east end, enter west
+    end) is unchanged.
+    """
     lats = [c[0] for c in corners]
     lons = [c[1] for c in corners]
-    y = min(lats) - ROAD_GAP
+    y = max(lats) + ROAD_GAP if side == "n" else min(lats) - ROAD_GAP
     return [[y, min(lons)], [y, max(lons)]]
+
+
+def road_south_of(corners):
+    """West->east road just south of the polygon's bounding box. [lat, lon]."""
+    return road_beside(corners, "s")
 
 
 def _fp(name, clat, clon, shape, area_ha, rot_deg=0.0, holes=None):
@@ -382,6 +392,17 @@ def build_layouts():
         c15.append(_fp(f"c15-{i:02d}", LAT0 + dlat, LON0 + dlon, shapes15[i % 5], area, (i * 37) % 360))
     layouts["C15scatter"] = c15
 
+    # Road-side control variants: identical parcels, but the service road sits
+    # on the NORTH side of every second field. Everywhere else roads are
+    # uniformly south, which plausibly neutralizes the start-corner gene (the
+    # fixed "sw" default is always road-adjacent); these variants test that
+    # hypothesis directly. Run via exp_run.py --roadside_only.
+    for base in ("C5mixed", "C5size", "C10grid"):
+        layouts[base + "R"] = [
+            {**spec, "name": spec["name"] + "R", "road_side": ("n" if i % 2 else "s")}
+            for i, spec in enumerate(layouts[base])
+        ]
+
     return layouts
 
 
@@ -391,7 +412,7 @@ def make_field(owner, spec):
         owner=owner,
         name=f"EXP:{spec['name']}",
         points_serialized=json.dumps(spec["corners"]),
-        road_serialized=json.dumps(road_south_of(spec["corners"])),
+        road_serialized=json.dumps(road_beside(spec["corners"], spec.get("road_side", "s"))),
         holes_serialized=holes_serialized,
     )
 

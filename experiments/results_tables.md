@@ -41,6 +41,19 @@ Dimension still optimized but shared across fields. Positive Δ% = per-field var
 | C5holes | 119.0 (base) | -1.2% ns | -1.2% ns | +0.1% ns |
 | C10grid | 261.2 (base) | -1.6% ns | -1.0% ns | -2.4% * |
 
+## Table 2c — Road-side control: road on the north side of every second field (*R roles)
+
+Same parcels as the base campaigns, road side alternating; base rows (uniform south roads) shown for contrast. Probes the start-corner gene when road placement varies; fixed_dir_start freezes direction AND corner together (no 180-degree-rotation compensation channel).
+
+| Campaign | full | fixed start corner | fixed direction | fixed direction + start |
+|---|---|---|---|---|
+| C5mixed | 94.1 (base) | -0.5% ns | +3.0% *** | +4.2% *** |
+| C5mixedR | 95.0 (base) | -0.8% ns | +3.0% *** | +3.9% *** |
+| C5size | 85.9 (base) | +1.0% ns | +2.5% *** | +5.4% *** |
+| C5sizeR | 86.7 (base) | -0.2% ns | +1.1% ns | +4.2% *** |
+| C10grid | 261.2 (base) | +0.2% ns | +2.1% * | +9.2% *** |
+| C10gridR | 262.6 (base) | +0.6% ns | +4.0% * | +8.4% *** |
+
 ## Table 3 — Scaling with number of fields (canonical GA: full, OX+inversion)
 
 | Campaign | N | best_fit | wall (s) | total time (h) | transit (h) | soft pen. % of cost | coverage | GA order-gap vs opt |

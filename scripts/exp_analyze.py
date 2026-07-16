@@ -63,6 +63,10 @@ ABLATIONS = ["fixed_order", "fixed_direction", "fixed_start", "fixed_drones"]
 GRAN_ABLATIONS = ["single_direction", "single_start", "single_drones"]
 GRAN_ROLES = ["C5size", "C5holes", "C10grid"]
 ABL_ROLES = ["C3line", "C5mixed", "C5holes", "C10grid", "C5varied", "C5size", "C3big", "C15scatter"]
+# Road-side control study (exp_roadside.jsonl): *R variants of three campaigns
+# with the service road on the north side of every second field.
+ROADSIDE_ROLES = ["C5mixedR", "C5sizeR", "C10gridR"]
+ROADSIDE_ABLATIONS = ["fixed_start", "fixed_direction", "fixed_dir_start"]
 NN_ROLES = ["C5mixed", "C5holes", "C10grid", "C5varied", "C5size", "C15scatter"]
 ENC_ROLES = ["C10grid", "C15scatter"]
 DRONE_NAMES = {
@@ -86,11 +90,15 @@ DISPLAY = {
     "C5size": "C5-size",
     "C10grid": "C10-grid",
     "C15scatter": "C15-scatter",
+    "C5mixedR": "C5-mixed-R",
+    "C5sizeR": "C5-size-R",
+    "C10gridR": "C10-grid-R",
 }
 ABL_LABELS = {
     "fixed_order": "fixed order",
     "fixed_direction": "fixed direction",
     "fixed_start": "fixed start corner",
+    "fixed_dir_start": "fixed direction + start",
     "fixed_drones": "fixed drone (mid-class)",
     "single_direction": "shared direction",
     "single_start": "shared start corner",
@@ -112,7 +120,10 @@ def op_label(key):
 
 def load_recs():
     recs = []
-    for path in sorted(HERE.glob("exp_results*.jsonl")):
+    # exp_roadside.jsonl holds the road-side control study; its roles are
+    # distinct (*R suffix), so the records are inert for every table that
+    # filters on the canonical role lists.
+    for path in sorted(HERE.glob("exp_results*.jsonl")) + sorted(HERE.glob("exp_roadside.jsonl")):
         with open(path, encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
@@ -283,6 +294,17 @@ def main():
         GRAN_ROLES,
         "granularity",
     )
+    if any(r["role"] in ROADSIDE_ROLES for r in recs):
+        _abl_table(
+            "## Table 2c — Road-side control: road on the north side of every second field (*R roles)",
+            "Same parcels as the base campaigns, road side alternating; base rows (uniform south roads) "
+            "shown for contrast. Probes the start-corner gene when road placement varies; "
+            "fixed_dir_start freezes direction AND corner together "
+            "(no 180-degree-rotation compensation channel).",
+            ROADSIDE_ABLATIONS,
+            ["C5mixed", "C5mixedR", "C5size", "C5sizeR", "C10grid", "C10gridR"],
+            "roadside",
+        )
 
     # ========================================================================
     # Table 3: Scaling (canonical GA full)

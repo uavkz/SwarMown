@@ -303,6 +303,16 @@ NN_ROLES = ["C5mixed", "C5holes", "C10grid", "C5varied", "C5size", "C15scatter"]
 # Transit-speed sweep on C5mixed (clean grouping campaign); C10grid transit adds
 # little and is the most expensive campaign, so we omit it from the sweep.
 TRANSIT_ROLES = ["C5mixed"]
+# Road-side control study: identical parcels with the service road on the north
+# side of every second field (exp_campaigns *R variants). Probes whether the
+# start-corner gene matters once road placement varies, and whether the
+# direction gene is what compensates for a frozen corner (fixed_dir_start).
+ROADSIDE_ROLES = ["C5mixedR", "C5sizeR", "C10gridR"]
+ROADSIDE_ABLATIONS = ["fixed_start", "fixed_direction", "fixed_dir_start"]
+# Control for the road-side study: the combined direction+corner freeze on the
+# road-uniform base campaigns (there the fixed "sw" corner is road-adjacent by
+# construction, so any extra cost over fixed_direction isolates road variation).
+ROADSIDE_BASE_ROLES = ["C5mixed", "C5size", "C10grid"]
 # The joint operator grid is only a robustness check (the honest operator
 # comparison is the exact-TSP study); run it on few seeds to save compute.
 OP_SEEDS = 3
@@ -329,6 +339,7 @@ def build_jobs(
     nn_only=False,
     transit_roles=None,
     transit_only=False,
+    roadside_only=False,
 ):
     jobs = []
     seen = set()
@@ -365,6 +376,14 @@ def build_jobs(
             for role in transit_roles:
                 for spd in TRANSIT_SPEEDS:
                     add(role, "ga", "ox", "inversion", "full", spd, s)
+            continue
+        if roadside_only:
+            for role in ROADSIDE_ROLES:
+                add(role, "ga", "ox", "inversion", "full", None, s)
+                for abl in ROADSIDE_ABLATIONS:
+                    add(role, "ga", "ox", "inversion", abl, None, s)
+            for role in ROADSIDE_BASE_ROLES:
+                add(role, "ga", "ox", "inversion", "fixed_dir_start", None, s)
             continue
         if not nn_only:
             # (1) Canonical GA (full, ox+inversion — the recommended operator pair,
@@ -428,6 +447,7 @@ def main():
     ap.add_argument("--nn_only", action="store_true", help="run ONLY NN-seeded hybrid jobs (no full matrix)")
     ap.add_argument("--transit_roles", type=str, default=None, help="comma-separated roles for the truck-speed sweep")
     ap.add_argument("--transit_only", action="store_true", help="run ONLY truck-speed sweep jobs (no full matrix)")
+    ap.add_argument("--roadside_only", action="store_true", help="run ONLY the road-side control study jobs")
     ap.add_argument(
         "--resume",
         action="store_true",
@@ -474,6 +494,7 @@ def main():
             nn_only=args.nn_only,
             transit_roles=[r.strip() for r in args.transit_roles.split(",")] if args.transit_roles else None,
             transit_only=args.transit_only,
+            roadside_only=args.roadside_only,
         )
 
     out_path = Path(args.out)

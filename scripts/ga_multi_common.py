@@ -67,6 +67,7 @@ def build_multi_argparser():
             "fixed_order",
             "fixed_direction",
             "fixed_start",
+            "fixed_dir_start",
             "fixed_drones",
             "single_direction",
             "single_start",
@@ -160,7 +161,7 @@ def generate_multi_individual(num_fields, num_drones, ablation="full", order_enc
     if ablation == "single_direction":
         d = random.uniform(0, 360)
         directions = [d] * num_fields
-    elif ablation == "fixed_direction":
+    elif ablation in ("fixed_direction", "fixed_dir_start"):
         # Not optimized: east-west flight lines everywhere (naive default).
         directions = [0.0] * num_fields
     else:
@@ -170,7 +171,7 @@ def generate_multi_individual(num_fields, num_drones, ablation="full", order_enc
     if ablation == "single_start":
         s = random.choice(["ne", "nw", "se", "sw"])
         starts = [s] * num_fields
-    elif ablation == "fixed_start":
+    elif ablation in ("fixed_start", "fixed_dir_start"):
         # Not optimized: corner nearest the road's western entry (naive default).
         starts = ["sw"] * num_fields
     else:
@@ -421,11 +422,13 @@ def mutate_multi(ind, num_drones, num_fields, mutation_chance, order_mutation="s
     # Mutate per-field parameters
     for field_idx in range(num_fields):
         # Direction
-        if ablation not in ("single_direction", "fixed_direction") and random.random() <= mutation_chance:
+        if ablation not in ("single_direction", "fixed_direction", "fixed_dir_start") and (
+            random.random() <= mutation_chance
+        ):
             ind[1][field_idx] = (ind[1][field_idx] + random.gauss(0, 45)) % 360
 
         # Start corner
-        if ablation not in ("single_start", "fixed_start") and random.random() <= mutation_chance:
+        if ablation not in ("single_start", "fixed_start", "fixed_dir_start") and (random.random() <= mutation_chance):
             ind[2][field_idx] = random.choice(["ne", "nw", "se", "sw"])
 
         # Drones
