@@ -755,32 +755,52 @@ def make_figures(recs, tsp, order_cache=None):
         fig.savefig(FIG_DIR / "fig7_fleet.png", dpi=130)
         plt.close(fig)
 
-    # Fig 6: NN-seeded hybrid — order-gap before/after (and NN optimum reference)
+    # Fig 6: two-stage planner vs joint GA — (a) campaign cost (drives the
+    # recommendation), (b) order-gap mechanism. Roles sorted by N so the
+    # "ties at N=5, wins at N>=10" pattern reads left to right.
     if order_cache is not None and any(r["method"] == "ga_nn" for r in recs):
         roles = [r for r in NN_ROLES if any(x["role"] == r and x["method"] == "ga_nn" for x in recs)]
-        ga_gaps, nn_gaps = [], []
+        roles = sorted(roles, key=lambda x: (N_BY_ROLE.get(x, 99), x))
+        cost_d, cost_sig, ga_gaps, nn_gaps = [], [], [], []
         for role in roles:
-            ga = [
-                ga_order_gap(role, r["best_order"], order_cache)
-                for r in recs
-                if r["role"] == role and is_canonical(r) and r.get("best_order")
-            ]
-            nn = [
-                ga_order_gap(role, r["best_order"], order_cache)
-                for r in recs
-                if r["role"] == role and r["method"] == "ga_nn" and r.get("best_order")
-            ]
-            ga_gaps.append(mean(ga) if ga else 0)
-            nn_gaps.append(mean(nn) if nn else 0)
+            ga_runs = [r for r in recs if r["role"] == role and is_canonical(r)]
+            nn_runs = [r for r in recs if r["role"] == role and r["method"] == "ga_nn" and r.get("truck_speed") is None]
+            gaf = [r["best_fit"] for r in ga_runs]
+            nnf = [r["best_fit"] for r in nn_runs]
+            cost_d.append(100.0 * (mean(nnf) - mean(gaf)) / mean(gaf))
+            cost_sig.append(sig(pval(nnf, gaf)))
+            ga_gaps.append(
+                mean([ga_order_gap(role, r["best_order"], order_cache) for r in ga_runs if r.get("best_order")] or [0])
+            )
+            nn_gaps.append(
+                mean([ga_order_gap(role, r["best_order"], order_cache) for r in nn_runs if r.get("best_order")] or [0])
+            )
         xs = np.arange(len(roles))
-        fig, ax = plt.subplots(figsize=(8, 4.5))
-        ax.bar(xs - 0.2, ga_gaps, 0.4, label="plain joint GA", color="C0")
-        ax.bar(xs + 0.2, nn_gaps, 0.4, label="two-stage planner", color="C2")
-        ax.set_xticks(xs)
-        ax.set_xticklabels([disp(r) for r in roles])
-        ax.set_ylabel("field-order gap vs optimum (%)")
-        ax.set_title("Two-stage planner removes the GA's ordering deficit")
-        ax.legend()
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12.5, 4.5))
+        bars = ax1.bar(xs, cost_d, 0.55, color=["C2" if d < 0 else "C3" for d in cost_d])
+        for bar, d, s in zip(bars, cost_d, cost_sig):
+            ax1.annotate(
+                s,
+                (bar.get_x() + bar.get_width() / 2, d + (0.15 if d >= 0 else -0.15)),
+                ha="center",
+                va="bottom" if d >= 0 else "top",
+                fontsize=9,
+            )
+        ax1.axhline(0, color="k", lw=0.8)
+        ax1.set_ylim(min(cost_d) - 2, max(cost_d) + 2)
+        ax1.set_xticks(xs)
+        ax1.set_xticklabels([disp(r) for r in roles], rotation=15)
+        ax1.set_ylabel("cost change vs joint GA (%)")
+        ax1.set_title(
+            "(a) Campaign cost: two-stage vs joint GA\n(negative = two-stage cheaper; Mann-Whitney significance)"
+        )
+        ax2.bar(xs - 0.2, ga_gaps, 0.4, label="plain joint GA", color="C0")
+        ax2.bar(xs + 0.2, nn_gaps, 0.4, label="two-stage planner", color="C2")
+        ax2.set_xticks(xs)
+        ax2.set_xticklabels([disp(r) for r in roles], rotation=15)
+        ax2.set_ylabel("field-order gap vs optimum (%)")
+        ax2.set_title("(b) Field-order quality (transit gap over exact optimum)")
+        ax2.legend()
         fig.tight_layout()
         fig.savefig(FIG_DIR / "fig6_nn_hybrid.png", dpi=130)
         plt.close(fig)
