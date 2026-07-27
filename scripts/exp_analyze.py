@@ -95,14 +95,14 @@ DISPLAY = {
     "C10gridR": "C10-grid-R",
 }
 ABL_LABELS = {
-    "fixed_order": "fixed order",
-    "fixed_direction": "fixed direction",
-    "fixed_start": "fixed start corner",
-    "fixed_dir_start": "fixed direction + start",
-    "fixed_drones": "fixed drone (mid-class)",
-    "single_direction": "shared direction",
-    "single_start": "shared start corner",
-    "single_drones": "shared drone sequence",
+    "fixed_order": "Fixed visit order",
+    "fixed_direction": "Fixed flight direction",
+    "fixed_start": "Fixed start corner",
+    "fixed_dir_start": "Fixed flight direction + start corner",
+    "fixed_drones": "Fixed drone sequence (mid-class)",
+    "single_direction": "Shared flight direction",
+    "single_start": "Shared start corner",
+    "single_drones": "Shared drone sequence",
 }
 OP_LABELS = {"rk": "random keys"}
 

@@ -20,7 +20,7 @@
 
 Each dimension frozen at a reasonable default. Positive Δ% = freezing hurts (the dimension matters).
 
-| Campaign | full | fixed order | fixed direction | fixed start corner | fixed drone (mid-class) |
+| Campaign | full | Fixed visit order | Fixed flight direction | Fixed start corner | Fixed drone sequence (mid-class) |
 |---|---|---|---|---|---|
 | C3line | 56.8 (base) | -0.2% ns | +2.7% *** | +0.3% ns | +3.1% *** |
 | C5mixed | 94.1 (base) | -0.6% ns | +3.0% *** | -0.5% ns | +2.4% ** |
@@ -35,7 +35,7 @@ Each dimension frozen at a reasonable default. Positive Δ% = freezing hurts (th
 
 Dimension still optimized but shared across fields. Positive Δ% = per-field variation matters.
 
-| Campaign | full | shared direction | shared start corner | shared drone sequence |
+| Campaign | full | Shared flight direction | Shared start corner | Shared drone sequence |
 |---|---|---|---|---|
 | C5size | 85.9 (base) | +1.9% *** | +0.4% ns | +1.3% ** |
 | C5holes | 119.0 (base) | -1.2% ns | -1.2% ns | +0.1% ns |
@@ -45,7 +45,7 @@ Dimension still optimized but shared across fields. Positive Δ% = per-field var
 
 Same parcels as the base campaigns, road side alternating; base rows (uniform south roads) shown for contrast. Probes the start-corner gene when road placement varies; fixed_dir_start freezes direction AND corner together (no 180-degree-rotation compensation channel).
 
-| Campaign | full | fixed start corner | fixed direction | fixed direction + start |
+| Campaign | full | Fixed start corner | Fixed flight direction | Fixed flight direction + start corner |
 |---|---|---|---|---|
 | C5mixed | 94.1 (base) | -0.5% ns | +3.0% *** | +4.2% *** |
 | C5mixedR | 95.0 (base) | -0.8% ns | +3.0% *** | +3.9% *** |

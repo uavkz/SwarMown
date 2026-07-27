@@ -27,22 +27,33 @@ PAPER_DIR = ROOT / "experiments" / "paper"
 MD = PAPER_DIR / "paper.md"
 OUT = PAPER_DIR / (sys.argv[1] if len(sys.argv) > 1 else "multi_field_campaign_paper.docx")
 
-INLINE = re.compile(r"(\*\*.+?\*\*|\*[^*]+?\*)")
+INLINE = re.compile(r"(\*\*.+?\*\*|\*[^*]+?\*|<sub>.*?</sub>|<sup>.*?</sup>)")
 
 
-def add_runs(paragraph, text, base_size=None):
-    """Add text to a paragraph, honouring **bold** and *italic* spans."""
+def add_runs(paragraph, text, base_size=None, bold=False, italic=False):
+    """Add text to a paragraph, honouring **bold** / *italic* spans and
+    <sub>/<sup> subscript/superscript tags (tags may nest inside spans)."""
     for tok in INLINE.split(text):
         if not tok:
             continue
-        if tok.startswith("**") and tok.endswith("**"):
-            run = paragraph.add_run(tok[2:-2])
-            run.bold = True
-        elif tok.startswith("*") and tok.endswith("*") and len(tok) > 2:
-            run = paragraph.add_run(tok[1:-1])
-            run.italic = True
+        if tok.startswith("**") and tok.endswith("**") and len(tok) > 4:
+            add_runs(paragraph, tok[2:-2], base_size, bold=True, italic=italic)
+            continue
+        if tok.startswith("*") and tok.endswith("*") and len(tok) > 2 and not tok.startswith("**"):
+            add_runs(paragraph, tok[1:-1], base_size, bold=bold, italic=True)
+            continue
+        if tok.startswith("<sub>") and tok.endswith("</sub>"):
+            run = paragraph.add_run(tok[5:-6])
+            run.font.subscript = True
+        elif tok.startswith("<sup>") and tok.endswith("</sup>"):
+            run = paragraph.add_run(tok[5:-6])
+            run.font.superscript = True
         else:
             run = paragraph.add_run(tok)
+        if bold:
+            run.bold = True
+        if italic:
+            run.italic = True
         if base_size:
             run.font.size = Pt(base_size)
 
