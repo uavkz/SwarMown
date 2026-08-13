@@ -114,6 +114,19 @@ def _nn_order_for(cd):
     return _NN_CACHE[cid]
 
 
+_EXACT_CACHE = {}
+
+
+def _exact_order_for(cd):
+    """Exact optimal (Held-Karp) field order from the transit matrix (cached)."""
+    cid = cd["campaign"].id
+    if cid not in _EXACT_CACHE:
+        from scripts.exp_ordering import held_karp, transit_matrix
+
+        _EXACT_CACHE[cid] = held_karp(transit_matrix(cd), minimize=True)[1]
+    return _EXACT_CACHE[cid]
+
+
 def _run_ga(cd, args, crossover, mutation, ablation, ngen, pop, seed_order=None):
     from deap import algorithms
 
@@ -224,9 +237,13 @@ def run_one(job):
         best_fit, curve, best_ind, best_res, n_evals = _run_rs(cd, args, job["ngen"], job["pop"])
     else:
         if job["method"] == "ga_nn":
-            # NN-fixed hybrid: freeze the order gene at the nearest-neighbour tour
-            # and spend the whole GA budget on the per-field coverage parameters.
+            # Two-stage planner: freeze the order gene at the nearest-neighbour
+            # tour and spend the whole GA budget on the coverage parameters.
             seed_order = _nn_order_for(cd)
+            ablation = "fixed_order"
+        elif job["method"] == "ga_exact":
+            # Two-stage variant with the exact Held-Karp tour in stage one.
+            seed_order = _exact_order_for(cd)
             ablation = "fixed_order"
         else:
             seed_order = None
@@ -340,6 +357,7 @@ def build_jobs(
     transit_roles=None,
     transit_only=False,
     roadside_only=False,
+    exact_only=False,
 ):
     jobs = []
     seen = set()
@@ -384,6 +402,12 @@ def build_jobs(
                     add(role, "ga", "ox", "inversion", abl, None, s)
             for role in ROADSIDE_BASE_ROLES:
                 add(role, "ga", "ox", "inversion", "fixed_dir_start", None, s)
+            continue
+        if exact_only:
+            # Two-stage with the exact tour, on the campaigns where the NN-tour
+            # two-stage planner wins (closes the "why not exact?" question).
+            for role in ["C5holes", "C10grid", "C15scatter"]:
+                add(role, "ga_exact", "ox", "inversion", "fixed_order", None, s)
             continue
         if not nn_only:
             # (1) Canonical GA (full, ox+inversion — the recommended operator pair,
@@ -448,6 +472,7 @@ def main():
     ap.add_argument("--transit_roles", type=str, default=None, help="comma-separated roles for the truck-speed sweep")
     ap.add_argument("--transit_only", action="store_true", help="run ONLY truck-speed sweep jobs (no full matrix)")
     ap.add_argument("--roadside_only", action="store_true", help="run ONLY the road-side control study jobs")
+    ap.add_argument("--exact_only", action="store_true", help="run ONLY the exact-tour two-stage jobs")
     ap.add_argument(
         "--resume",
         action="store_true",
@@ -495,6 +520,7 @@ def main():
             transit_roles=[r.strip() for r in args.transit_roles.split(",")] if args.transit_roles else None,
             transit_only=args.transit_only,
             roadside_only=args.roadside_only,
+            exact_only=args.exact_only,
         )
 
     out_path = Path(args.out)
