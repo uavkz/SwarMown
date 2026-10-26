@@ -54,7 +54,7 @@ def build_multi_argparser():
     # key mutation); use it for BOTH --order_crossover and --order_mutation.
     parser.add_argument("--order_crossover", type=str, default="ox", choices=["ox", "pmx", "cx", "rk"])
     # inversion (a 2-opt-like move) reaches the exact TSP optimum far more often than swap on
-    # larger tours; see experiments/multi_field_results.md (Table 5) for the comparison.
+    # larger tours; see experiments/results_tables.md (Table 5) for the comparison.
     parser.add_argument(
         "--order_mutation", type=str, default="inversion", choices=["swap", "insert", "inversion", "rk"]
     )

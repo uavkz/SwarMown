@@ -56,13 +56,44 @@ ROLE_ORDER = [
     "C15scatter",
 ]
 
-DRONE_COLORS = {
-    223: ("#17becf", "Scout (Mini-class)"),
-    224: ("#1f77b4", "Light (Phantom-class)"),
-    225: ("#ff7f0e", "Mid (Mavic-class)"),
-    226: ("#2ca02c", "Long (Evo-class)"),
-    227: ("#d62728", "Heavy (M300-class)"),
-}
+_FLEET_PALETTE = [
+    ("#17becf", "Scout (Mini-class)"),
+    ("#1f77b4", "Light (Phantom-class)"),
+    ("#ff7f0e", "Mid (Mavic-class)"),
+    ("#2ca02c", "Long (Evo-class)"),
+    ("#d62728", "Heavy (M300-class)"),
+]
+
+
+def _exp_fleet_ids():
+    """DB ids of the EXP fleet in class order (scout -> heavy), matched by name; [] if any is absent."""
+    try:
+        from mainapp.models import Drone
+
+        ids = []
+        for _, label in _FLEET_PALETTE:
+            d = Drone.objects.filter(name="EXP " + label).order_by("-id").first()
+            if d is None:
+                return []
+            ids.append(d.id)
+        return ids
+    except Exception:
+        return []
+
+
+# Drone ids are database ids: 223..227 in the shipped result files. Records
+# produced after re-creating the campaigns in a fresh database carry the new
+# ids; resolve_drone_colors() picks the right set.
+_SHIPPED_FLEET_IDS = [223, 224, 225, 226, 227]
+DRONE_COLORS = dict(zip(_SHIPPED_FLEET_IDS, _FLEET_PALETTE))
+
+
+def resolve_drone_colors(recs):
+    used = {d for r in recs if r and r.get("best_ind") for dl in r["best_ind"]["drones"] for d in dl}
+    db_ids = _exp_fleet_ids()
+    if db_ids and used & set(db_ids):
+        return dict(zip(db_ids, _FLEET_PALETTE))
+    return dict(zip(_SHIPPED_FLEET_IDS, _FLEET_PALETTE))
 
 
 def km_xy(lon, lat, lon0, lat0):
@@ -100,9 +131,10 @@ def draw_campaign(ax, cd, conv, field_face="#e8f0e0"):
 def fig_campaign_gallery():
     from scripts.ga_multi_common import load_campaign
 
-    fig = plt.figure(figsize=(16, 13))
-    gs = fig.add_gridspec(4, 4, height_ratios=[1.1, 1.1, 1.1, 0.5])
-    # compact campaigns on three rows; the two wide thin strips span two columns each
+    fig = plt.figure(figsize=(7.16, 4.2))
+    gs = fig.add_gridspec(4, 4, height_ratios=[1.1, 1.1, 0.55, 0.55])
+    # compact campaigns on two rows; the third block holds the scattered
+    # 15-field campaign next to the two wide thin strips (stacked)
     slots = [
         ("C2close", gs[0, 0]),
         ("C3tri", gs[0, 1]),
@@ -112,22 +144,21 @@ def fig_campaign_gallery():
         ("C5varied", gs[1, 1]),
         ("C5size", gs[1, 2]),
         ("C10grid", gs[1, 3]),
-        ("C15scatter", gs[2, 1:3]),
-        ("C2far", gs[3, 0:2]),
-        ("C3line", gs[3, 2:4]),
+        ("C15scatter", gs[2:4, 0]),
+        ("C2far", gs[2, 1:4]),
+        ("C3line", gs[3, 1:4]),
     ]
     for role, slot in slots:
         ax = fig.add_subplot(slot)
         cd = load_campaign(MANIFEST[role])
         conv, _, _ = campaign_geo(cd)
         draw_campaign(ax, cd, conv)
-        ax.set_title(f"{DISPLAY.get(role, role)} (N={cd['num_fields']})", fontsize=10)
-        ax.tick_params(labelsize=7)
-        ax.set_xlabel("km", fontsize=8)
+        ax.set_title(f"{DISPLAY.get(role, role)}, N = {cd['num_fields']}", fontsize=8, loc="left")
+        ax.tick_params(labelsize=6)
+        ax.set_xlabel("km", fontsize=7, labelpad=1)
         ax.margins(0.08)
-    fig.suptitle("Test campaigns: field boundaries, service roads (thick gray), obstacles (hatched)", y=0.995)
-    fig.tight_layout()
-    fig.savefig(FIG_DIR / "fig8_campaigns.png", dpi=200)
+    fig.tight_layout(pad=0.4)
+    fig.savefig(FIG_DIR / "fig8_campaigns.png", dpi=300)
     plt.close(fig)
     print(f"-> {FIG_DIR / 'fig8_campaigns.png'}")
 
@@ -226,7 +257,7 @@ def draw_plan(ax, cd, conv, routes, order, show_transit=True, lw=0.7):
         # truck stops
         for cw in fr["car_waypoints"]:
             x, y = km_xy(cw[0], cw[1], conv_lon0[0], conv_lon0[1])
-            ax.plot(x, y, marker="s", color="black", ms=4, zorder=6)
+            ax.plot(x, y, marker="s", color="black", ms=2.5, zorder=6)
     if show_transit:
         for k in range(len(order)):
             fd = cd["fields_data"][order[k]]
@@ -239,7 +270,7 @@ def draw_plan(ax, cd, conv, routes, order, show_transit=True, lw=0.7):
             ax.annotate(
                 str(k + 1),
                 (cx, cy),
-                fontsize=11,
+                fontsize=7,
                 fontweight="bold",
                 ha="center",
                 va="center",
@@ -270,16 +301,19 @@ def fig_example_plan(main_role="C5size", zoom_role="C5holes", big_role="C3big"):
     global conv_lon0
     from scripts.ga_multi_common import load_campaign
 
+    global DRONE_COLORS
     rec_main = best_canonical_rec(main_role)
     rec_zoom = best_canonical_rec(zoom_role)
     rec_big = best_canonical_rec(big_role)
+    DRONE_COLORS = resolve_drone_colors([rec_main, rec_zoom, rec_big])
     if rec_main is None or rec_zoom is None:
         print("no canonical records yet -- skipping fig9")
         return
 
     ncols = 3 if rec_big is not None else 2
     ratios = [1.5, 1, 1] if rec_big is not None else [1.5, 1]
-    fig, axes = plt.subplots(1, ncols, figsize=(5.2 * ncols + 4, 6.5), gridspec_kw={"width_ratios": ratios})
+    plt.rcParams.update({"font.size": 8, "xtick.labelsize": 7, "ytick.labelsize": 7})
+    fig, axes = plt.subplots(1, ncols, figsize=(7.16, 3.0), gridspec_kw={"width_ratios": ratios})
     ax1, ax2 = axes[0], axes[1]
 
     # (a) full campaign plan
@@ -287,11 +321,11 @@ def fig_example_plan(main_role="C5size", zoom_role="C5holes", big_role="C3big"):
     conv, lon0, lat0 = campaign_geo(cd)
     conv_lon0 = (lon0, lat0)
     routes = reconstruct_routes(cd, rec_main["best_ind"], rec_main["best_order"])
-    used = draw_plan(ax1, cd, conv, routes, rec_main["best_order"])
+    used = draw_plan(ax1, cd, conv, routes, rec_main["best_order"], lw=0.5)
     ax1.set_title(
-        f"(a) {DISPLAY.get(main_role, main_role)}: best plan, cost ${rec_main['best_fit']:.0f} "
-        f"(visit order circled, truck transit dashed)",
-        fontsize=10,
+        f"(a) {DISPLAY.get(main_role, main_role)}: best plan, ${rec_main['best_fit']:.0f}",
+        fontsize=8,
+        loc="left",
     )
     ax1.set_xlabel("km")
     ax1.set_ylabel("km")
@@ -303,17 +337,14 @@ def fig_example_plan(main_role="C5size", zoom_role="C5holes", big_role="C3big"):
     zoom_field = max(range(len(cdz["fields_data"])), key=lambda i: len(cdz["fields_data"][i]["holes"]))
     routesz = reconstruct_routes(cdz, rec_zoom["best_ind"], rec_zoom["best_order"])
     routesz = [r for r in routesz if r["field_idx"] == zoom_field]
-    usedz = draw_plan(ax2, cdz, convz, routesz, [zoom_field], show_transit=False, lw=1.1)
+    usedz = draw_plan(ax2, cdz, convz, routesz, [zoom_field], show_transit=False, lw=0.8)
     fd = cdz["fields_data"][zoom_field]
     xs = [km_xy(p[0], p[1], lon0z, lat0z)[0] for p in fd["field"]]
     ys = [km_xy(p[0], p[1], lon0z, lat0z)[1] for p in fd["field"]]
     pad = 0.25
     ax2.set_xlim(min(xs) - pad, max(xs) + pad)
     ax2.set_ylim(min(ys) - pad - 0.2, max(ys) + pad)
-    ax2.set_title(
-        f"(b) {DISPLAY.get(zoom_role, zoom_role)}: coverage of an obstacle field\n(dotted = ferry/detour legs)",
-        fontsize=10,
-    )
+    ax2.set_title(f"(b) {DISPLAY.get(zoom_role, zoom_role)}: obstacle field", fontsize=8, loc="left")
     ax2.set_xlabel("km")
 
     # (c) the C3big giant field: several airframes covering one field concurrently
@@ -326,18 +357,14 @@ def fig_example_plan(main_role="C5size", zoom_role="C5holes", big_role="C3big"):
         # field 0 is the 2.8 x 2.8 km field
         routesb = reconstruct_routes(cdb, rec_big["best_ind"], rec_big["best_order"])
         routesb = [r for r in routesb if r["field_idx"] == 0]
-        usedb = draw_plan(ax3, cdb, convb, routesb, [0], show_transit=False, lw=1.0)
+        usedb = draw_plan(ax3, cdb, convb, routesb, [0], show_transit=False, lw=0.7)
         fdb = cdb["fields_data"][0]
         xs = [km_xy(p[0], p[1], lon0b, lat0b)[0] for p in fdb["field"]]
         ys = [km_xy(p[0], p[1], lon0b, lat0b)[1] for p in fdb["field"]]
         pad = 0.3
         ax3.set_xlim(min(xs) - pad, max(xs) + pad)
         ax3.set_ylim(min(ys) - pad - 0.25, max(ys) + pad)
-        ax3.set_title(
-            f"(c) {DISPLAY.get(big_role, big_role)}: one ~780 ha field split\n"
-            f"across several drones (concurrent flights)",
-            fontsize=10,
-        )
+        ax3.set_title(f"(c) {DISPLAY.get(big_role, big_role)}: ~780 ha field", fontsize=8, loc="left")
         ax3.set_xlabel("km")
 
     handles = [
@@ -346,12 +373,12 @@ def fig_example_plan(main_role="C5size", zoom_role="C5holes", big_role="C3big"):
         if d in (used | usedz | usedb)
     ]
     handles += [
-        Line2D([], [], color="black", marker="s", ls="none", ms=5, label="truck stop"),
-        Line2D([], [], color="dimgray", lw=2.5, label="service road"),
+        Line2D([], [], color="black", marker="s", ls="none", ms=3.5, label="Truck stop"),
+        Line2D([], [], color="dimgray", lw=2.0, label="Service road"),
     ]
-    ax1.legend(handles=handles, fontsize=8, loc="best")
-    fig.tight_layout()
-    fig.savefig(FIG_DIR / "fig9_example_plan.png", dpi=200)
+    ax1.legend(handles=handles, fontsize=6, loc="best")
+    fig.tight_layout(pad=0.4)
+    fig.savefig(FIG_DIR / "fig9_example_plan.png", dpi=300)
     plt.close(fig)
     print(f"-> {FIG_DIR / 'fig9_example_plan.png'}")
 

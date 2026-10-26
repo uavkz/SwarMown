@@ -136,6 +136,16 @@ The hybrid freezes the order gene at the nearest-neighbour tour and spends the w
 | C5size | 5 | 85.9 ± 0.4 | 85.9 ± 0.3 | +0.0% | 0.72 ns | 8.1% | 0.0% |
 | C15scatter | 15 | 226.8 ± 7.6 | 207.3 ± 2.6 | -8.6% | 0.00016 *** | 35.7% | 10.2% |
 
+## Table 7b — Two-stage planner: exact stage-one tour vs nearest-neighbour tour
+
+Both variants freeze the order gene (exact Held-Karp tour vs NN tour) and spend the identical evaluation budget on the per-field coverage parameters; Δ vs joint GA compares the exact variant with the plain joint GA (Table 1).
+
+| Campaign | N | NN two-stage | Exact two-stage | Δ vs NN | p (MWU) | Δ vs joint GA |
+|---|---|---|---|---|---|---|
+| C5holes | 5 | 117.5 ± 1.1 | 116.6 ± 1.5 | -0.8% | 0.13 ns | -2.0% |
+| C10grid | 10 | 250.3 ± 3.3 | 246.9 ± 5.9 | -1.3% | 0.28 ns | -5.4% |
+| C15scatter | 15 | 207.3 ± 2.6 | 199.1 ± 2.4 | -4.0% | 0.00031 *** | -12.2% |
+
 ## Table 8 — Fleet composition of the best plans (canonical GA, mean over seeds)
 
 Share of flights performed by each airframe; |D| = distinct airframes used.
@@ -153,3 +163,21 @@ Share of flights performed by each airframe; |D| = distinct airframes used.
 | C5varied | 5 | 2.0 | 30% | 70% | 0% | 0% | 0% |
 | C10grid | 10 | 3.2 | 24% | 46% | 26% | 4% | 0% |
 | C15scatter | 15 | 3.4 | 42% | 44% | 10% | 3% | 0% |
+
+## Table 9 — Cost decomposition of the best plans (canonical GA, mean over seeds)
+
+Cost = wear W (drone price) + crew S (salary) + overtime penalty P, in $; launches, transit and campaign duration of the same plans.
+
+| Campaign | N | Wear W | Crew S | Penalty P | Crew share | Launches | Transit (h) | Duration (h) |
+|---|---|---|---|---|---|---|---|---|
+| C2close | 2 | 6.2 | 25.5 | 0.0 | 81% | 2.0 | 0.01 | 2.0 |
+| C2far | 2 | 6.2 | 36.5 | 0.0 | 86% | 2.0 | 1.11 | 3.1 |
+| C3big | 3 | 38.3 | 84.4 | 0.0 | 69% | 6.0 | 0.21 | 6.6 |
+| C3line | 3 | 9.2 | 47.6 | 0.0 | 84% | 3.0 | 0.99 | 3.9 |
+| C3tri | 3 | 9.5 | 51.1 | 0.0 | 84% | 3.0 | 1.23 | 4.2 |
+| C5holes | 5 | 27.7 | 91.3 | 0.0 | 77% | 6.1 | 0.45 | 7.3 |
+| C5mixed | 5 | 16.2 | 77.9 | 0.0 | 83% | 5.0 | 1.38 | 6.3 |
+| C5size | 5 | 16.7 | 69.2 | 0.0 | 81% | 5.2 | 0.39 | 5.3 |
+| C5varied | 5 | 11.4 | 53.2 | 0.0 | 82% | 5.0 | 0.32 | 3.8 |
+| C10grid | 10 | 36.3 | 139.3 | 85.6 | 53% | 10.0 | 0.80 | 10.9 |
+| C15scatter | 15 | 27.4 | 144.2 | 55.1 | 64% | 15.0 | 1.90 | 9.9 |

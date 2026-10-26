@@ -975,6 +975,32 @@
       "nn_order_gap": 10.200249037170996
     }
   },
+  "exact_tour": {
+    "C5holes": {
+      "nn_mean": 117.4518875,
+      "exact_mean": 116.56842499999999,
+      "ga_mean": 118.9651625,
+      "d_vs_nn_pct": -0.7521909769223653,
+      "d_vs_ga_pct": -2.01465492051088,
+      "p": 0.13038073038073036
+    },
+    "C10grid": {
+      "nn_mean": 250.29081250000002,
+      "exact_mean": 246.9228625,
+      "ga_mean": 261.153025,
+      "d_vs_nn_pct": -1.3456147136843097,
+      "d_vs_ga_pct": -5.448974791695408,
+      "p": 0.2786324786324786
+    },
+    "C15scatter": {
+      "nn_mean": 207.305725,
+      "exact_mean": 199.11555,
+      "ga_mean": 226.7755375,
+      "d_vs_nn_pct": -3.9507712582467187,
+      "d_vs_ga_pct": -12.197077253096577,
+      "p": 0.0003108003108003108
+    }
+  },
   "fleet_composition": {
     "C2close": {
       "mean_distinct": 1,
@@ -1063,6 +1089,107 @@
       "Mid (Mavic-class)": 10.0,
       "Long (Evo-class)": 3.3333333333333335,
       "Heavy (M300-class)": 0.0
+    }
+  },
+  "cost_decomposition": {
+    "C2close": {
+      "wear": 6.1810375,
+      "crew": 25.532325,
+      "penalty": 0.0,
+      "crew_share_pct": 80.50967474672545,
+      "launches": 2,
+      "transit_h": 0.0102,
+      "duration_h": 1.953225
+    },
+    "C2far": {
+      "wear": 6.172875,
+      "crew": 36.5391375,
+      "penalty": 0.0,
+      "crew_share_pct": 85.547684038536,
+      "launches": 2,
+      "transit_h": 1.1135,
+      "duration_h": 3.053925
+    },
+    "C3big": {
+      "wear": 38.34085,
+      "crew": 84.39133749999999,
+      "penalty": 0.0,
+      "crew_share_pct": 68.7605584313406,
+      "launches": 6,
+      "transit_h": 0.2139125,
+      "duration_h": 6.639125
+    },
+    "C3line": {
+      "wear": 9.2201875,
+      "crew": 47.6083625,
+      "penalty": 0.0,
+      "crew_share_pct": 83.77543065941327,
+      "launches": 3,
+      "transit_h": 0.9888,
+      "duration_h": 3.8608124999999998
+    },
+    "C3tri": {
+      "wear": 9.4961125,
+      "crew": 51.065174999999996,
+      "penalty": 0.0,
+      "crew_share_pct": 84.3198305518191,
+      "launches": 3,
+      "transit_h": 1.2252,
+      "duration_h": 4.206525
+    },
+    "C5holes": {
+      "wear": 27.67145,
+      "crew": 91.2937,
+      "penalty": 0.0,
+      "crew_share_pct": 76.73986877669638,
+      "launches": 6.125,
+      "transit_h": 0.4502625,
+      "duration_h": 7.291875
+    },
+    "C5mixed": {
+      "wear": 16.1733875,
+      "crew": 77.892825,
+      "penalty": 0.0,
+      "crew_share_pct": 82.80637960202766,
+      "launches": 5,
+      "transit_h": 1.3771125,
+      "duration_h": 6.289275
+    },
+    "C5size": {
+      "wear": 16.72835,
+      "crew": 69.161225,
+      "penalty": 0.0,
+      "crew_share_pct": 80.52342208003707,
+      "launches": 5.25,
+      "transit_h": 0.386075,
+      "duration_h": 5.3411125
+    },
+    "C5varied": {
+      "wear": 11.4427375,
+      "crew": 53.165025,
+      "penalty": 0.0,
+      "crew_share_pct": 82.28891226499292,
+      "launches": 5,
+      "transit_h": 0.324975,
+      "duration_h": 3.8165
+    },
+    "C10grid": {
+      "wear": 36.3074,
+      "crew": 139.25265,
+      "penalty": 85.5929625,
+      "crew_share_pct": 53.32224532542966,
+      "launches": 10,
+      "transit_h": 0.79585,
+      "duration_h": 10.92525
+    },
+    "C15scatter": {
+      "wear": 27.419787499999998,
+      "crew": 144.2443625,
+      "penalty": 55.1113875,
+      "crew_share_pct": 63.606667672433574,
+      "launches": 15,
+      "transit_h": 1.904225,
+      "duration_h": 9.924425
     }
   }
 }
