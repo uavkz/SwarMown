@@ -14,3 +14,7 @@ static/
 # Claude Code
 CLAUDE.md
 .claude/
+
+# paper sources stay out of the public repo
+experiments/paper/
+node_modules/
